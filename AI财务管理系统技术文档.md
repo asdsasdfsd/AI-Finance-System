@@ -19,7 +19,6 @@ AI财务管理系统是一个企业财务管理平台，可帮助企业自动化
     - Axios（HTTP客户端）
     - React Router（路由管理）
     - Redux（状态管理）
-    - Webpack/Vite（构建工具）
 - **后端**：
     - Spring Boot（Java）
     - Spring Security（认证与授权）
@@ -1083,6 +1082,7 @@ Strict-Transport-Security: max-age=31536000; includeSubDomains
 2. 限流计数器暴露为Prometheus指标
 3. 设置阈值触发告警通知
 4. 生成周期性安全报告
+
 ## 5. 前端组件设计
 
 ### 5.1 页面结构
