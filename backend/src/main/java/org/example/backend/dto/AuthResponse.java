@@ -3,7 +3,6 @@ package org.example.backend.dto;
 
 import lombok.Builder;
 import lombok.Data;
-import org.example.backend.model.User;
 
 @Data
 @Builder
@@ -12,4 +11,8 @@ public class AuthResponse {
     private String tokenType;
     private long expiresIn;
     private UserDTO user;
+    
+    // Flags for tracking auto-provisioning during SSO
+    private boolean newUserCreated;
+    private boolean newCompanyCreated;
 }
