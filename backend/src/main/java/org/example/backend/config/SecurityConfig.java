@@ -33,6 +33,7 @@ public class SecurityConfig {
             .authorizeHttpRequests()
             .requestMatchers("/api/auth/**").permitAll()
             .requestMatchers("/api/public/**").permitAll()
+            .requestMatchers("/api/sso/**").permitAll()
             .anyRequest().authenticated()
             .and()
             .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS)

@@ -1,7 +1,9 @@
 // frontend/src/services/authService.js
 import axios from 'axios';
 
-const API_URL = 'http://localhost:8080/api/auth/';
+// configure backend API url
+const API_BASE_URL = 'http://localhost:8085';
+const API_URL = `${API_BASE_URL}/api/auth/`;
 
 /**
  * Service for handling authentication-related API requests
@@ -72,6 +74,24 @@ const AuthService = {
   getSsoLoginUrl: async () => {
     const response = await axios.get(API_URL + 'sso/login-url');
     return response.data.url;
+  },
+  
+  /**
+   * Process SSO authentication with code received from Microsoft
+   * @param {string} code - Authorization code from Microsoft
+   * @param {string} state - State parameter for security validation
+   * @returns {Promise<Object>} Authentication response with token, user details and provisioning flags
+   */
+  processSsoLogin: async (code, state) => {
+    const response = await axios.post(API_URL + 'sso/login', null, {
+      params: { code, state }
+    });
+    
+    if (response.data.token) {
+      localStorage.setItem('user', JSON.stringify(response.data));
+    }
+    
+    return response.data;
   },
   
   /**

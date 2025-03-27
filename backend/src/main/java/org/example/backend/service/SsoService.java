@@ -1,6 +1,14 @@
 // backend/src/main/java/org/example/backend/service/SsoService.java
 package org.example.backend.service;
 
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+
 import org.example.backend.model.Company;
 import org.example.backend.model.Role;
 import org.example.backend.model.User;
@@ -18,9 +26,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
-
-import java.time.LocalDateTime;
-import java.util.*;
 
 @Service
 public class SsoService {
@@ -63,10 +68,11 @@ public class SsoService {
      *
      * @param code Authorization code from MS SSO
      * @param state State parameter for verification
+     * @param provisioningFlags Map to store flags indicating if new user/company was created
      * @return The authenticated User
      */
     @Transactional
-    public User processSsoLogin(String code, String state) {
+    public User processSsoLogin(String code, String state, Map<String, Boolean> provisioningFlags) {
         // Exchange authorization code for access token
         String accessToken = getAccessToken(code);
         
@@ -93,9 +99,22 @@ public class SsoService {
             }
             return user;
         } else {
-            // Provision new user
-            return provisionNewUser(externalId, email, name);
+            // Set flag indicating new user being created
+            provisioningFlags.put("newUserCreated", true);
+            
+            // Provision new user (and company if needed)
+            User newUser = provisionNewUser(externalId, email, name, userInfo, provisioningFlags);
+            return newUser;
         }
+    }
+    
+    /**
+     * Legacy method for compatibility with existing code
+     */
+    @Transactional
+    public User processSsoLogin(String code, String state) {
+        Map<String, Boolean> provisioningFlags = new HashMap<>();
+        return processSsoLogin(code, state, provisioningFlags);
     }
     
     /**
@@ -140,20 +159,22 @@ public class SsoService {
     
     /**
      * Provision a new user from SSO information
+     * Also creates company if needed
      * 
      * @param externalId External ID from SSO provider
      * @param email User email
      * @param fullName User full name
+     * @param userInfo Additional user information from Microsoft
+     * @param provisioningFlags Map to store flags indicating if new user/company was created
      * @return Newly created User
      */
-    private User provisionNewUser(String externalId, String email, String fullName) {
-        // Find company by email domain (simple approach)
+    private User provisionNewUser(String externalId, String email, String fullName, 
+            Map<String, Object> userInfo, Map<String, Boolean> provisioningFlags) {
+        // Extract domain from email
         String domain = email.substring(email.indexOf('@') + 1);
-        Optional<Company> company = companyRepository.findByEmailDomain(domain);
         
-        if (company.isEmpty()) {
-            throw new IllegalStateException("Cannot provision user: no company found for domain " + domain);
-        }
+        // Find company by email domain or create new one
+        Company company = findOrCreateCompany(domain, email, userInfo, provisioningFlags);
         
         // Generate username (email prefix)
         String username = email.substring(0, email.indexOf('@')) + "_sso";
@@ -162,9 +183,13 @@ public class SsoService {
             username = email.substring(0, email.indexOf('@')) + "_sso" + counter++;
         }
         
-        // Find default SSO user role
-        Role userRole = roleRepository.findByName("USER")
-                .orElseThrow(() -> new IllegalStateException("Default role not found"));
+        // Determine user role based on whether they created the company
+        boolean isNewCompany = provisioningFlags.getOrDefault("newCompanyCreated", false);
+        String roleName = isNewCompany ? "COMPANY_ADMIN" : "USER";
+        
+        // Find appropriate role
+        Role userRole = roleRepository.findByName(roleName)
+                .orElseThrow(() -> new IllegalStateException(roleName + " role not found"));
         
         // Create new user
         User user = new User();
@@ -174,16 +199,90 @@ public class SsoService {
         user.setFullName(fullName);
         // Generate a random secure password that won't be used (SSO login only)
         user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
-        user.setCompany(company.get());
+        user.setCompany(company);
         user.setEnabled(true);
-        user.setCreatedAt(LocalDateTime.now());
-        user.setUpdatedAt(LocalDateTime.now());
         
         Set<Role> roles = new HashSet<>();
         roles.add(userRole);
         user.setRoles(roles);
         
         return userRepository.save(user);
+    }
+    
+    /**
+     * Legacy method for compatibility with existing code
+     */
+    private User provisionNewUser(String externalId, String email, String fullName, Map<String, Object> userInfo) {
+        Map<String, Boolean> provisioningFlags = new HashMap<>();
+        return provisionNewUser(externalId, email, fullName, userInfo, provisioningFlags);
+    }
+    
+    /**
+     * Find existing company by domain or create a new one
+     * 
+     * @param domain Email domain
+     * @param email User email
+     * @param userInfo Additional user information from Microsoft
+     * @param provisioningFlags Map to store flags indicating if new company was created
+     * @return Existing or newly created company
+     */
+    private Company findOrCreateCompany(String domain, String email, Map<String, Object> userInfo,
+            Map<String, Boolean> provisioningFlags) {
+        // Try to find existing company by email domain
+        Optional<Company> existingCompany = companyRepository.findByEmailDomain(domain);
+        
+        if (existingCompany.isPresent()) {
+            return existingCompany.get();
+        }
+        
+        // Try to find by website domain as fallback
+        existingCompany = companyRepository.findByWebsiteDomain(domain);
+        
+        if (existingCompany.isPresent()) {
+            return existingCompany.get();
+        }
+        
+        // Set flag indicating new company being created
+        provisioningFlags.put("newCompanyCreated", true);
+        
+        // Create new company
+        Company newCompany = new Company();
+        
+        // Try to get organization name from Microsoft claims
+        String companyName = domain;
+        if (userInfo.containsKey("organization") && userInfo.get("organization") instanceof String) {
+            companyName = (String) userInfo.get("organization");
+        } else if (userInfo.containsKey("tenant") && userInfo.get("tenant") instanceof Map) {
+            Map<String, Object> tenant = (Map<String, Object>) userInfo.get("tenant");
+            if (tenant.containsKey("name")) {
+                companyName = (String) tenant.get("name");
+            }
+        }
+        
+        // Set company properties
+        newCompany.setCompanyName(companyName);
+        newCompany.setEmail(email);
+        newCompany.setAddress("Auto-provisioned");
+        newCompany.setCity("Auto-provisioned");
+        newCompany.setStateProvince("Auto-provisioned");
+        newCompany.setPostalCode("00000");
+        newCompany.setRegistrationNumber("AUTO-" + UUID.randomUUID().toString().substring(0, 8));
+        newCompany.setTaxId("AUTO-" + UUID.randomUUID().toString().substring(0, 8));
+        newCompany.setDefaultCurrency("USD");
+        newCompany.setWebsite("https://" + domain);
+        newCompany.setCreatedAt(LocalDateTime.now().toString());
+        newCompany.setUpdatedAt(LocalDateTime.now().toString());
+        newCompany.setStatus("ACTIVE");
+        
+        return companyRepository.save(newCompany);
+    }
+    
+    /**
+     * Legacy method for compatibility with existing code
+     */
+    private Company findOrCreateCompany(String domain, String email, Map<String, Object> userInfo) {
+        Map<String, Boolean> provisioningFlags = new HashMap<>();
+        return findOrCreateCompany(domain, email, userInfo, provisioningFlags);
     }
 
     /**

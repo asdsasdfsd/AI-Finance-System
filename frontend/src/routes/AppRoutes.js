@@ -6,6 +6,7 @@ import Register from '../views/Register';
 import RegisterCompany from '../views/RegisterCompany';
 import Dashboard from '../views/dashboard';
 import SsoCallback from '../views/SsoCallback';
+import ProfileCompletion from '../views/ProfileCompletion';
 import AuthService from '../services/authService';
 
 // Protected route component
@@ -26,6 +27,12 @@ const AppRoutes = () => (
       <Route path="/register" element={<Register />} />
       <Route path="/register-company" element={<RegisterCompany />} />
       <Route path="/api/auth/sso/callback" element={<SsoCallback />} />
+      <Route path="/api/sso/callback" element={<SsoCallback />} />
+      <Route path="/profile-completion" element={
+        <ProtectedRoute>
+          <ProfileCompletion />
+        </ProtectedRoute>
+      } />
       <Route 
         path="/dashboard/*" 
         element={
@@ -35,6 +42,7 @@ const AppRoutes = () => (
         } 
       />
       <Route path="*" element={<Navigate to="/" replace />} />
+      
     </Routes>
   </Router>
 );

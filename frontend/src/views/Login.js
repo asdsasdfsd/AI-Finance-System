@@ -4,6 +4,7 @@ import { Form, Input, Button, Tabs, Checkbox, Typography, Divider, message } fro
 import { useNavigate } from 'react-router-dom';
 import AuthService from '../services/authService';
 import '../assets/styles/Login.css';
+import axios from 'axios';
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
@@ -28,10 +29,22 @@ const Login = () => {
 
   const handleSSOLogin = async () => {
     try {
+      setLoading(true);
+      
+      // use AuthService to get SSO login URL
       const ssoUrl = await AuthService.getSsoLoginUrl();
       window.location.href = ssoUrl;
     } catch (error) {
-      message.error('Failed to initiate SSO login');
+      console.error('SSO Login Error:', error);
+      
+      // check error message
+      const errorMsg = error.response?.data?.message || 
+                     error.response?.data?.error || 
+                     'Microsoft Login Init Failure';
+                     
+      message.error(errorMsg);
+    } finally {
+      setLoading(false);
     }
   };
 
