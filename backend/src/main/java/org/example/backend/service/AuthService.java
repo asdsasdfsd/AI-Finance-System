@@ -24,7 +24,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -162,9 +164,18 @@ public class AuthService {
         return mapUserToDTO(savedUser);
     }
 
+/**
+     * Authenticate user with Microsoft SSO
+     * Supports auto-provisioning of users and companies
+     * 
+     * @param code Authorization code from Microsoft
+     * @param state State parameter for security validation
+     * @return Authentication response with token and user info
+     */
     public AuthResponse authenticateWithSso(String code, String state) {
-        // Process SSO authentication
-        User user = ssoService.processSsoLogin(code, state);
+        // Process SSO authentication with flags for new user/company
+        Map<String, Boolean> provisioningFlags = new HashMap<>();
+        User user = ssoService.processSsoLogin(code, state, provisioningFlags);
         
         // Generate JWT token
         final UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
@@ -175,7 +186,13 @@ public class AuthService {
         userRepository.save(user);
         
         // Build response DTO
-        return buildAuthResponse(token, user, userDetails);
+        AuthResponse response = buildAuthResponse(token, user, userDetails);
+        
+        // Add provisioning flags to response
+        response.setNewUserCreated(provisioningFlags.getOrDefault("newUserCreated", false));
+        response.setNewCompanyCreated(provisioningFlags.getOrDefault("newCompanyCreated", false));
+        
+        return response;
     }
 
     public void logout(String token) {

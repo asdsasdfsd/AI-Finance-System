@@ -1,7 +1,8 @@
 // frontend/src/services/companyService.js
 import axios from 'axios';
 
-const API_URL = 'http://localhost:8080/api/companies/';
+const API_BASE_URL = 'http://localhost:8085';
+const API_URL = `${API_BASE_URL}/api/companies/`;
 
 /**
  * Service for handling company-related API requests
