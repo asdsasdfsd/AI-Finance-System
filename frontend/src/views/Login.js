@@ -1,63 +1,120 @@
-import React from 'react';
-import { Form, Input, Button, Tabs, Checkbox, Typography, Divider } from 'antd';
+// frontend/src/views/Login.js
+import React, { useState } from 'react';
+import { Form, Input, Button, Tabs, Checkbox, Typography, Divider, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
+import AuthService from '../services/authService';
 import '../assets/styles/Login.css';
 
 const { Title, Text } = Typography;
+const { TabPane } = Tabs;
 
 const Login = () => {
-
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const onFinish = (values) => {
-    console.log('登录信息:', values);
-    //如果验证成功
-    navigate('/dashboard');
+  const onFinish = async (values) => {
+    try {
+      setLoading(true);
+      await AuthService.login(values.username, values.password, values.remember);
+      message.success('Login successful');
+      navigate('/dashboard');
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || 'Login failed. Please check your credentials.';
+      message.error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSSOLogin = () => {
-    window.location.href = 'https://sso.example.com/login?redirect_uri=http://localhost:3000/dashboard';
+  const handleSSOLogin = async () => {
+    try {
+      const ssoUrl = await AuthService.getSsoLoginUrl();
+      window.location.href = ssoUrl;
+    } catch (error) {
+      message.error('Failed to initiate SSO login');
+    }
+  };
+
+  const handleRegisterClick = () => {
+    navigate('/register');
+  };
+
+  const handleCompanyRegisterClick = () => {
+    navigate('/register-company');
   };
 
   return (
     <div className="login-container">
       <div className="login-form-box">
         <Title level={3} style={{ textAlign: 'center', marginBottom: 32 }}>
-          欢迎登录 AI 财务管理系统
+          Welcome to AI Financial Management System
         </Title>
 
         <Tabs defaultActiveKey="1" centered>
-          <Tabs.TabPane tab="账号密码登录" key="1">
-          <Text type="secondary">（这下面是表单样例，可以替换）</Text>
+          <TabPane tab="Login with Username" key="1">
             <Form name="login" onFinish={onFinish} layout="vertical">
-              <Form.Item name="username" label="用户名" rules={[{ required: true, message: '请输入用户名' }]}>
-                <Input placeholder="请输入用户名" />
+              <Form.Item name="username" label="Username" rules={[{ required: true, message: 'Please enter your username' }]}>
+                <Input placeholder="Username" />
               </Form.Item>
-              <Form.Item name="password" label="密码" rules={[{ required: true, message: '请输入密码' }]}>
-                <Input.Password placeholder="请输入密码" />
+              <Form.Item name="password" label="Password" rules={[{ required: true, message: 'Please enter your password' }]}>
+                <Input.Password placeholder="Password" />
+              </Form.Item>
+              <Form.Item name="remember" valuePropName="checked">
+                <Checkbox>Remember me</Checkbox>
+                <a style={{ float: 'right' }} href="/forgot-password">
+                  Forgot password
+                </a>
               </Form.Item>
               <Form.Item>
-                <Checkbox>自动登录</Checkbox>
-                <a style={{ float: 'right' }}>忘记密码</a>
-              </Form.Item>
-              <Form.Item>
-                <Button type="primary" htmlType="submit" block>
-                  登录
+                <Button type="primary" htmlType="submit" block loading={loading}>
+                  Login
                 </Button>
               </Form.Item>
             </Form>
-          </Tabs.TabPane>
+          </TabPane>
 
-          <Tabs.TabPane tab="手机号登录" key="2">
-            <Text type="secondary">（这里你可以添加手机号 + 验证码的表单）</Text>
-          </Tabs.TabPane>
+          <TabPane tab="Login with Email" key="2">
+            <Form name="email-login" layout="vertical">
+              <Form.Item name="email" label="Email" rules={[
+                { required: true, message: 'Please enter your email' },
+                { type: 'email', message: 'Please enter a valid email' }
+              ]}>
+                <Input placeholder="Email" />
+              </Form.Item>
+              <Form.Item name="password" label="Password" rules={[{ required: true, message: 'Please enter your password' }]}>
+                <Input.Password placeholder="Password" />
+              </Form.Item>
+              <Form.Item>
+                <Button type="primary" htmlType="submit" block>
+                  Login
+                </Button>
+              </Form.Item>
+            </Form>
+          </TabPane>
         </Tabs>
 
-        <Divider plain className="custom-divider"></Divider>
+        <Divider plain className="custom-divider">Or</Divider>
 
-        <Button type="default" block onClick={handleSSOLogin}>
-          使用公司账号（SSO）登录
+        <Button 
+          type="default" 
+          block 
+          onClick={handleSSOLogin}
+          style={{ marginBottom: '10px' }}
+        >
+          Login with Microsoft SSO
         </Button>
+        
+        <div style={{ marginTop: '20px', textAlign: 'center' }}>
+          <Text>Don't have an account?</Text>
+          <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'space-between' }}>
+            <Button type="link" onClick={handleRegisterClick}>
+              Register as User
+            </Button>
+            <Button type="link" onClick={handleCompanyRegisterClick}>
+              Register Company
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   );
