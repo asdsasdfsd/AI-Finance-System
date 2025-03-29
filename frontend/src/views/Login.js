@@ -1,5 +1,5 @@
 // frontend/src/views/Login.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Form, Input, Button, Tabs, Checkbox, Typography, Divider, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import AuthService from '../services/authService';
@@ -12,6 +12,26 @@ const { TabPane } = Tabs;
 const Login = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  // Check if user is already logged in
+  useEffect(() => {
+    // Clear any stale tokens or errors from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasError = urlParams.has('error') || urlParams.has('error_description');
+    
+    if (hasError) {
+      // If there are error parameters in the URL, clear them by navigating to clean login page
+      navigate('/');
+      return;
+    }
+    
+    // Check for valid login
+    const currentUser = AuthService.getCurrentUser();
+    if (currentUser) {
+      // If user already has valid token, redirect to dashboard
+      navigate('/dashboard');
+    }
+  }, [navigate]);
 
   const onFinish = async (values) => {
     try {
