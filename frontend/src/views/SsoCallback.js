@@ -19,6 +19,9 @@ const SsoCallback = () => {
   const location = useLocation();
 
   useEffect(() => {
+    // Clear any existing tokens first
+    localStorage.removeItem('user');
+    
     const authenticateWithSso = async () => {
       try {
         // Get code and state from URL query parameters
@@ -56,6 +59,7 @@ const SsoCallback = () => {
         }
       } catch (err) {
         console.error('Authentication error:', err);
+        // Extract error message from different possible locations
         const errorMsg = err.response?.data?.error?.message || 
                         err.response?.data?.message || 
                         err.message || 
@@ -68,7 +72,7 @@ const SsoCallback = () => {
     };
 
     authenticateWithSso();
-  }, [location, navigate, newUserCreated, newCompanyCreated]);
+  }, []);
 
   // Show success message with info about auto-provisioning
   if (!loading && !error && (newUserCreated || newCompanyCreated)) {

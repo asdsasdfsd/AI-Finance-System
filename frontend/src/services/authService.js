@@ -24,7 +24,15 @@ const AuthService = {
     });
     
     if (response.data.token) {
-      localStorage.setItem('user', JSON.stringify(response.data));
+      // Store login timestamp for token expiration check
+      const userData = {
+        ...response.data,
+        issuedAt: new Date().toISOString(), // Store token issue time
+      };
+      localStorage.setItem('user', JSON.stringify(userData));
+      
+      // Set up axios with authentication header
+      AuthService.setupAxiosInterceptors(response.data.token);
     }
     
     return response.data;
@@ -52,19 +60,67 @@ const AuthService = {
   
   /**
    * Log out the current user
+   * Makes API call to invalidate token server-side and removes user from localStorage
    */
-  logout: () => {
-    // We could also call the logout API endpoint here if needed
-    localStorage.removeItem('user');
+  logout: async () => {
+    try {
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        if (user.token) {
+          // Send logout request to server to invalidate token
+          await axios.post(API_URL + 'logout', {}, {
+            headers: {
+              Authorization: `Bearer ${user.token}`
+            }
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      // Remove user from localStorage regardless of API success
+      localStorage.removeItem('user');
+    }
+  },
+  
+  /**
+   * Check if token is expired
+   * @returns {boolean} True if expired, false otherwise
+   */
+  isTokenExpired: () => {
+    const user = AuthService.getCurrentUser();
+    if (!user || !user.token) return true;
+    
+    const tokenExpTime = user.expiresIn * 1000; // Convert to milliseconds
+    const issuedAt = new Date(user.issuedAt || Date.now());
+    const expirationTime = new Date(issuedAt.getTime() + tokenExpTime);
+    
+    return Date.now() > expirationTime;
   },
   
   /**
    * Get the current authenticated user from local storage
-   * @returns {Object|null} Current user or null if not logged in
+   * @returns {Object|null} Current user or null if not logged in or token expired
    */
   getCurrentUser: () => {
     const userStr = localStorage.getItem('user');
-    return userStr ? JSON.parse(userStr) : null;
+    if (!userStr) return null;
+    
+    const user = JSON.parse(userStr);
+    
+    // Check if token is expired
+    const tokenExpTime = user.expiresIn * 1000; // Convert to milliseconds
+    const issuedAt = new Date(user.issuedAt || Date.now());
+    const expirationTime = new Date(issuedAt.getTime() + tokenExpTime);
+    
+    if (Date.now() > expirationTime) {
+      // Token expired, clean up localStorage
+      localStorage.removeItem('user');
+      return null;
+    }
+    
+    return user;
   },
   
   /**
@@ -83,15 +139,33 @@ const AuthService = {
    * @returns {Promise<Object>} Authentication response with token, user details and provisioning flags
    */
   processSsoLogin: async (code, state) => {
-    const response = await axios.post(API_URL + 'sso/login', null, {
-      params: { code, state }
-    });
+    // Clear any existing token before making the request
+    localStorage.removeItem('user');
     
-    if (response.data.token) {
-      localStorage.setItem('user', JSON.stringify(response.data));
+    try {
+      const response = await axios.post(API_URL + 'sso/login', null, {
+        params: { code, state }
+      });
+      
+      if (response.data.token) {
+        // Store login timestamp for token expiration check
+        const userData = {
+          ...response.data,
+          issuedAt: new Date().toISOString(),
+        };
+        localStorage.setItem('user', JSON.stringify(userData));
+        
+        // Set up axios with authentication header
+        AuthService.setupAxiosInterceptors(response.data.token);
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.error('SSO Login Error:', error);
+      // If there's an error, make sure we don't have any stale auth data
+      localStorage.removeItem('user');
+      throw error;
     }
-    
-    return response.data;
   },
   
   /**
@@ -110,7 +184,29 @@ const AuthService = {
         return Promise.reject(error);
       }
     );
+    
+    // Add response interceptor to handle 401 Unauthorized errors
+    axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response && error.response.status === 401) {
+          // If we receive a 401, clear the user session
+          localStorage.removeItem('user');
+          window.location.href = '/'; // Redirect to login page
+        }
+        return Promise.reject(error);
+      }
+    );
   }
 };
+
+// Setup axios interceptor with the token from localStorage
+const userStr = localStorage.getItem('user');
+if (userStr) {
+  const user = JSON.parse(userStr);
+  if (user && user.token) {
+    AuthService.setupAxiosInterceptors(user.token);
+  }
+}
 
 export default AuthService;
