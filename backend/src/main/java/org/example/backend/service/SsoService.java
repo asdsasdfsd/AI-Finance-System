@@ -15,6 +15,7 @@ import org.example.backend.model.User;
 import org.example.backend.repository.CompanyRepository;
 import org.example.backend.repository.RoleRepository;
 import org.example.backend.repository.UserRepository;
+import org.example.backend.exception.UnauthorizedException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -62,27 +63,48 @@ public class SsoService {
         this.restTemplate = new RestTemplate();
     }
 
-    /**
-     * Process SSO login by exchanging authorization code for access token,
-     * then retrieving user information and either logging in or provisioning a new user
-     *
-     * @param code Authorization code from MS SSO
-     * @param state State parameter for verification
-     * @param provisioningFlags Map to store flags indicating if new user/company was created
-     * @return The authenticated User
-     */
-    @Transactional
-    public User processSsoLogin(String code, String state, Map<String, Boolean> provisioningFlags) {
+/**
+ * Process SSO login by exchanging authorization code for access token,
+ * then retrieving user information and either logging in or provisioning a new user
+ *
+ * @param code Authorization code from MS SSO
+ * @param state State parameter for verification
+ * @param provisioningFlags Map to store flags indicating if new user/company was created
+ * @return The authenticated User
+ */
+@Transactional
+public User processSsoLogin(String code, String state, Map<String, Boolean> provisioningFlags) {
+    try {
         // Exchange authorization code for access token
         String accessToken = getAccessToken(code);
         
         // Get user info from Microsoft
         Map<String, Object> userInfo = getUserInfo(accessToken);
         
+        // Debug log - print full user info for troubleshooting
+        System.out.println("Microsoft SSO User Info: " + userInfo);
+        
         // Process user information
         String externalId = (String) userInfo.get("sub");
         String email = (String) userInfo.get("email");
         String name = (String) userInfo.get("name");
+        
+        // Check account type in a more robust way
+        if (userInfo.containsKey("tid")) {
+            // 'tid' Indicates the tenant ID
+            String tenantId = (String) userInfo.get("tid");
+            System.out.println("Microsoft Tenant ID: " + tenantId);
+            
+            // 9188040d-6c67-4c5b-b112-36a304b66dad is Microsoft's personal account tenant ID
+            if ("9188040d-6c67-4c5b-b112-36a304b66dad".equals(tenantId)) {
+                System.out.println("Personal Microsoft account detected: " + email);
+                throw new UnauthorizedException("Please use your organisation's Microsoft account to log in instead of personal account.");
+            }
+        } else {
+            // If we can still identify the user with sub/email but don't have tenant info
+            // Let's allow login but log the issue
+            System.out.println("Warning: Could not find tenant ID in Microsoft response, but continuing with login. User: " + email);
+        }
         
         // Check if user exists
         Optional<User> existingUser = userRepository.findByExternalId(externalId);
@@ -91,9 +113,13 @@ public class SsoService {
             // Update existing user if needed
             User user = existingUser.get();
             // Update information if changed
-            if (!user.getEmail().equals(email) || !user.getFullName().equals(name)) {
+            boolean emailChanged = !email.equals(user.getEmail());
+            boolean nameChanged = (name != null && !name.equals(user.getFullName())) || 
+                                  (name == null && user.getFullName() != null);
+            
+            if (emailChanged || nameChanged) {
                 user.setEmail(email);
-                user.setFullName(name);
+                user.setFullName(name); 
                 user.setUpdatedAt(LocalDateTime.now());
                 user = userRepository.save(user);
             }
@@ -106,8 +132,16 @@ public class SsoService {
             User newUser = provisionNewUser(externalId, email, name, userInfo, provisioningFlags);
             return newUser;
         }
+    } catch (UnauthorizedException e) {
+        // Just rethrow these as they're already formatted properly
+        throw e;
+    } catch (Exception e) {
+        // Log the full exception for troubleshooting
+        System.err.println("Error in SSO login process: " + e.getMessage());
+        e.printStackTrace();
+        throw new UnauthorizedException("SSO authentication failed: " + e.getMessage());
     }
-    
+}
     /**
      * Legacy method for compatibility with existing code
      */
