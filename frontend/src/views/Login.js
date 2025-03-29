@@ -4,7 +4,8 @@ import { Form, Input, Button, Tabs, Checkbox, Typography, Divider, message } fro
 import { useNavigate } from 'react-router-dom';
 import AuthService from '../services/authService';
 import '../assets/styles/Login.css';
-import axios from 'axios';
+// Remove unused import
+// import axios from 'axios';
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;

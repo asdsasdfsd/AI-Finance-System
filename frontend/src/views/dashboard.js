@@ -1,6 +1,6 @@
 // frontend/src/views/dashboard.js
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, Button, Dropdown, Avatar } from 'antd';
+import { Layout, Menu, Dropdown, Avatar } from 'antd';
 import {
   HomeOutlined,
   PieChartOutlined,
