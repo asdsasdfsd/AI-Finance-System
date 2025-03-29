@@ -17,6 +17,9 @@ const AuthService = {
    * @returns {Promise<Object>} Authentication response containing token and user details
    */
   login: async (username, password, rememberMe = false) => {
+    // Clear any existing tokens first
+    localStorage.removeItem('user');
+    
     const response = await axios.post(API_URL + 'login', {
       username,
       password,
@@ -139,14 +142,16 @@ const AuthService = {
    * @returns {Promise<Object>} Authentication response with token, user details and provisioning flags
    */
   processSsoLogin: async (code, state) => {
-    // Clear any existing token before making the request
+    // Clear any existing tokens before making the request
     localStorage.removeItem('user');
     
     try {
+      console.log('Processing SSO login with code:', code, 'state:', state);
       const response = await axios.post(API_URL + 'sso/login', null, {
         params: { code, state }
       });
       
+      console.log('SSO login response:', response.data);
       if (response.data.token) {
         // Store login timestamp for token expiration check
         const userData = {
@@ -173,6 +178,10 @@ const AuthService = {
    * @param {string} token - JWT token
    */
   setupAxiosInterceptors: (token) => {
+    // Clear any existing interceptors
+    axios.interceptors.request.handlers = [];
+    axios.interceptors.response.handlers = [];
+    
     axios.interceptors.request.use(
       (config) => {
         if (token) {
@@ -201,12 +210,29 @@ const AuthService = {
 };
 
 // Setup axios interceptor with the token from localStorage
-const userStr = localStorage.getItem('user');
-if (userStr) {
-  const user = JSON.parse(userStr);
-  if (user && user.token) {
-    AuthService.setupAxiosInterceptors(user.token);
+(() => {
+  try {
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      if (user && user.token) {
+        // Check if token is expired before setting up interceptor
+        const tokenExpTime = user.expiresIn * 1000;
+        const issuedAt = new Date(user.issuedAt || Date.now());
+        const expirationTime = new Date(issuedAt.getTime() + tokenExpTime);
+        
+        if (Date.now() < expirationTime) {
+          AuthService.setupAxiosInterceptors(user.token);
+        } else {
+          // Token expired, clean up localStorage
+          localStorage.removeItem('user');
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error setting up auth interceptors:', error);
+    localStorage.removeItem('user');
   }
-}
+})();
 
 export default AuthService;

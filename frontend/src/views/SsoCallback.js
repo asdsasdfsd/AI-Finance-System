@@ -50,7 +50,7 @@ const SsoCallback = () => {
         message.success('SSO login successful');
         
         // Delayed navigation to show the user creation message if applicable
-        if (newUserCreated || newCompanyCreated) {
+        if (response.newUserCreated || response.newCompanyCreated) {
           setTimeout(() => {
             navigate('/dashboard');
           }, 3000);
@@ -72,7 +72,7 @@ const SsoCallback = () => {
     };
 
     authenticateWithSso();
-  }, []);
+  }, [navigate, location.search]); // Add required dependencies
 
   // Show success message with info about auto-provisioning
   if (!loading && !error && (newUserCreated || newCompanyCreated)) {

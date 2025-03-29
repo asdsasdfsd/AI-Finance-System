@@ -15,7 +15,6 @@ import AuthService from '../services/authService';
  * Also checks token expiration and logs out if token is expired
  */
 const ProtectedRoute = ({ children }) => {
-  const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState(true);
   
   useEffect(() => {
@@ -35,7 +34,7 @@ const ProtectedRoute = ({ children }) => {
     const interval = setInterval(checkAuth, 60000); // Check every minute
     
     return () => clearInterval(interval);
-  }, [navigate]);
+  }, []);
   
   if (!isAuthenticated) {
     return <Navigate to="/" replace />;
