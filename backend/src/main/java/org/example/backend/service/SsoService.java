@@ -304,8 +304,8 @@ public User processSsoLogin(String code, String state, Map<String, Boolean> prov
         newCompany.setTaxId("AUTO-" + UUID.randomUUID().toString().substring(0, 8));
         newCompany.setDefaultCurrency("USD");
         newCompany.setWebsite("https://" + domain);
-        newCompany.setCreatedAt(LocalDateTime.now().toString());
-        newCompany.setUpdatedAt(LocalDateTime.now().toString());
+        newCompany.setCreatedAt(LocalDateTime.now());
+        newCompany.setUpdatedAt(LocalDateTime.now());
         newCompany.setStatus("ACTIVE");
         
         return companyRepository.save(newCompany);

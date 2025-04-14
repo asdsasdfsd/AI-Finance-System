@@ -1,0 +1,17 @@
+// src/main/java/org/example/backend/repository/FixedAssetRepository.java
+package org.example.backend.repository;
+
+import org.example.backend.model.Company;
+import org.example.backend.model.Department;
+import org.example.backend.model.FixedAsset;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface FixedAssetRepository extends JpaRepository<FixedAsset, Integer> {
+    List<FixedAsset> findByCompany(Company company);
+    List<FixedAsset> findByDepartment(Department department);
+    List<FixedAsset> findByStatus(FixedAsset.AssetStatus status);
+}
