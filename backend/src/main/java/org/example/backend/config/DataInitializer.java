@@ -42,7 +42,7 @@ public class DataInitializer {
                 
                 // Save roles if they don't exist
                 for (Role role : defaultRoles) {
-                    if (roleRepository.findByName(role.getName()).isEmpty()) {
+                    if (roleRepository.findByName(role.getName()) == null) {
                         roleRepository.save(role);
                     }
                 }

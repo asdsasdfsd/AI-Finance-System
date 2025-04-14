@@ -1,68 +1,78 @@
-// backend/src/main/java/org/example/backend/model/User.java
+// src/main/java/org/example/backend/model/User.java
 package org.example.backend.model;
 
+import jakarta.persistence.*;
+import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.ManyToMany;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
-import lombok.Data;
-
 @Data
 @Entity
-@Table(name = "Users")
+@Table(name = "User")
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer userId;
-
-    @ManyToOne
-    @JoinColumn(name = "company_id")
-    private Company company;
-
-    private String fullName;
+    
     private String username;
     private String email;
     private String password;
-    private boolean enabled;
-    private String externalId; // For SSO identification
+    private String fullName;
+    private Boolean enabled;
+    private String externalId;
+    
+    @ManyToOne
+    @JoinColumn(name = "department_id")
+    private Department department;
+    
+    // add Company joint
+    @ManyToOne
+    @JoinColumn(name = "company_id")
+    private Company company;
+    
     private LocalDateTime lastLogin;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-
+    
+    // add User - Role joint
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
-        name = "user_roles",
+        name = "User_Role",
         joinColumns = @JoinColumn(name = "user_id"),
         inverseJoinColumns = @JoinColumn(name = "role_id")
     )
     private Set<Role> roles = new HashSet<>();
-    
-    /**
-     * Automatically set creation timestamp when entity is first persisted
-     */
-    @PrePersist
-    protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
+
+    // Default values for new fields
+    public User() {
+        this.enabled = true;
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
     }
     
-    /**
-     * Automatically update the timestamp when entity is updated
-     */
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
+    // Check if user is Enabled
+    public boolean isEnabled() {
+        return this.enabled != null && this.enabled;
+    }
+    
+    // Set Roles
+    public void setRoles(Set<Role> roles) {
+        this.roles = roles;
+    }
+    
+    // Get Roles
+    public Set<Role> getRoles() {
+        return this.roles;
+    }
+    
+    // Set Company
+    public void setCompany(Company company) {
+        this.company = company;
+    }
+    
+    // Get Company
+    public Company getCompany() {
+        return this.company;
     }
 }

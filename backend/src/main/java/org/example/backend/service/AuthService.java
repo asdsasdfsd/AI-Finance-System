@@ -134,8 +134,8 @@ public class AuthService {
         company.setEmail(request.getEmail());
         company.setRegistrationNumber(request.getRegistrationNumber());
         company.setTaxId(request.getTaxId());
-        company.setCreatedAt(LocalDateTime.now().toString());
-        company.setUpdatedAt(LocalDateTime.now().toString());
+        company.setCreatedAt(LocalDateTime.now());
+        company.setUpdatedAt(LocalDateTime.now());
         company.setStatus("ACTIVE");
         
         Company savedCompany = companyRepository.save(company);
