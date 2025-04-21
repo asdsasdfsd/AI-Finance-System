@@ -1,15 +1,18 @@
-// src/pages/Dashboard.jsx
-import React, { useState } from 'react';
-import { Layout, Menu } from 'antd';
+// frontend/src/views/dashboard.js
+import React, { useState, useEffect } from 'react';
+import { Layout, Menu, Dropdown, Avatar } from 'antd';
 import {
   HomeOutlined,
   PieChartOutlined,
   UserOutlined,
   SettingOutlined,
+  LogoutOutlined,
 } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
+import AuthService from '../services/authService';
 import '../assets/styles/Dashboard.css';
 
-// 引入内容组件
+// Import content components
 import DashboardHome from './Dashboard/DashboardHome';
 import DataManagement from './Dashboard/DataManagement';
 import AdminData from './Dashboard/AdminData';
@@ -19,6 +22,37 @@ const { Header, Sider, Content } = Layout;
 
 const Dashboard = () => {
   const [selectedKey, setSelectedKey] = useState('1');
+  const [currentUser, setCurrentUser] = useState(null);
+  const [collapsed, setCollapsed] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Get current user from local storage
+    const user = AuthService.getCurrentUser();
+    if (user) {
+      setCurrentUser(user);
+    } else {
+      // If no user found, redirect to login
+      navigate('/');
+    }
+  }, [navigate]);
+
+  const handleLogout = async () => {
+    await AuthService.logout();
+    navigate('/');
+  };
+
+  const userMenu = (
+    <Menu>
+      <Menu.Item key="profile" icon={<UserOutlined />}>
+        Profile
+      </Menu.Item>
+      <Menu.Divider />
+      <Menu.Item key="logout" icon={<LogoutOutlined />} onClick={handleLogout}>
+        Logout
+      </Menu.Item>
+    </Menu>
+  );
 
   const renderContent = () => {
     switch (selectedKey) {
@@ -37,8 +71,8 @@ const Dashboard = () => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider collapsible>
-        <div className="logo">账目管理系统</div>
+      <Sider collapsible collapsed={collapsed} onCollapse={setCollapsed}>
+        <div className="logo">财务管理系统</div>
         <Menu
           theme="dark"
           mode="inline"
@@ -61,7 +95,21 @@ const Dashboard = () => {
       </Sider>
 
       <Layout>
-        <Header className="dashboard-header">您好，管理员 👋</Header>
+        <Header className="dashboard-header">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: '100%' }}>
+            <span>Dashboard</span>
+            {currentUser && currentUser.user && (
+              <Dropdown overlay={userMenu} trigger={['click']}>
+                <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                  <Avatar icon={<UserOutlined />} style={{ marginRight: '8px', backgroundColor: '#1890ff' }} />
+                  <span style={{ marginRight: '8px', color: '#333' }}>
+                    Hi! {currentUser.user.username || currentUser.user.fullName}
+                  </span>
+                </div>
+              </Dropdown>
+            )}
+          </div>
+        </Header>
         <Content className="dashboard-content">
           {renderContent()}
         </Content>
