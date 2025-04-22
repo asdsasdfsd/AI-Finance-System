@@ -1,4 +1,4 @@
-FROM node:23-slim AS build
+FROM node:18 AS build
 WORKDIR /app
 COPY . .
 RUN npm install && npm run build
