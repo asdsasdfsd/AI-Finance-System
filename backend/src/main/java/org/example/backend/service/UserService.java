@@ -1,6 +1,11 @@
 // src/main/java/org/example/backend/service/UserService.java
 package org.example.backend.service;
 
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 import org.example.backend.model.Department;
 import org.example.backend.model.Role;
 import org.example.backend.model.User;
@@ -9,11 +14,7 @@ import org.example.backend.repository.UserRepository;
 import org.example.backend.repository.UserRoleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class UserService {
@@ -55,6 +56,7 @@ public class UserService {
         userRepository.deleteById(id);
     }
     
+    @Transactional
     public void assignRole(User user, String roleName) {
         Role role = roleService.findByName(roleName);
         if (role != null) {

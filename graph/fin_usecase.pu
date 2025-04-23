@@ -1,0 +1,59 @@
+@startuml AI Financial Management System Optimized Use Case Diagram
+
+left to right direction
+skinparam actorStyle awesome
+
+' Define actors
+actor "System Administrator" as ADMIN
+actor "Company Administrator" as COMPANY_ADMIN
+actor "Finance Manager" as FINANCE_MANAGER
+actor "Finance Operator" as FINANCE_OPERATOR
+actor "Report Viewer" as REPORT_VIEWER
+actor "Auditor" as AUDITOR
+
+' Core use case definitions
+usecase "User Authentication & Authorization" as UC1
+usecase "Organization Structure Management" as UC2
+usecase "Financial Base Data Maintenance" as UC3
+usecase "Transaction Processing" as UC4
+usecase "Intelligent Classification Processing" as UC5
+usecase "Accounting Processing" as UC6
+usecase "Asset Lifecycle Management" as UC7
+usecase "Financial Report Generation" as UC8
+usecase "Audit Tracking" as UC9
+usecase "System Configuration Management" as UC10
+
+' Actor-use case relationships
+ADMIN -- UC10
+ADMIN -- UC9
+ADMIN -- UC1
+
+COMPANY_ADMIN -- UC2
+COMPANY_ADMIN -- UC3
+COMPANY_ADMIN -- UC9
+
+FINANCE_MANAGER -- UC4
+FINANCE_MANAGER -- UC5
+FINANCE_MANAGER -- UC6
+FINANCE_MANAGER -- UC7
+FINANCE_MANAGER -- UC8
+
+FINANCE_OPERATOR -- UC4
+FINANCE_OPERATOR -- UC6
+
+REPORT_VIEWER -- UC8
+AUDITOR -- UC8
+AUDITOR -- UC9
+
+' Use case relationships optimization
+UC1 <.. UC2 : <<include>>
+UC1 <.. UC3 : <<include>>
+UC4 <.. UC5 : <<extend>>
+UC4 <.. UC6 : <<include>>
+UC7 <.. UC6 : <<include>>
+UC8 <.. UC4 : <<include>>
+UC8 <.. UC7 : <<include>>
+UC9 <.. UC4 : <<include>>
+UC9 <.. UC6 : <<include>>
+
+@enduml
