@@ -2,7 +2,10 @@
 package org.example.backend.model;
 
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -24,6 +27,7 @@ public class Role {
     private String description;
 
     // Bidirectional relationship
+    @JsonIgnore // Preventing loops in JSON serialization
     @ManyToMany(mappedBy = "roles")
     private Set<User> users = new HashSet<>();
     
@@ -37,5 +41,19 @@ public class Role {
             throw exceptionSupplier.get();
         }
         return this;
+    }
+
+    @Override
+    public int hashCode() {
+        // Use only role IDs and names, do not reference user collections
+        return Objects.hash(roleId, name);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        Role role = (Role) obj;
+        return Objects.equals(roleId, role.roleId);
     }
 }
