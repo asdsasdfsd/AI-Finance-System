@@ -1,6 +1,6 @@
-
 import React, { useState } from 'react';
 import ReactPaginate from 'react-paginate';
+import '../../assets/styles/DataManagement.css';
 
 const incomeData = [
     {
@@ -71,7 +71,6 @@ const incomeData = [
     }
 ];
 
-
 const balanceSheetData = [
     {
         item: 'General Fund Reserve',
@@ -84,10 +83,10 @@ const balanceSheetData = [
     {
         item: 'Other Funds',
         subItems: [
-            { subItem: 'C.O.M.E. Funds', amount: 104693.33, previousMonth: null, asAt31Dec24: null },
-            { subItem: 'Sinking Fund', amount: 1855.0, previousMonth: null, asAt31Dec24: null },
-            { subItem: 'Reno Cap Fund', amount: 74560.35, previousMonth: null, asAt31Dec24: null },
-            { subItem: 'FFE Cap Fund', amount: 75058.17, previousMonth: null, asAt31Dec24: null },
+            { subItem: 'C.O.M.E. Funds', amount: 104693.33 },
+            { subItem: 'Sinking Fund', amount: 1855.0 },
+            { subItem: 'Reno Cap Fund', amount: 74560.35 },
+            { subItem: 'FFE Cap Fund', amount: 75058.17 },
         ],
     },
     {
@@ -101,27 +100,27 @@ const balanceSheetData = [
     {
         item: 'Fixed Assets',
         subItems: [
-            { subItem: 'Plant & Equipment', amount: 354616.2, previousMonth: null, asAt31Dec24: null },
-            { subItem: 'Less Accumulated Depreciation', amount: -117837.93, previousMonth: null, asAt31Dec24: null },
+            { subItem: 'Plant & Equipment', amount: 354616.2 },
+            { subItem: 'Less Accumulated Depreciation', amount: -117837.93 },
         ],
     },
     {
         item: 'Current Assets',
         subItems: [
-            { subItem: 'Sundry Debtors', amount: 15030.77, previousMonth: null, asAt31Dec24: null },
-            { subItem: 'Deposits', amount: 80.0, previousMonth: null, asAt31Dec24: null },
-            { subItem: 'Prepayments', amount: 16537.69, previousMonth: null, asAt31Dec24: null },
-            { subItem: 'Fixed Deposit - HL Finance', amount: 836027.21, previousMonth: null, asAt31Dec24: null },
-            { subItem: 'Cash & Bank Balances - DBS Bank', amount: 394588.36, previousMonth: null, asAt31Dec24: null },
+            { subItem: 'Sundry Debtors', amount: 15030.77 },
+            { subItem: 'Deposits', amount: 80.0 },
+            { subItem: 'Prepayments', amount: 16537.69 },
+            { subItem: 'Fixed Deposit - HL Finance', amount: 836027.21 },
+            { subItem: 'Cash & Bank Balances - DBS Bank', amount: 394588.36 },
         ],
     },
     {
         item: 'Liabilities',
         subItems: [
-            { subItem: 'Sundry Creditors', amount: 1890.0, previousMonth: null, asAt31Dec24: null },
-            { subItem: 'Accruals', amount: 187535.6, previousMonth: null, asAt31Dec24: null },
-            { subItem: 'Contra', amount: 8778.28, previousMonth: null, asAt31Dec24: null },
-            { subItem: 'Advance Receipts', amount: 7158.0, previousMonth: null, asAt31Dec24: null },
+            { subItem: 'Sundry Creditors', amount: 1890.0 },
+            { subItem: 'Accruals', amount: 187535.6 },
+            { subItem: 'Contra', amount: 8778.28 },
+            { subItem: 'Advance Receipts', amount: 7158.0 },
         ],
     },
     {
@@ -133,7 +132,6 @@ const balanceSheetData = [
         total: 1293680.42,
     },
 ];
-
 
 const itemsPerPage = 5;
 
@@ -149,58 +147,63 @@ export default function FinancialDashboard() {
         setPageByView(prev => ({ ...prev, [view]: selectedItem.selected }));
     };
 
-    const pageCount = Math.ceil(incomeData.length / itemsPerPage);
+    const pageCount = view === 'income'
+        ? Math.ceil(incomeData.length / itemsPerPage)
+        : Math.ceil(balanceSheetData.length / itemsPerPage);
+
     const currentPage = pageByView[view];
-    const currentData = incomeData.slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage);
+    const currentData = view === 'income'
+        ? incomeData.slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage)
+        : balanceSheetData.slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage);
 
     return (
         <div className="p-6">
-            <div className="mb-6 flex items-center justify-between">
-                <div className="flex gap-4">
-                    <button
-                        className={`px-5 py-2 text-sm rounded-full transition-all duration-300 ${view === 'income' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-700'}`}
-                        onClick={() => handleViewChange('income')}
-                    >
-                        Income Report
-                    </button>
-                    <button
-                        className={`px-5 py-2 text-sm rounded-full transition-all duration-300 ${view === 'balance' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-700'}`}
-                        onClick={() => handleViewChange('balance')}
-                    >
-                        Balance Sheet
-                    </button>
-                </div>
-
-                <div className="flex gap-3">
-                    <button
-                        className="px-4 py-2 bg-green-500 text-white rounded-full hover:bg-green-600 transition-all text-sm"
-                        onClick={() => console.log('Data Analysis clicked')}
-                    >
-                        Data Analysis
-                    </button>
-                    <button
-                        className="px-4 py-2 bg-indigo-500 text-white rounded-full hover:bg-indigo-600 transition-all text-sm"
-                        onClick={() => console.log('Report Export clicked')}
-                    >
-                        Report Export
-                    </button>
-                </div>
+            {/* Header Buttons */}
+            <div className="flex gap-4">
+                <button
+                    className={`custom-button ${view === 'income' ? 'active' : 'inactive'}`}
+                    onClick={() => handleViewChange('income')}
+                >
+                    Income Report
+                </button>
+                <button
+                    className={`custom-button ${view === 'balance' ? 'active' : 'inactive'}`}
+                    onClick={() => handleViewChange('balance')}
+                >
+                    Balance Sheet
+                </button>
             </div>
 
-            {view === 'income' && (
+            <div className="flex gap-3 ml-auto">
+                <button
+                    className="custom-button"
+                    onClick={() => console.log('Data Analysis clicked')}
+                >
+                    Data Analysis
+                </button>
+                <button
+                    className="custom-button"
+                    onClick={() => console.log('Report Export clicked')}
+                >
+                    Report Export
+                </button>
+            </div>
+
+            {/* Table Content */}
+            {view === 'income' ? (
                 <div className="overflow-x-auto">
-                    <table className="min-w-full border border-gray-300 rounded-lg">
+                    <table className="min-w-full border border-gray-300 rounded-lg text-lg">
                         <thead className="bg-blue-100 text-gray-700">
                             <tr>
-                                <th className="border px-4 py-2">Item</th>
-                                <th className="border px-4 py-2">Current Month</th>
-                                <th className="border px-4 py-2">Previous Month</th>
-                                <th className="border px-4 py-2">Year To Date</th>
-                                <th className="border px-4 py-2">Recovery from JACM</th>
-                                <th className="border px-4 py-2">Actual YTD</th>
-                                <th className="border px-4 py-2">Budget YTD</th>
-                                <th className="border px-4 py-2">Variance</th>
-                                <th className="border px-4 py-2">Full Year Budget</th>
+                                <th className="border px-6 py-4">Item</th>
+                                <th className="border px-6 py-4">Current Month</th>
+                                <th className="border px-6 py-4">Previous Month</th>
+                                <th className="border px-6 py-4">Year To Date</th>
+                                <th className="border px-6 py-4">Recovery from JACM</th>
+                                <th className="border px-6 py-4">Actual YTD</th>
+                                <th className="border px-6 py-4">Budget YTD</th>
+                                <th className="border px-6 py-4">Variance</th>
+                                <th className="border px-6 py-4">Full Year Budget</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -211,80 +214,76 @@ export default function FinancialDashboard() {
                             ) : (
                                 currentData.map(row => (
                                     <tr key={row.item} className="hover:bg-gray-50 transition">
-                                        <td className="border px-4 py-2">{row.item}</td>
-                                        <td className="border px-4 py-2">{row.currentMonth.toLocaleString()}</td>
-                                        <td className="border px-4 py-2">{row.previousMonth ? row.previousMonth.toLocaleString() : '-'}</td>
-                                        <td className="border px-4 py-2">{row.yearToDate.toLocaleString()}</td>
-                                        <td className="border px-4 py-2">{row.recoveryFromJACM ? row.recoveryFromJACM.toLocaleString() : '-'}</td>
-                                        <td className="border px-4 py-2">{row.actualYTD.toLocaleString()}</td>
-                                        <td className="border px-4 py-2">{row.budgetYTD.toLocaleString()}</td>
-                                        <td className={`border px-4 py-2 ${row.variance < 0 ? 'text-red-500' : 'text-green-600'}`}>
+                                        <td className="border px-6 py-4">{row.item}</td>
+                                        <td className="border px-6 py-4">{row.currentMonth.toLocaleString()}</td>
+                                        <td className="border px-6 py-4">{row.previousMonth ? row.previousMonth.toLocaleString() : '-'}</td>
+                                        <td className="border px-6 py-4">{row.yearToDate.toLocaleString()}</td>
+                                        <td className="border px-6 py-4">{row.recoveryFromJACM ? row.recoveryFromJACM.toLocaleString() : '-'}</td>
+                                        <td className="border px-6 py-4">{row.actualYTD.toLocaleString()}</td>
+                                        <td className="border px-6 py-4">{row.budgetYTD.toLocaleString()}</td>
+                                        <td className={`border px-6 py-4 ${row.variance < 0 ? 'text-red-500' : 'text-green-600'}`}>
                                             {row.variance.toLocaleString()}
                                         </td>
-                                        <td className="border px-4 py-2">{row.fullYearBudget.toLocaleString()}</td>
+                                        <td className="border px-6 py-4">{row.fullYearBudget.toLocaleString()}</td>
                                     </tr>
                                 ))
                             )}
                         </tbody>
                     </table>
-                    <div className="mt-6 flex justify-center">
-                        <ReactPaginate
-                            previousLabel="← Prev"
-                            nextLabel="Next →"
-                            pageCount={pageCount}
-                            onPageChange={handlePageClick}
-                            forcePage={currentPage}
-                            containerClassName="flex gap-2"
-                            pageClassName="px-3 py-1 border rounded-md bg-white text-gray-800 hover:bg-blue-100"
-                            activeClassName="bg-blue-600 text-white font-bold"
-                            previousClassName="px-3 py-1 border rounded-md bg-gray-100"
-                            nextClassName="px-3 py-1 border rounded-md bg-gray-100"
-                            disabledClassName="opacity-50 cursor-not-allowed"
-                        />
-                    </div>
                 </div>
-            )}
-
-            {view === 'balance' && (
+            ) : (
                 <div className="overflow-x-auto">
-                    <table className="min-w-full border border-gray-300 rounded-lg">
+                    <table className="min-w-full border border-gray-300 rounded-lg text-lg">
                         <thead className="bg-blue-100 text-gray-700">
                             <tr>
-                                <th className="border px-4 py-2">Item</th>
-                                <th className="border px-4 py-2">Current Month</th>
-                                <th className="border px-4 py-2">Previous Month</th>
-                                <th className="border px-4 py-2">31-Dec-24</th>
+                                <th className="border px-6 py-4">Item</th>
+                                <th className="border px-6 py-4">Amount</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {balanceSheetData.map((row, index) => (
-                                <React.Fragment key={index}>
-                                    <tr>
-                                        <td colSpan={4} className="bg-blue-200 text-lg font-semibold px-4 py-2">{row.item}</td>
-                                    </tr>
-                                    {row.subItems ? (
-                                        row.subItems.map((subRow, subIndex) => (
-                                            <tr key={subIndex}>
-                                                <td className="border px-4 py-2">{subRow.subItem}</td>
-                                                <td className="border px-4 py-2">{subRow.amount.toLocaleString()}</td>
-                                                <td className="border px-4 py-2">-</td>
-                                                <td className="border px-4 py-2">-</td>
-                                            </tr>
-                                        ))
-                                    ) : (
-                                        <tr>
-                                            <td className="border px-4 py-2">{row.item}</td>
-                                            <td className="border px-4 py-2">{row.total.toLocaleString()}</td>
-                                            <td className="border px-4 py-2">-</td>
-                                            <td className="border px-4 py-2">-</td>
+                            {currentData.map((row, index) => (
+                                row.subItems ? (
+                                    <React.Fragment key={index}>
+                                        <tr className="bg-gray-100 font-semibold">
+                                            <td className="border px-6 py-4" colSpan={2}>{row.item}</td>
                                         </tr>
-                                    )}
-                                </React.Fragment>
+                                        {row.subItems.map((sub, subIndex) => (
+                                            <tr key={subIndex}>
+                                                <td className="border px-6 py-4 pl-8">{sub.subItem}</td>
+                                                <td className="border px-6 py-4">{sub.amount.toLocaleString()}</td>
+                                            </tr>
+                                        ))}
+                                    </React.Fragment>
+                                ) : (
+                                    <tr key={index}>
+                                        <td className="border px-6 py-4">{row.item}</td>
+                                        <td className="border px-6 py-4">{row.total?.toLocaleString() ?? '-'}</td>
+                                    </tr>
+                                )
                             ))}
                         </tbody>
                     </table>
                 </div>
             )}
+
+            {/* Pagination */}
+            <div className="flex justify-center mt-6">
+      <ReactPaginate
+        previousLabel={'<'}
+        nextLabel={'>'}
+        breakLabel={null} // 去掉省略号
+        pageCount={pageCount}
+        marginPagesDisplayed={1}
+        pageRangeDisplayed={3}
+        onPageChange={handlePageClick}
+        containerClassName="custom-pagination-container"
+        pageClassName="custom-page"
+        activeClassName="custom-active-page"
+        previousClassName="custom-prev-btn"
+        nextClassName="custom-next-btn"
+        disabledClassName="custom-disabled-btn"
+      />
+    </div>
         </div>
     );
 }

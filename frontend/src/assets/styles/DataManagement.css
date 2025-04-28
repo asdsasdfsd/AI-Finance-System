@@ -1,0 +1,152 @@
+/* General Styling */
+body {
+    font-family: 'Arial', sans-serif;
+    background-color: #f8f9fa;
+    color: #333;
+}
+
+/* Header Buttons */
+/* buttons.css */
+
+.custom-button {
+    padding: 12px 24px;
+    font-size: 16px;
+    font-weight: bold;
+    border-radius: 25px;
+    transition: background-color 0.3s ease, transform 0.3s ease;
+    cursor: pointer;
+    border: none;
+}
+
+.custom-button:hover {
+    background-color: #3b82f6; /* 蓝色背景 */
+    color: white;
+    transform: scale(1.05); /* 按钮放大效果 */
+}
+
+.custom-button.active {
+    background-color: #4CAF50; /* 活动按钮绿色 */
+    color: white;
+}
+
+.custom-button.inactive {
+    background-color: #e0e0e0; /* 非活动按钮灰色 */
+    color: #333;
+}
+
+/* Table Styling */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 24px;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+thead {
+    background-color: #eff6ff;
+}
+
+th,
+td {
+    padding: 12px 16px;
+    text-align: left;
+    border: 1px solid #e2e8f0;
+}
+
+th {
+    font-weight: 700;
+    color: #4b5563;
+    background-color: #eff6ff;
+}
+
+td {
+    color: #6b7280;
+}
+
+/* Hover Effect for Table Rows */
+tr:hover {
+    background-color: #f3f4f6;
+    transition: background-color 0.3s;
+}
+
+/* Specific Variance Styling */
+td.variance-positive {
+    color: #16a34a;
+}
+
+td.variance-negative {
+    color: #dc2626;
+}
+
+/* Pagination Styling */
+/* pagination.css */
+
+/* 基本分页样式 */
+/* Custom Pagination Container */
+.custom-pagination-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    list-style-type: none;
+  }
+  
+  /* Page Button */
+  .custom-page {
+    padding: 10px 16px;
+    border-radius: 50px;
+    background-color: #f3f4f6;
+    color: #333;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+  
+  .custom-page:hover {
+    background-color: #3b82f6;
+    color: white;
+  }
+  
+  /* Active Page Button */
+  .custom-active-page {
+    background-color: #3b82f6;
+    color: white;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Previous Button */
+  .custom-prev-btn {
+    padding: 10px 16px;
+    background-color: #e2e8f0;
+    color: #333;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+  
+  .custom-prev-btn:hover {
+    background-color: #3b82f6;
+    color: white;
+  }
+  
+  /* Next Button */
+  .custom-next-btn {
+    padding: 10px 16px;
+    background-color: #e2e8f0;
+    color: #333;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+  
+  .custom-next-btn:hover {
+    background-color: #3b82f6;
+    color: white;
+  }
+  
+  /* Disabled Button */
+  .custom-disabled-btn {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
