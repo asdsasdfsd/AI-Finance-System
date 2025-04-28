@@ -1,0 +1,25 @@
+# 忽略 IDE 目录
+.idea/
+.vscode/
+*.iml
+
+# 忽略 Git
+.git/
+.gitignore
+.gitattributes
+
+# 忽略构建产物
+target/
+build/
+out/
+
+# 临时文件和日志
+*.log
+*.tmp
+
+# 文档、说明
+HELP.md
+目录结构说明.md
+
+# 其它大文件夹或不需要的内容
+.DS_Store
