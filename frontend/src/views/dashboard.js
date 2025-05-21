@@ -6,6 +6,9 @@ import {
   PieChartOutlined,
   UserOutlined,
   SettingOutlined,
+  TeamOutlined,
+  BankOutlined,
+  ApartmentOutlined,
   LogoutOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -17,6 +20,9 @@ import DashboardHome from './Dashboard/DashboardHome';
 import DataManagement from './Dashboard/DataManagement';
 import AdminData from './Dashboard/AdminData';
 import SystemSettings from './Dashboard/SystemSettings';
+import CompanyManagement from './Dashboard/CompanyManagement';
+import UserManagement from './Dashboard/UserManagement';
+import DepartmentManagement from './Dashboard/DepartmentManagement';
 
 const { Header, Sider, Content } = Layout;
 
@@ -61,13 +67,18 @@ const Dashboard = () => {
       case '2':
         return <DataManagement />;
       case '3':
-        return <AdminData />;
+        return <CompanyManagement />;  // 新增公司管理
       case '4':
+        return <UserManagement />;     // 新增用户管理
+      case '5':
+        return <DepartmentManagement />; // 新增部门管理
+      case '6':
         return <SystemSettings />;
       default:
         return <DashboardHome />;
     }
   };
+
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -85,10 +96,25 @@ const Dashboard = () => {
           <Menu.Item key="2" icon={<PieChartOutlined />}>
             数据管理
           </Menu.Item>
-          <Menu.Item key="3" icon={<UserOutlined />}>
-            管理员数据
-          </Menu.Item>
-          <Menu.Item key="4" icon={<SettingOutlined />}>
+          
+          {/* 新增组织管理菜单 */}
+          <Menu.SubMenu 
+            key="organization" 
+            icon={<TeamOutlined />} 
+            title="组织管理"
+          >
+            <Menu.Item key="3" icon={<BankOutlined />}>
+              公司管理
+            </Menu.Item>
+            <Menu.Item key="4" icon={<UserOutlined />}>
+              用户管理
+            </Menu.Item>
+            <Menu.Item key="5" icon={<ApartmentOutlined />}>
+              部门管理
+            </Menu.Item>
+          </Menu.SubMenu>
+          
+          <Menu.Item key="6" icon={<SettingOutlined />}>
             系统设置
           </Menu.Item>
         </Menu>
