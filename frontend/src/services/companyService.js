@@ -55,7 +55,18 @@ const CompanyService = {
    */
   deleteCompany: async (id) => {
     await axios.delete(API_URL + id);
-  }
+  },
+
+  /**
+   * Get company list
+   * @returns {Promise<Object>} Updated company list
+   */
+  getCompanies: async (page = 0, size = 10) => {
+    const response = await axios.get(API_URL, {
+      params: { page, size }
+    });
+    return response.data;
+  },
 };
 
 export default CompanyService;
