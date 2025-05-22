@@ -39,24 +39,39 @@ const UserManagement = () => {
   }, []);
 
   // 处理表单提交
-  const handleSubmit = async () => {
-    try {
-      const values = await form.validateFields();
-      
-      if (modalType === 'add') {
-        await UserService.createUser(values);
-        message.success('User created successfully');
-      } else {
-        await UserService.updateUser(currentUser.userId, values);
-        message.success('User updated successfully');
-      }
-      
-      setModalVisible(false);
-      fetchData();
-    } catch (error) {
-      message.error('Operation failed');
+// 在前端UserManagement.js中添加调试代码
+// 处理表单提交时，打印发送的数据
+const handleSubmit = async () => {
+  try {
+    const values = await form.validateFields();
+    
+    // 调试：打印表单数据
+    console.log('Form values:', values);
+    
+    // 确保角色数据格式正确
+    const userData = {
+      ...values,
+      roles: values.roles || [] // 确保roles是数组
+    };
+    
+    console.log('Sending user data:', userData);
+    
+    if (modalType === 'add') {
+      await UserService.createUser(userData);
+      message.success('User created successfully');
+    } else {
+      await UserService.updateUser(currentUser.userId, userData);
+      message.success('User updated successfully');
     }
-  };
+    
+    setModalVisible(false);
+    fetchData();
+  } catch (error) {
+    console.error('Submit error:', error);
+    console.error('Error response:', error.response?.data);
+    message.error('Operation failed');
+  }
+};
 
   // 处理编辑用户
   const handleEdit = (record) => {
