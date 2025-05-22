@@ -13,12 +13,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
+import lombok.RequiredArgsConstructor; 
 import java.time.LocalDate;
 import java.util.List;
-
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/transactions")
+
 public class TransactionController {
     @Autowired
     private TransactionService transactionService;
@@ -30,8 +31,9 @@ public class TransactionController {
     private UserService userService;
     
     @Autowired
-    private DepartmentService departmentService;
+    private DepartmentService departmentService; 
 
+    @CrossOrigin(origins = "http://localhost:3000")
     @GetMapping
     public List<Transaction> getAll() {
         return transactionService.findAll();
@@ -107,4 +109,18 @@ public class TransactionController {
         transactionService.deleteById(id);
         return ResponseEntity.noContent().build();
     }
+
+    @GetMapping("/company/{companyId}")
+    public List<Transaction> getByCompany(@PathVariable Integer companyId) {
+        Company company = companyService.findById(companyId);
+        return transactionService.findByCompany(company);
+    }
+
+    @GetMapping("/company/{companyId}/sorted")
+    public List<Transaction> getByCompanySorted(@PathVariable Integer companyId) {
+        Company company = companyService.findById(companyId);
+        return transactionService.findByCompanySortedByDate(company);
+    }
+
+
 }

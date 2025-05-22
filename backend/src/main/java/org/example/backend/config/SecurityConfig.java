@@ -1,10 +1,10 @@
-// backend/src/main/java/org/example/backend/config/SecurityConfig.java
 package org.example.backend.config;
 
 import org.example.backend.security.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -23,34 +23,34 @@ import java.util.Arrays;
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
-    
+
     private final JwtAuthenticationFilter jwtAuthFilter;
-    
+
     public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter) {
         this.jwtAuthFilter = jwtAuthFilter;
     }
-    
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            // 启用CORS并使用自定义配置
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            // 禁用CSRF
-            .csrf(csrf -> csrf.disable())
-            // 临时允许所有请求（开发测试用）
-            .authorizeHttpRequests(auth -> auth
-                .anyRequest().permitAll()
-            )
-            // 配置会话管理为无状态
-            .sessionManagement(session -> session
-                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-            );
-            // 暂时不添加JWT过滤器，避免干扰
-            // .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
-        
+                .cors(Customizer.withDefaults())
+                .csrf(csrf -> csrf.disable())
+                .authorizeHttpRequests(auth -> auth
+                        .anyRequest().permitAll()   // 允许所有请求不鉴权
+                )
+                /*
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/auth/**", "/api/sso/**").permitAll()
+                        .anyRequest().authenticated()
+                )*/
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
-    
+
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
@@ -74,7 +74,7 @@ public class SecurityConfig {
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
     }
-    
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();

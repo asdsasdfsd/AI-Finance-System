@@ -10,6 +10,9 @@ import {
   BankOutlined,
   ApartmentOutlined,
   LogoutOutlined,
+  FundOutlined,
+  AppstoreOutlined,
+  DollarCircleOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import AuthService from '../services/authService';
@@ -23,6 +26,9 @@ import SystemSettings from './Dashboard/SystemSettings';
 import CompanyManagement from './Dashboard/CompanyManagement';
 import UserManagement from './Dashboard/UserManagement';
 import DepartmentManagement from './Dashboard/DepartmentManagement';
+import FundManagement from './Dashboard/FundManagement';
+import AssetManagement from './Dashboard/AssetManagement';
+import TransactionManagement from './Dashboard/TransactionManagement';
 
 const { Header, Sider, Content } = Layout;
 
@@ -74,6 +80,12 @@ const Dashboard = () => {
         return <DepartmentManagement />; // 新增部门管理
       case '6':
         return <SystemSettings />;
+      case '5':
+        return <FundManagement />;
+      case '6':
+        return <AssetManagement />;
+      case '7':
+        return <TransactionManagement />;
       default:
         return <DashboardHome />;
     }
@@ -116,6 +128,15 @@ const Dashboard = () => {
           
           <Menu.Item key="6" icon={<SettingOutlined />}>
             系统设置
+          </Menu.Item>
+          <Menu.Item key="5" icon={<FundOutlined />}>
+            Fund Management
+          </Menu.Item>
+          <Menu.Item key="6" icon={<AppstoreOutlined />}>
+            Asset Management
+          </Menu.Item>
+          <Menu.Item key="7" icon={<DollarCircleOutlined />}>
+            Transaction Management
           </Menu.Item>
         </Menu>
       </Sider>
