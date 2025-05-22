@@ -16,12 +16,13 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/fixed-assets")
 public class FixedAssetController {
+
     @Autowired
     private FixedAssetService fixedAssetService;
-    
+
     @Autowired
     private CompanyService companyService;
-    
+
     @Autowired
     private DepartmentService departmentService;
 
@@ -35,19 +36,19 @@ public class FixedAssetController {
         FixedAsset fixedAsset = fixedAssetService.findById(id);
         return fixedAsset != null ? ResponseEntity.ok(fixedAsset) : ResponseEntity.notFound().build();
     }
-    
+
     @GetMapping("/company/{companyId}")
     public List<FixedAsset> getByCompany(@PathVariable Integer companyId) {
         Company company = companyService.findById(companyId);
         return fixedAssetService.findByCompany(company);
     }
-    
+
     @GetMapping("/department/{departmentId}")
     public List<FixedAsset> getByDepartment(@PathVariable Integer departmentId) {
         Department department = departmentService.findById(departmentId);
         return fixedAssetService.findByDepartment(department);
     }
-    
+
     @GetMapping("/status/{status}")
     public List<FixedAsset> getByStatus(@PathVariable FixedAsset.AssetStatus status) {
         return fixedAssetService.findByStatus(status);
@@ -57,7 +58,7 @@ public class FixedAssetController {
     public FixedAsset create(@RequestBody FixedAsset fixedAsset) {
         return fixedAssetService.save(fixedAsset);
     }
-    
+
     @PutMapping("/{id}")
     public ResponseEntity<FixedAsset> update(@PathVariable Integer id, @RequestBody FixedAsset fixedAsset) {
         if (fixedAssetService.findById(id) == null) {
