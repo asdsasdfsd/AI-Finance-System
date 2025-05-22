@@ -1,7 +1,9 @@
 // frontend/src/views/Dashboard/CompanyManagement.js
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Modal, Form, Input, Space, message } from 'antd';
+import { Table, Button, Modal, Form, Input, Select, Space, message, Tag } from 'antd';
 import CompanyService from '../../services/companyService';
+
+const { Option } = Select;
 
 const CompanyManagement = () => {
   const [companies, setCompanies] = useState([]);
@@ -38,12 +40,24 @@ const CompanyManagement = () => {
   const handleSave = async () => {
     try {
       const values = await form.validateFields();
-      await CompanyService.updateCompany(currentCompany.companyId, values);
-      message.success('Company updated successfully');
+      
+      if (currentCompany) {
+        // 更新现有公司
+        await CompanyService.updateCompany(currentCompany.companyId, values);
+        message.success('Company updated successfully');
+      } else {
+        // 创建新公司
+        await CompanyService.createCompany(values);
+        message.success('Company created successfully');
+      }
+      
       setEditModalVisible(false);
+      form.resetFields();
+      setCurrentCompany(null);
       fetchCompanies();
     } catch (error) {
-      message.error('Failed to update company');
+      console.error('Save error:', error);
+      message.error('Failed to save company');
     }
   };
 
@@ -65,9 +79,19 @@ const CompanyManagement = () => {
       key: 'address',
     },
     {
+      title: 'City',
+      dataIndex: 'city',
+      key: 'city',
+    },
+    {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
+      render: (status) => (
+        <Tag color={status === 'ACTIVE' ? 'green' : 'red'}>
+          {status || 'INACTIVE'}
+        </Tag>
+      ),
     },
     {
       title: 'Actions',
@@ -92,6 +116,8 @@ const CompanyManagement = () => {
         onClick={() => {
           setCurrentCompany(null);
           form.resetFields();
+          // 设置新公司的默认值
+          form.setFieldsValue({ status: 'ACTIVE' });
           setEditModalVisible(true);
         }}
       >
@@ -109,11 +135,17 @@ const CompanyManagement = () => {
         title={currentCompany ? "Edit Company" : "Add Company"}
         open={editModalVisible}
         onOk={handleSave}
-        onCancel={() => setEditModalVisible(false)}
+        onCancel={() => {
+          setEditModalVisible(false);
+          form.resetFields();
+          setCurrentCompany(null);
+        }}
+        width={600}
       >
         <Form 
           form={form}
           layout="vertical"
+          initialValues={{ status: 'ACTIVE' }}
         >
           <Form.Item
             name="companyName"
@@ -149,10 +181,49 @@ const CompanyManagement = () => {
           </Form.Item>
           
           <Form.Item
-            name="status"
-            label="Status"
+            name="stateProvince"
+            label="State/Province"
           >
             <Input />
+          </Form.Item>
+          
+          <Form.Item
+            name="postalCode"
+            label="Postal Code"
+          >
+            <Input />
+          </Form.Item>
+          
+          <Form.Item
+            name="registrationNumber"
+            label="Registration Number"
+          >
+            <Input />
+          </Form.Item>
+          
+          <Form.Item
+            name="taxId"
+            label="Tax ID"
+          >
+            <Input />
+          </Form.Item>
+          
+          <Form.Item
+            name="website"
+            label="Website"
+          >
+            <Input placeholder="https://example.com" />
+          </Form.Item>
+          
+          <Form.Item
+            name="status"
+            label="Status"
+            rules={[{ required: true, message: 'Please select status!' }]}
+          >
+            <Select placeholder="Select status">
+              <Option value="ACTIVE">Active</Option>
+              <Option value="INACTIVE">Inactive</Option>
+            </Select>
           </Form.Item>
         </Form>
       </Modal>
