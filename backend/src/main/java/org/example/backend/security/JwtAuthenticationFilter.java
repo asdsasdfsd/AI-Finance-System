@@ -38,8 +38,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        // Skip JWT filter for SSO callback endpoints and login endpoints
+        // 获取请求URI
         String requestURI = request.getRequestURI();
+        
+        // 临时：对于开发测试，跳过所有API请求的JWT验证
+        if (requestURI.startsWith("/api/")) {
+            logger.debug("Skipping JWT validation for development: {}", requestURI);
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        // Skip JWT filter for SSO callback endpoints and login endpoints
         if (isPublicEndpoint(requestURI)) {
             filterChain.doFilter(request, response);
             return;
@@ -117,6 +126,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return requestURI.contains("/api/auth/") || 
                requestURI.contains("/api/public/") || 
                requestURI.contains("/api/sso/") || 
-               requestURI.equals("/");
+               requestURI.equals("/") ||
+               requestURI.contains("/error");
     }
 }

@@ -1,9 +1,9 @@
 // src/views/Dashboard/TransactionManagement.js
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   Table, Button, Modal, Form, Input, InputNumber, DatePicker, Select,
-  Space, message, Card, Typography, Switch
+  Space, message, Card, Switch
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, DollarCircleOutlined
@@ -11,7 +11,6 @@ import {
 import dayjs from 'dayjs';
 import TransactionService from '../../services/transactionService';
 
-const { Text } = Typography;
 const { RangePicker } = DatePicker;
 const { Option } = Select;
 
@@ -27,11 +26,7 @@ const TransactionManagement = () => {
   const companyId = 2;
   const userId = 1;
 
-  useEffect(() => {
-    fetchData();
-  }, [filterType, dateRange]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       let res;
@@ -53,7 +48,11 @@ const TransactionManagement = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filterType, dateRange, companyId]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handleFilterChange = (val) => {
     setFilterType(val);
@@ -91,6 +90,16 @@ const TransactionManagement = () => {
     }
   };
 
+  const handleDelete = async (transactionId) => {
+    try {
+      await TransactionService.deleteTransaction(transactionId);
+      message.success('Deleted');
+      fetchData();
+    } catch {
+      message.error('Delete failed');
+    }
+  };
+
   const columns = [
     { title: 'Type', dataIndex: 'transactionType' },
     { title: 'Amount', dataIndex: 'amount', render: val => `¥ ${val}` },
@@ -102,7 +111,7 @@ const TransactionManagement = () => {
       render: (_, record) => (
         <Space>
           <Button icon={<EditOutlined />} type="link" onClick={() => openModal(record)}>Edit</Button>
-          <Button icon={<DeleteOutlined />} danger type="link" onClick={() => TransactionService.deleteTransaction(record.transactionId).then(fetchData)}>Delete</Button>
+          <Button icon={<DeleteOutlined />} danger type="link" onClick={() => handleDelete(record.transactionId)}>Delete</Button>
         </Space>
       )
     }
@@ -195,6 +204,3 @@ const TransactionManagement = () => {
 };
 
 export default TransactionManagement;
-
-
-

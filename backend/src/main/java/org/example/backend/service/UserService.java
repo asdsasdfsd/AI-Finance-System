@@ -13,6 +13,7 @@ import org.example.backend.model.UserRole;
 import org.example.backend.repository.UserRepository;
 import org.example.backend.repository.UserRoleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +27,9 @@ public class UserService {
     
     @Autowired
     private RoleService roleService;
+    
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     public List<User> getAllUsers() {
         return userRepository.findAll();
@@ -39,15 +43,35 @@ public class UserService {
         return userRepository.findByDepartment(department);
     }
 
+    @Transactional
     public User createUser(User user) {
+        // 加密密码
+        if (user.getPassword() != null && !user.getPassword().isEmpty()) {
+            user.setPassword(passwordEncoder.encode(user.getPassword()));
+        }
+        
+        // 设置创建时间
         if (user.getCreatedAt() == null) {
             user.setCreatedAt(LocalDateTime.now());
         }
         user.setUpdatedAt(LocalDateTime.now());
+        
         return userRepository.save(user);
     }
     
+    @Transactional
     public User updateUser(User user) {
+        // 检查是否需要加密新密码
+        // 如果密码不是已加密的格式（BCrypt密码通常以$2a$, $2b$, $2y$开头）
+        if (user.getPassword() != null && !user.getPassword().isEmpty()) {
+            // 检查密码是否已经是加密格式
+            if (!user.getPassword().startsWith("$2a$") && 
+                !user.getPassword().startsWith("$2b$") && 
+                !user.getPassword().startsWith("$2y$")) {
+                user.setPassword(passwordEncoder.encode(user.getPassword()));
+            }
+        }
+        
         user.setUpdatedAt(LocalDateTime.now());
         return userRepository.save(user);
     }
