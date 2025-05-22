@@ -17,9 +17,12 @@ public interface TransactionRepository extends JpaRepository<Transaction, Intege
     List<Transaction> findByCompanyAndTransactionType(Company company, Transaction.TransactionType type);
     List<Transaction> findByUserAndTransactionType(User user, Transaction.TransactionType type);
     List<Transaction> findByDepartmentAndTransactionType(Department department, Transaction.TransactionType type);
-    
+
+    List<Transaction> findByCompany(Company company);
+
     List<Transaction> findByCompanyAndTransactionDateBetween(Company company, LocalDate startDate, LocalDate endDate);
-    
+    List<Transaction> findByCompanyOrderByTransactionDateDesc(Company company);
+
     @Query("SELECT SUM(t.amount) FROM Transaction t WHERE t.company = ?1 AND t.transactionType = ?2")
     Double sumAmountByCompanyAndType(Company company, Transaction.TransactionType type);
 }

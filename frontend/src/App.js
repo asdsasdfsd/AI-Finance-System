@@ -12,9 +12,8 @@ export default function App() {
         <Button type="dashed">Dashed Button</Button>
         <Button type="text">Text Button</Button>
         <Button type="link">Link Button</Button>
-    
-      <AppRoutes />
-      */}
+        <AppRoutes />
+    */}
       <Dashboard />
     </div>
   );
