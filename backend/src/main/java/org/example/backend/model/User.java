@@ -1,8 +1,12 @@
-// src/main/java/org/example/backend/model/User.java
+// src/main/java/src/main/java/org/example/backend/model/User.java
 package org.example.backend.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.ToString;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
@@ -10,6 +14,8 @@ import java.util.Set;
 @Data
 @Entity
 @Table(name = "User")
+// 避免循环引用的toString问题
+@ToString(exclude = {"department", "company", "roles"})
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -24,11 +30,13 @@ public class User {
     
     @ManyToOne
     @JoinColumn(name = "department_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "manager", "company"})
     private Department department;
     
     // add Company joint
     @ManyToOne
     @JoinColumn(name = "company_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Company company;
     
     private LocalDateTime lastLogin;
@@ -42,6 +50,7 @@ public class User {
         joinColumns = @JoinColumn(name = "user_id"),
         inverseJoinColumns = @JoinColumn(name = "role_id")
     )
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "users"})
     private Set<Role> roles = new HashSet<>();
 
     // Default values for new fields
