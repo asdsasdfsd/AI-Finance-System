@@ -1,10 +1,12 @@
+// src/views/Dashboard/TransactionManagement.js
+
 import React, { useEffect, useState } from 'react';
 import {
   Table, Button, Modal, Form, Input, InputNumber, DatePicker, Select,
   Space, message, Card, Typography, Switch
 } from 'antd';
 import {
-  PlusOutlined, EditOutlined, DeleteOutlined, DollarCircleOutlined, FilterOutlined
+  PlusOutlined, EditOutlined, DeleteOutlined, DollarCircleOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import TransactionService from '../../services/transactionService';
@@ -148,7 +150,44 @@ const TransactionManagement = () => {
         destroyOnClose
       >
         <Form form={form} layout="vertical">
-          {/* 表单字段略，如前所述 */}
+          <Form.Item name="transactionType" label="Type" rules={[{ required: true }]}>
+            <Select>
+              <Option value="INCOME">INCOME</Option>
+              <Option value="EXPENSE">EXPENSE</Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item name="amount" label="Amount" rules={[{ required: true }]}>
+            <InputNumber style={{ width: '100%' }} min={0} prefix="¥" />
+          </Form.Item>
+
+          <Form.Item name="currency" label="Currency" rules={[{ required: true }]}>
+            <Input placeholder="e.g. CNY, USD" />
+          </Form.Item>
+
+          <Form.Item name="transactionDate" label="Date" rules={[{ required: true }]}>
+            <DatePicker style={{ width: '100%' }} />
+          </Form.Item>
+
+          <Form.Item name="paymentMethod" label="Payment Method">
+            <Input />
+          </Form.Item>
+
+          <Form.Item name="referenceNumber" label="Reference Number">
+            <Input />
+          </Form.Item>
+
+          <Form.Item name="isRecurring" label="Recurring" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+
+          <Form.Item name="isTaxable" label="Taxable" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+
+          <Form.Item name="description" label="Description">
+            <Input.TextArea />
+          </Form.Item>
         </Form>
       </Modal>
     </Card>
@@ -156,5 +195,6 @@ const TransactionManagement = () => {
 };
 
 export default TransactionManagement;
+
 
 
