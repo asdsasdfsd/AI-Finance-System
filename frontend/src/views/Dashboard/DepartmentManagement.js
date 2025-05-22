@@ -1,10 +1,11 @@
 // frontend/src/views/Dashboard/DepartmentManagement.js
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Modal, Form, Input, Select, InputNumber, Space, message } from 'antd';
-import axios from 'axios';
+import DepartmentService from '../../services/departmentService';
+import CompanyService from '../../services/companyService';
+import UserService from '../../services/userService';
 
 const { Option } = Select;
-const API_BASE_URL = 'http://localhost:8085';
 
 const DepartmentManagement = () => {
   const [departments, setDepartments] = useState([]);
@@ -19,16 +20,18 @@ const DepartmentManagement = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [deptResponse, companyResponse, userResponse] = await Promise.all([
-        axios.get(`${API_BASE_URL}/api/departments`),
-        axios.get(`${API_BASE_URL}/api/companies`),
-        axios.get(`${API_BASE_URL}/api/users`)
+      const [deptData, companyData, userData] = await Promise.all([
+        DepartmentService.getAllDepartments(),
+        CompanyService.getAllCompanies(),
+        UserService.getAllUsers()
       ]);
       
-      setDepartments(deptResponse.data);
-      setCompanies(companyResponse.data);
-      setUsers(userResponse.data);
+      console.log('Departments loaded:', deptData);
+      setDepartments(deptData);
+      setCompanies(companyData);
+      setUsers(userData);
     } catch (error) {
+      console.error('Failed to fetch data:', error);
       message.error('Failed to fetch data');
     } finally {
       setLoading(false);
@@ -44,32 +47,71 @@ const DepartmentManagement = () => {
     try {
       const values = await form.validateFields();
       
+      // 调试：打印表单数据
+      console.log('Form values:', values);
+      console.log('Current department:', currentDepartment);
+      
+      // 构建请求数据
+      const requestData = {
+        name: values.name,
+        code: values.code,
+        companyId: values.companyId,
+        parentDepartmentId: values.parentDepartmentId || null,
+        managerId: values.managerId || null,
+        budget: values.budget || 0,
+        isActive: values.isActive !== undefined ? values.isActive : true
+      };
+      
+      console.log('Request data:', requestData);
+      
       if (currentDepartment) {
         // 更新部门
-        await axios.put(`${API_BASE_URL}/api/departments/${currentDepartment.departmentId}`, values);
+        console.log('Updating department ID:', currentDepartment.departmentId);
+        const response = await DepartmentService.updateDepartment(
+          currentDepartment.departmentId, 
+          requestData
+        );
+        console.log('Update response:', response);
         message.success('Department updated successfully');
       } else {
         // 创建部门
-        await axios.post(`${API_BASE_URL}/api/departments`, values);
+        const response = await DepartmentService.createDepartment(requestData);
+        console.log('Create response:', response);
         message.success('Department created successfully');
       }
       
       setModalVisible(false);
-      fetchData();
+      form.resetFields();
+      setCurrentDepartment(null);
+      
+      // 重新获取数据
+      await fetchData();
+      
     } catch (error) {
-      message.error('Operation failed');
+      console.error('Operation failed:', error);
+      console.error('Error response:', error.response?.data);
+      message.error('Operation failed: ' + (error.response?.data?.message || error.message));
     }
   };
 
   // 编辑部门
   const handleEdit = (record) => {
+    console.log('Editing department:', record);
     setCurrentDepartment(record);
-    form.setFieldsValue({
-      ...record,
+    
+    // 设置表单值
+    const formValues = {
+      name: record.name,
+      code: record.code,
       companyId: record.company?.companyId,
       managerId: record.manager?.userId,
-      parentDepartmentId: record.parentDepartment?.departmentId
-    });
+      parentDepartmentId: record.parentDepartment?.departmentId,
+      budget: record.budget,
+      isActive: record.isActive
+    };
+    
+    console.log('Setting form values:', formValues);
+    form.setFieldsValue(formValues);
     setModalVisible(true);
   };
 
@@ -89,24 +131,29 @@ const DepartmentManagement = () => {
       title: 'Company',
       dataIndex: 'company',
       key: 'company',
-      render: (company) => company?.companyName,
+      render: (company) => company?.companyName || 'N/A',
     },
     {
       title: 'Manager',
       dataIndex: 'manager',
       key: 'manager',
-      render: (manager) => manager?.fullName,
+      render: (manager) => manager?.fullName || 'N/A',
     },
     {
       title: 'Budget',
       dataIndex: 'budget',
       key: 'budget',
+      render: (budget) => budget ? `$${budget.toLocaleString()}` : '$0',
     },
     {
       title: 'Status',
       dataIndex: 'isActive',
       key: 'isActive',
-      render: (isActive) => isActive ? 'Active' : 'Inactive',
+      render: (isActive) => (
+        <span style={{ color: isActive ? 'green' : 'red' }}>
+          {isActive ? 'Active' : 'Inactive'}
+        </span>
+      ),
     },
     {
       title: 'Actions',
@@ -148,7 +195,11 @@ const DepartmentManagement = () => {
         title={currentDepartment ? 'Edit Department' : 'Add Department'}
         open={modalVisible}
         onOk={handleSubmit}
-        onCancel={() => setModalVisible(false)}
+        onCancel={() => {
+          setModalVisible(false);
+          form.resetFields();
+          setCurrentDepartment(null);
+        }}
         width={600}
       >
         <Form form={form} layout="vertical">
@@ -173,7 +224,7 @@ const DepartmentManagement = () => {
             label="Company"
             rules={[{ required: true, message: 'Please select company!' }]}
           >
-            <Select>
+            <Select placeholder="Select company">
               {companies.map(company => (
                 <Option key={company.companyId} value={company.companyId}>
                   {company.companyName}
@@ -186,7 +237,7 @@ const DepartmentManagement = () => {
             name="parentDepartmentId"
             label="Parent Department"
           >
-            <Select allowClear>
+            <Select allowClear placeholder="Select parent department">
               {departments.map(dept => (
                 <Option key={dept.departmentId} value={dept.departmentId}>
                   {dept.name}
@@ -199,7 +250,7 @@ const DepartmentManagement = () => {
             name="managerId"
             label="Manager"
           >
-            <Select allowClear>
+            <Select allowClear placeholder="Select manager">
               {users.map(user => (
                 <Option key={user.userId} value={user.userId}>
                   {user.fullName} ({user.username})
@@ -212,14 +263,19 @@ const DepartmentManagement = () => {
             name="budget"
             label="Budget"
           >
-            <InputNumber style={{ width: '100%' }} />
+            <InputNumber 
+              style={{ width: '100%' }} 
+              min={0}
+              formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={value => value.replace(/\$\s?|(,*)/g, '')}
+            />
           </Form.Item>
           
           <Form.Item
             name="isActive"
             label="Status"
           >
-            <Select>
+            <Select placeholder="Select status">
               <Option value={true}>Active</Option>
               <Option value={false}>Inactive</Option>
             </Select>
