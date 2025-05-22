@@ -9,7 +9,7 @@ const { Option } = Select;
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
   const [companies, setCompanies] = useState([]);
-  const [roles, setRoles] = useState(['USER', 'FINANCE_MANAGER', 'COMPANY_ADMIN', 'SYSTEM_ADMIN']);
+  const roles = ['USER', 'FINANCE_MANAGER', 'COMPANY_ADMIN', 'SYSTEM_ADMIN'];
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalType, setModalType] = useState('add'); // 'add' or 'edit'
@@ -39,49 +39,65 @@ const UserManagement = () => {
   }, []);
 
   // 处理表单提交
-// 在前端UserManagement.js中添加调试代码
-// 处理表单提交时，打印发送的数据
-const handleSubmit = async () => {
-  try {
-    const values = await form.validateFields();
-    
-    // 调试：打印表单数据
-    console.log('Form values:', values);
-    
-    // 确保角色数据格式正确
-    const userData = {
-      ...values,
-      roles: values.roles || [] // 确保roles是数组
-    };
-    
-    console.log('Sending user data:', userData);
-    
-    if (modalType === 'add') {
-      await UserService.createUser(userData);
-      message.success('User created successfully');
-    } else {
-      await UserService.updateUser(currentUser.userId, userData);
-      message.success('User updated successfully');
+  const handleSubmit = async () => {
+    try {
+      const values = await form.validateFields();
+      
+      // 调试：打印表单数据
+      console.log('Form values:', values);
+      
+      // 确保角色数据格式正确
+      const userData = {
+        ...values,
+        roles: values.roles || [] // 确保roles是数组
+      };
+      
+      console.log('Sending user data:', userData);
+      
+      if (modalType === 'add') {
+        await UserService.createUser(userData);
+        message.success('User created successfully');
+      } else {
+        await UserService.updateUser(currentUser.userId, userData);
+        message.success('User updated successfully');
+      }
+      
+      setModalVisible(false);
+      form.resetFields();
+      setCurrentUser(null);
+      fetchData();
+    } catch (error) {
+      console.error('Submit error:', error);
+      console.error('Error response:', error.response?.data);
+      message.error('Operation failed');
     }
-    
-    setModalVisible(false);
-    fetchData();
-  } catch (error) {
-    console.error('Submit error:', error);
-    console.error('Error response:', error.response?.data);
-    message.error('Operation failed');
-  }
-};
+  };
 
   // 处理编辑用户
   const handleEdit = (record) => {
+    console.log('Editing user:', record);
     setCurrentUser(record);
     setModalType('edit');
-    form.setFieldsValue({
-      ...record,
+    
+    // 提取用户角色名称数组
+    const userRoles = record.roles ? record.roles.map(role => 
+      typeof role === 'string' ? role : role.name
+    ) : [];
+    
+    console.log('User roles:', userRoles);
+    
+    // 设置表单值，确保角色正确显示
+    const formValues = {
+      username: record.username,
+      fullName: record.fullName,
+      email: record.email,
       companyId: record.company?.companyId,
-      // 不设置密码字段
-    });
+      roles: userRoles, // 设置角色数组
+      enabled: record.enabled
+    };
+    
+    console.log('Setting form values:', formValues);
+    form.setFieldsValue(formValues);
     setModalVisible(true);
   };
 
@@ -94,6 +110,19 @@ const handleSubmit = async () => {
     } catch (error) {
       message.error('Failed to delete user');
     }
+  };
+
+  // 处理新增用户
+  const handleAdd = () => {
+    setModalType('add');
+    setCurrentUser(null);
+    form.resetFields();
+    // 设置默认值
+    form.setFieldsValue({ 
+      enabled: true,
+      roles: [] 
+    });
+    setModalVisible(true);
   };
 
   // 表格列定义
@@ -117,7 +146,7 @@ const handleSubmit = async () => {
       title: 'Company',
       dataIndex: 'company',
       key: 'company',
-      render: (company) => company?.companyName,
+      render: (company) => company?.companyName || 'N/A',
     },
     {
       title: 'Roles',
@@ -125,11 +154,14 @@ const handleSubmit = async () => {
       key: 'roles',
       render: (_, record) => (
         <>
-          {record.roles?.map(role => (
-            <Tag color="blue" key={role.name || role}>
-              {role.name || role}
-            </Tag>
-          ))}
+          {record.roles?.map(role => {
+            const roleName = typeof role === 'string' ? role : role.name;
+            return (
+              <Tag color="blue" key={roleName}>
+                {roleName}
+              </Tag>
+            );
+          })}
         </>
       ),
     },
@@ -166,12 +198,7 @@ const handleSubmit = async () => {
       <Button 
         type="primary" 
         style={{ marginBottom: 16 }}
-        onClick={() => {
-          setModalType('add');
-          setCurrentUser(null);
-          form.resetFields();
-          setModalVisible(true);
-        }}
+        onClick={handleAdd}
       >
         Add User
       </Button>
@@ -187,10 +214,23 @@ const handleSubmit = async () => {
         title={modalType === 'add' ? 'Add User' : 'Edit User'}
         open={modalVisible}
         onOk={handleSubmit}
-        onCancel={() => setModalVisible(false)}
+        onCancel={() => {
+          setModalVisible(false);
+          form.resetFields();
+          setCurrentUser(null);
+        }}
         width={600}
+        destroyOnClose={true}
       >
-        <Form form={form} layout="vertical">
+        <Form 
+          form={form} 
+          layout="vertical"
+          preserve={false}
+          initialValues={{ 
+            enabled: true,
+            roles: [] 
+          }}
+        >
           <Form.Item
             name="username"
             label="Username"
@@ -233,7 +273,7 @@ const handleSubmit = async () => {
             label="Company"
             rules={[{ required: true, message: 'Please select company!' }]}
           >
-            <Select>
+            <Select placeholder="Select company">
               {companies.map(company => (
                 <Option key={company.companyId} value={company.companyId}>
                   {company.companyName}
@@ -246,7 +286,11 @@ const handleSubmit = async () => {
             name="roles"
             label="Roles"
           >
-            <Select mode="multiple">
+            <Select 
+              mode="multiple" 
+              placeholder="Select roles"
+              allowClear
+            >
               {roles.map(role => (
                 <Option key={role} value={role}>
                   {role}
@@ -258,9 +302,9 @@ const handleSubmit = async () => {
           <Form.Item
             name="enabled"
             label="Status"
-            valuePropName="checked"
+            rules={[{ required: true, message: 'Please select status!' }]}
           >
-            <Select>
+            <Select placeholder="Select status">
               <Option value={true}>Active</Option>
               <Option value={false}>Inactive</Option>
             </Select>

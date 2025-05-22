@@ -21,7 +21,6 @@ import '../assets/styles/Dashboard.css';
 // Import content components
 import DashboardHome from './Dashboard/DashboardHome';
 import DataManagement from './Dashboard/DataManagement';
-import AdminData from './Dashboard/AdminData';
 import SystemSettings from './Dashboard/SystemSettings';
 import CompanyManagement from './Dashboard/CompanyManagement';
 import UserManagement from './Dashboard/UserManagement';
@@ -73,24 +72,23 @@ const Dashboard = () => {
       case '2':
         return <DataManagement />;
       case '3':
-        return <CompanyManagement />;  // 新增公司管理
+        return <CompanyManagement />;
       case '4':
-        return <UserManagement />;     // 新增用户管理
+        return <UserManagement />;
       case '5':
-        return <DepartmentManagement />; // 新增部门管理
+        return <DepartmentManagement />;
       case '6':
         return <SystemSettings />;
-      case '5':
-        return <FundManagement />;
-      case '6':
-        return <AssetManagement />;
       case '7':
+        return <FundManagement />;
+      case '8':
+        return <AssetManagement />;
+      case '9':
         return <TransactionManagement />;
       default:
         return <DashboardHome />;
     }
   };
-
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -109,7 +107,7 @@ const Dashboard = () => {
             数据管理
           </Menu.Item>
           
-          {/* 新增组织管理菜单 */}
+          {/* 组织管理菜单 */}
           <Menu.SubMenu 
             key="organization" 
             icon={<TeamOutlined />} 
@@ -129,13 +127,13 @@ const Dashboard = () => {
           <Menu.Item key="6" icon={<SettingOutlined />}>
             系统设置
           </Menu.Item>
-          <Menu.Item key="5" icon={<FundOutlined />}>
+          <Menu.Item key="7" icon={<FundOutlined />}>
             Fund Management
           </Menu.Item>
-          <Menu.Item key="6" icon={<AppstoreOutlined />}>
+          <Menu.Item key="8" icon={<AppstoreOutlined />}>
             Asset Management
           </Menu.Item>
-          <Menu.Item key="7" icon={<DollarCircleOutlined />}>
+          <Menu.Item key="9" icon={<DollarCircleOutlined />}>
             Transaction Management
           </Menu.Item>
         </Menu>
