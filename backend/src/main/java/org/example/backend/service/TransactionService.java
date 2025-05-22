@@ -25,7 +25,15 @@ public class TransactionService {
     public Transaction findById(Integer id) {
         return transactionRepository.findById(id).orElse(null);
     }
-    
+
+    public List<Transaction> findByCompany(Company company) {
+        return transactionRepository.findByCompany(company);
+    }
+
+    public List<Transaction> findByCompanySortedByDate(Company company) {
+        return transactionRepository.findByCompanyOrderByTransactionDateDesc(company);
+    }
+
     public List<Transaction> findByCompanyAndType(Company company, Transaction.TransactionType type) {
         return transactionRepository.findByCompanyAndTransactionType(company, type);
     }

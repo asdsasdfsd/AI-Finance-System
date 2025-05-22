@@ -26,7 +26,11 @@ public class FundService {
     public List<Fund> findByCompany(Company company) {
         return fundRepository.findByCompany(company);
     }
-    
+
+    public List<Fund> findByCompanyId(Integer companyId) {
+        return fundRepository.findByCompanyCompanyId(companyId);
+    }
+
     public List<Fund> findActiveByCompany(Company company) {
         return fundRepository.findByCompanyAndIsActive(company, true);
     }
