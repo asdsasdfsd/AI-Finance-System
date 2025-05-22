@@ -6,6 +6,9 @@ import {
   PieChartOutlined,
   UserOutlined,
   SettingOutlined,
+  TeamOutlined,
+  BankOutlined,
+  ApartmentOutlined,
   LogoutOutlined,
   FundOutlined,
   AppstoreOutlined,
@@ -18,8 +21,10 @@ import '../assets/styles/Dashboard.css';
 // Import content components
 import DashboardHome from './Dashboard/DashboardHome';
 import DataManagement from './Dashboard/DataManagement';
-import AdminData from './Dashboard/AdminData';
 import SystemSettings from './Dashboard/SystemSettings';
+import CompanyManagement from './Dashboard/CompanyManagement';
+import UserManagement from './Dashboard/UserManagement';
+import DepartmentManagement from './Dashboard/DepartmentManagement';
 import FundManagement from './Dashboard/FundManagement';
 import AssetManagement from './Dashboard/AssetManagement';
 import TransactionManagement from './Dashboard/TransactionManagement';
@@ -67,14 +72,18 @@ const Dashboard = () => {
       case '2':
         return <DataManagement />;
       case '3':
-        return <AdminData />;
+        return <CompanyManagement />;
       case '4':
-        return <SystemSettings />;
+        return <UserManagement />;
       case '5':
-        return <FundManagement />;
+        return <DepartmentManagement />;
       case '6':
-        return <AssetManagement />;
+        return <SystemSettings />;
       case '7':
+        return <FundManagement />;
+      case '8':
+        return <AssetManagement />;
+      case '9':
         return <TransactionManagement />;
       default:
         return <DashboardHome />;
@@ -97,19 +106,34 @@ const Dashboard = () => {
           <Menu.Item key="2" icon={<PieChartOutlined />}>
             数据管理
           </Menu.Item>
-          <Menu.Item key="3" icon={<UserOutlined />}>
-            管理员数据
-          </Menu.Item>
-          <Menu.Item key="4" icon={<SettingOutlined />}>
+          
+          {/* 组织管理菜单 */}
+          <Menu.SubMenu 
+            key="organization" 
+            icon={<TeamOutlined />} 
+            title="组织管理"
+          >
+            <Menu.Item key="3" icon={<BankOutlined />}>
+              公司管理
+            </Menu.Item>
+            <Menu.Item key="4" icon={<UserOutlined />}>
+              用户管理
+            </Menu.Item>
+            <Menu.Item key="5" icon={<ApartmentOutlined />}>
+              部门管理
+            </Menu.Item>
+          </Menu.SubMenu>
+          
+          <Menu.Item key="6" icon={<SettingOutlined />}>
             系统设置
           </Menu.Item>
-          <Menu.Item key="5" icon={<FundOutlined />}>
+          <Menu.Item key="7" icon={<FundOutlined />}>
             Fund Management
           </Menu.Item>
-          <Menu.Item key="6" icon={<AppstoreOutlined />}>
+          <Menu.Item key="8" icon={<AppstoreOutlined />}>
             Asset Management
           </Menu.Item>
-          <Menu.Item key="7" icon={<DollarCircleOutlined />}>
+          <Menu.Item key="9" icon={<DollarCircleOutlined />}>
             Transaction Management
           </Menu.Item>
         </Menu>
