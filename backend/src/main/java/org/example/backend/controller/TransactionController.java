@@ -107,4 +107,18 @@ public class TransactionController {
         transactionService.deleteById(id);
         return ResponseEntity.noContent().build();
     }
+
+    @GetMapping("/company/{companyId}")
+    public List<Transaction> getByCompany(@PathVariable Integer companyId) {
+        Company company = companyService.findById(companyId);
+        return transactionService.findByCompany(company);
+    }
+
+    @GetMapping("/company/{companyId}/sorted")
+    public List<Transaction> getByCompanySorted(@PathVariable Integer companyId) {
+        Company company = companyService.findById(companyId);
+        return transactionService.findByCompanySortedByDate(company);
+    }
+
+
 }
