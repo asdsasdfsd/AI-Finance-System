@@ -1,4 +1,3 @@
-// frontend/src/views/dashboard.js
 import React, { useState, useEffect } from 'react';
 import { Layout, Menu, Dropdown, Avatar } from 'antd';
 import {
@@ -38,12 +37,10 @@ const Dashboard = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Get current user from local storage
     const user = AuthService.getCurrentUser();
     if (user) {
       setCurrentUser(user);
     } else {
-      // If no user found, redirect to login
       navigate('/');
     }
   }, [navigate]);
@@ -67,65 +64,48 @@ const Dashboard = () => {
 
   const renderContent = () => {
     switch (selectedKey) {
-      case '1':
-        return <DashboardHome />;
-      case '2':
-        return <DataManagement />;
-      case '3':
-        return <CompanyManagement />;
-      case '4':
-        return <UserManagement />;
-      case '5':
-        return <DepartmentManagement />;
-      case '6':
-        return <SystemSettings />;
-      case '7':
-        return <FundManagement />;
-      case '8':
-        return <AssetManagement />;
-      case '9':
-        return <TransactionManagement />;
-      default:
-        return <DashboardHome />;
+      case '1': return <DashboardHome />;
+      case '2': return <DataManagement />;
+      case '3': return <CompanyManagement />;
+      case '4': return <UserManagement />;
+      case '5': return <DepartmentManagement />;
+      case '6': return <TransactionManagement />;
+      case '7': return <FundManagement />;
+      case '8': return <AssetManagement />;
+      case '9': return <SystemSettings />;
+      default: return <DashboardHome />;
     }
   };
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider collapsible collapsed={collapsed} onCollapse={setCollapsed}>
-        <div className="logo">财务管理系统</div>
+        <div className="logo">Finance Management System</div>
         <Menu
           theme="dark"
           mode="inline"
-          defaultSelectedKeys={['1']}
+          selectedKeys={[selectedKey]} // ✅ 修复：绑定状态
           onClick={(e) => setSelectedKey(e.key)}
         >
           <Menu.Item key="1" icon={<HomeOutlined />}>
-            后台首页
+            Dashboard Home
           </Menu.Item>
           <Menu.Item key="2" icon={<PieChartOutlined />}>
-            数据管理
+            Data Management
           </Menu.Item>
-          
-          {/* 组织管理菜单 */}
-          <Menu.SubMenu 
-            key="organization" 
-            icon={<TeamOutlined />} 
-            title="组织管理"
-          >
+          <Menu.SubMenu key="organization" icon={<TeamOutlined />} title="Organization Management">
             <Menu.Item key="3" icon={<BankOutlined />}>
-              公司管理
+              Company Management
             </Menu.Item>
             <Menu.Item key="4" icon={<UserOutlined />}>
-              用户管理
+              User Management
             </Menu.Item>
             <Menu.Item key="5" icon={<ApartmentOutlined />}>
-              部门管理
+              Department Management
             </Menu.Item>
           </Menu.SubMenu>
-          
           <Menu.Item key="6" icon={<SettingOutlined />}>
-            系统设置
+            Transaction Management
           </Menu.Item>
           <Menu.Item key="7" icon={<FundOutlined />}>
             Fund Management
@@ -134,7 +114,7 @@ const Dashboard = () => {
             Asset Management
           </Menu.Item>
           <Menu.Item key="9" icon={<DollarCircleOutlined />}>
-            Transaction Management
+            System Settings
           </Menu.Item>
         </Menu>
       </Sider>
@@ -142,7 +122,10 @@ const Dashboard = () => {
       <Layout>
         <Header className="dashboard-header">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: '100%' }}>
-            <span>Dashboard</span>
+            <span style={{ display: 'flex', alignItems: 'center', fontSize: '18px', fontWeight: '500' }}>
+              <HomeOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
+              Dashboard
+            </span>
             {currentUser && currentUser.user && (
               <Dropdown overlay={userMenu} trigger={['click']}>
                 <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>

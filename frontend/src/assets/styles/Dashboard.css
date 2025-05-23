@@ -1,11 +1,16 @@
 .logo {
-  height: 48px;
-  margin: 16px;
-  font-size: 20px;
   color: white;
+  font-size: 20px;
   text-align: center;
   font-weight: bold;
+  padding: 16px 0;
 }
+
+.logo div {
+  margin-bottom: 6px;
+}
+
+
 
 .dashboard-header {
   background: #fff;

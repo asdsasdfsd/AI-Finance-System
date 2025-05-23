@@ -1,0 +1,75 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [this-will-never-be-used-branch]
+
+jobs:
+  build-test-deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      DOCKER_USER: ${{ secrets.DOCKER_USER }}
+      DOCKER_PASS: ${{ secrets.DOCKER_PASS }}
+      EC2_HOST: ${{ secrets.EC2_HOST }}
+      EC2_USER: ${{ secrets.EC2_USER }}
+      SSH_KEY: ${{ secrets.SSH_KEY }}
+
+    steps:
+    - name: Checkout Source Code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18
+
+    - name: Set up Java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: 17
+
+    - name: Install Frontend Dependencies
+      working-directory: frontend
+      run: npm install
+
+    - name: Install Backend Dependencies
+      working-directory: backend
+      run: ./mvnw install -DskipTests
+
+    - name: Run Backend Tests
+      working-directory: backend
+      run: ./mvnw test
+
+    - name: Run Static Code Analysis (SonarQube)
+      uses: sonarsource/sonarcloud-github-action@v2
+      with:
+        projectBaseDir: backend
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+    - name: Docker Build
+      run: docker build -t $DOCKER_USER/finance-system:latest .
+
+    - name: Docker Login
+      run: echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+
+    - name: Docker Push
+      run: docker push $DOCKER_USER/finance-system:latest
+
+    - name: Deploy to EC2
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USER }}
+        key: ${{ secrets.SSH_KEY }}
+        script: |
+          chmod +x ~/deploy.sh
+          ~/deploy.sh
+
+    - name: Run DAST (OWASP ZAP)
+      uses: zaproxy/action-baseline@v0.12.0
+      with:
+        target: http://${{ secrets.EC2_HOST }}/
+
