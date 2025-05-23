@@ -61,24 +61,34 @@ public class AuthService {
     }
 
     public AuthResponse authenticate(AuthRequest request) {
-        // Authenticate with username and password
+        System.out.println("登录用户名: " + request.getUsername());
+        System.out.println("登录明文密码: " + request.getPassword());
+
+        // 手动获取用户信息
+        final UserDetails userDetails = userDetailsService.loadUserByUsername(request.getUsername());
+
+        // 输出加密密码和匹配结果（调试用）
+        System.out.println("数据库加密密码: " + userDetails.getPassword());
+        System.out.println("是否匹配: " + passwordEncoder.matches(request.getPassword(), userDetails.getPassword()));
+
+        // 再走标准 Spring Security 验证（如失败将抛异常）
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
         );
 
-        // Get user details and generate JWT token
-        final UserDetails userDetails = userDetailsService.loadUserByUsername(request.getUsername());
+        // 生成 JWT token
         final String token = jwtUtil.generateToken(userDetails);
-        
-        // Update last login timestamp
+
+        // 更新用户登录时间
         User user = userRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         user.setLastLogin(LocalDateTime.now());
         userRepository.save(user);
-        
-        // Build response DTO
+
+        // 构造认证响应
         return buildAuthResponse(token, user, userDetails);
     }
+
 
     @Transactional
     public UserDTO register(RegisterRequest request) {
