@@ -56,4 +56,8 @@ public class Role {
         Role role = (Role) obj;
         return Objects.equals(roleId, role.roleId);
     }
+
+    public String getName() {
+        return this.name;
+    }
 }
