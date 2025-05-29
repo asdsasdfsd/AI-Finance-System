@@ -1,5 +1,5 @@
 
-// backend/src/main/java/org/example/backend/domain/aggregate/company/Company.java
+// backend/src/main/java/org/example/backend/domain/aggregate/company/CompanyAggregate.java
 package org.example.backend.domain.aggregate.company;
 
 import org.example.backend.domain.event.CompanyCreatedEvent;
@@ -25,7 +25,7 @@ import java.util.*;
     @Index(name = "idx_company_registration", columnList = "registration_number"),
     @Index(name = "idx_company_status", columnList = "status")
 })
-public class Company {
+public class CompanyAggregate {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -85,11 +85,11 @@ public class Company {
     
     // ========== 构造函数 ==========
     
-    protected Company() {
+    protected CompanyAggregate() {
         // JPA需要
     }
     
-    private Company(String companyName, String email, String address, String city, 
+    private CompanyAggregate(String companyName, String email, String address, String city, 
                    String stateProvince, String postalCode, Integer createdBy) {
         validateCompanyCreation(companyName, email);
         
@@ -115,10 +115,10 @@ public class Company {
     /**
      * 创建新公司
      */
-    public static Company create(String companyName, String email, String address, 
+    public static CompanyAggregate create(String companyName, String email, String address, 
                                String city, String stateProvince, String postalCode, 
                                Integer createdBy) {
-        return new Company(companyName, email, address, city, stateProvince, postalCode, createdBy);
+        return new CompanyAggregate(companyName, email, address, city, stateProvince, postalCode, createdBy);
     }
     
     // ========== 业务方法 ==========
@@ -368,7 +368,7 @@ public class Company {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         
-        Company company = (Company) obj;
+        CompanyAggregate company = (CompanyAggregate) obj;
         return Objects.equals(companyId, company.companyId);
     }
     

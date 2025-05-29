@@ -1,7 +1,7 @@
 // backend/src/main/java/org/example/backend/service/TenantAwareTransactionService.java
 package org.example.backend.service;
 
-import org.example.backend.domain.aggregate.transaction.Transaction;
+import org.example.backend.domain.aggregate.transaction.TransactionAggregate;
 import org.example.backend.domain.valueobject.Money;
 import org.example.backend.repository.TenantAwareTransactionRepository;
 import org.example.backend.tenant.TenantContext;
@@ -28,7 +28,7 @@ public class TenantAwareTransactionService {
     /**
      * 创建交易（自动设置租户）
      */
-    public Transaction createTransaction(TransactionService.CreateTransactionCommand command) {
+    public TransactionAggregate createTransaction(TransactionService.CreateTransactionCommand command) {
         // 确保命令中的companyId与当前租户一致
         Integer currentTenant = TenantContext.getCurrentTenant();
         if (currentTenant == null) {
@@ -40,15 +40,15 @@ public class TenantAwareTransactionService {
         }
         
         Money amount = Money.of(command.getAmount(), command.getCurrency());
-        Transaction transaction;
+        TransactionAggregate transaction;
         
-        if (command.getTransactionType() == Transaction.TransactionType.INCOME) {
-            transaction = Transaction.createIncome(
+        if (command.getTransactionType() == TransactionAggregate.TransactionType.INCOME) {
+            transaction = TransactionAggregate.createIncome(
                 amount, command.getTransactionDate(), command.getDescription(),
                 command.getCompanyId(), command.getUserId()
             );
         } else {
-            transaction = Transaction.createExpense(
+            transaction = TransactionAggregate.createExpense(
                 amount, command.getTransactionDate(), command.getDescription(),
                 command.getCompanyId(), command.getUserId()
             );
@@ -61,7 +61,7 @@ public class TenantAwareTransactionService {
      * 查找所有交易（当前租户）
      */
     @Transactional(readOnly = true)
-    public List<Transaction> findAll() {
+    public List<TransactionAggregate> findAll() {
         ensureTenantSet();
         return transactionRepository.findAllByTenant();
     }
@@ -70,7 +70,7 @@ public class TenantAwareTransactionService {
      * 按ID查找交易（当前租户）
      */
     @Transactional(readOnly = true)
-    public Optional<Transaction> findById(Integer id) {
+    public Optional<TransactionAggregate> findById(Integer id) {
         ensureTenantSet();
         return transactionRepository.findByIdAndTenant(id);
     }
@@ -79,7 +79,7 @@ public class TenantAwareTransactionService {
      * 按类型查找交易（当前租户）
      */
     @Transactional(readOnly = true)
-    public List<Transaction> findByType(Transaction.TransactionType type) {
+    public List<TransactionAggregate> findByType(TransactionAggregate.TransactionType type) {
         ensureTenantSet();
         return transactionRepository.findByTenantAndType(type);
     }
@@ -88,7 +88,7 @@ public class TenantAwareTransactionService {
      * 按日期范围查找交易（当前租户）
      */
     @Transactional(readOnly = true)
-    public List<Transaction> findByDateRange(LocalDate startDate, LocalDate endDate) {
+    public List<TransactionAggregate> findByDateRange(LocalDate startDate, LocalDate endDate) {
         ensureTenantSet();
         return transactionRepository.findByTenantAndDateRange(startDate, endDate);
     }
@@ -96,10 +96,10 @@ public class TenantAwareTransactionService {
     /**
      * 更新交易（租户安全检查）
      */
-    public Transaction updateTransaction(Integer id, TransactionService.UpdateTransactionCommand command) {
+    public TransactionAggregate updateTransaction(Integer id, TransactionService.UpdateTransactionCommand command) {
         ensureTenantSet();
         
-        Transaction transaction = transactionRepository.findByIdAndTenant(id)
+        TransactionAggregate transaction = transactionRepository.findByIdAndTenant(id)
                 .orElseThrow(() -> new IllegalArgumentException("交易不存在或无权访问"));
         
         Money newAmount = Money.of(command.getAmount(), command.getCurrency());
@@ -117,7 +117,7 @@ public class TenantAwareTransactionService {
     public void deleteById(Integer id) {
         ensureTenantSet();
         
-        Transaction transaction = transactionRepository.findByIdAndTenant(id)
+        TransactionAggregate transaction = transactionRepository.findByIdAndTenant(id)
                 .orElseThrow(() -> new IllegalArgumentException("交易不存在或无权访问"));
         
         if (!transaction.canModify()) {

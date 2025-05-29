@@ -3,7 +3,7 @@
 package org.example.backend.domain.event;
 
 import org.example.backend.domain.valueobject.Money;
-import org.example.backend.domain.aggregate.transaction.Transaction.TransactionType;
+import org.example.backend.domain.aggregate.transaction.TransactionAggregate.TransactionType;
 
 /**
  * 交易创建事件
@@ -14,8 +14,7 @@ public class TransactionCreatedEvent extends DomainEvent {
     private final Money amount;
     private final Integer companyId;
     
-    public TransactionCreatedEvent(Integer transactionId, TransactionType transactionType, 
-                                 Money amount, Integer companyId) {
+    public TransactionCreatedEvent(Integer transactionId, TransactionType transactionType, Money amount, Integer companyId) {
         super();
         this.transactionId = transactionId;
         this.transactionType = transactionType;

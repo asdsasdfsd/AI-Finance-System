@@ -1,4 +1,4 @@
-// backend/src/main/java/org/example/backend/domain/aggregate/user/User.java
+// backend/src/main/java/org/example/backend/domain/aggregate/user/UserAggregate.java
 package org.example.backend.domain.aggregate.user;
 
 import org.example.backend.domain.event.UserCreatedEvent;
@@ -31,7 +31,7 @@ import java.util.*;
     @Index(name = "idx_user_external_id", columnList = "external_id"),
     @Index(name = "idx_user_company_enabled", columnList = "company_id, enabled")
 })
-public class User {
+public class UserAggregate {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -95,11 +95,11 @@ public class User {
     
     // ========== 构造函数 ==========
     
-    protected User() {
+    protected UserAggregate() {
         // JPA需要
     }
     
-    private User(String username, String email, String encodedPassword, String fullName, 
+    private UserAggregate(String username, String email, String encodedPassword, String fullName, 
                 TenantId tenantId, Set<Role> roles) {
         validateUserCreation(username, email, encodedPassword, fullName, tenantId, roles);
         
@@ -126,25 +126,25 @@ public class User {
     /**
      * 创建普通用户
      */
-    public static User createUser(String username, String email, String encodedPassword, 
+    public static UserAggregate createUser(String username, String email, String encodedPassword, 
                                  String fullName, TenantId tenantId, Role userRole) {
-        return new User(username, email, encodedPassword, fullName, tenantId, Set.of(userRole));
+        return new UserAggregate(username, email, encodedPassword, fullName, tenantId, Set.of(userRole));
     }
     
     /**
      * 创建管理员用户
      */
-    public static User createAdmin(String username, String email, String encodedPassword, 
+    public static UserAggregate createAdmin(String username, String email, String encodedPassword, 
                                   String fullName, TenantId tenantId, Role adminRole) {
-        return new User(username, email, encodedPassword, fullName, tenantId, Set.of(adminRole));
+        return new UserAggregate(username, email, encodedPassword, fullName, tenantId, Set.of(adminRole));
     }
     
     /**
      * 通过SSO创建用户
      */
-    public static User createFromSso(String username, String email, String fullName, 
+    public static UserAggregate createFromSso(String username, String email, String fullName, 
                                     String externalId, TenantId tenantId, Role defaultRole) {
-        User user = new User(username, email, "SSO_MANAGED", fullName, tenantId, Set.of(defaultRole));
+        UserAggregate user = new UserAggregate(username, email, "SSO_MANAGED", fullName, tenantId, Set.of(defaultRole));
         user.externalId = externalId;
         return user;
     }
@@ -532,7 +532,7 @@ public class User {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         
-        User user = (User) obj;
+        UserAggregate user = (UserAggregate) obj;
         return Objects.equals(userId, user.userId);
     }
     

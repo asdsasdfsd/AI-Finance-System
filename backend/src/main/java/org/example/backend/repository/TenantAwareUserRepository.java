@@ -1,7 +1,7 @@
 // backend/src/main/java/org/example/backend/repository/TenantAwareUserRepository.java
 package org.example.backend.repository;
 
-import org.example.backend.domain.aggregate.user.User;
+import org.example.backend.domain.aggregate.user.UserAggregate;
 import org.example.backend.tenant.TenantAwareRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -14,25 +14,25 @@ import java.util.Optional;
  * 租户感知的User Repository
  */
 @Repository
-public interface TenantAwareUserRepository extends TenantAwareRepository<User, Integer> {
+public interface TenantAwareUserRepository extends TenantAwareRepository<UserAggregate, Integer> {
     
     /**
      * 查找当前租户的所有用户
      */
     @Query("SELECT u FROM User u WHERE u.tenantId.value = :#{T(org.example.backend.tenant.TenantContext).currentTenant}")
-    List<User> findAllByTenant();
+    List<UserAggregate> findAllByTenant();
     
     /**
      * 按ID和租户查找用户
      */
     @Query("SELECT u FROM User u WHERE u.userId = :id AND u.tenantId.value = :#{T(org.example.backend.tenant.TenantContext).currentTenant}")
-    Optional<User> findByIdAndTenant(@Param("id") Integer id);
+    Optional<UserAggregate> findByIdAndTenant(@Param("id") Integer id);
     
     /**
      * 按用户名和租户查找用户（租户内用户名唯一）
      */
     @Query("SELECT u FROM User u WHERE u.username = :username AND u.tenantId.value = :#{T(org.example.backend.tenant.TenantContext).currentTenant}")
-    Optional<User> findByUsernameAndTenant(@Param("username") String username);
+    Optional<UserAggregate> findByUsernameAndTenant(@Param("username") String username);
     
     /**
      * 检查用户名在租户内是否已存在
@@ -50,7 +50,7 @@ public interface TenantAwareUserRepository extends TenantAwareRepository<User, I
      * 查找租户内启用的用户
      */
     @Query("SELECT u FROM User u WHERE u.tenantId.value = :#{T(org.example.backend.tenant.TenantContext).currentTenant} AND u.enabled = true")
-    List<User> findEnabledByTenant();
+    List<UserAggregate> findEnabledByTenant();
     
     /**
      * 删除指定ID和租户的用户

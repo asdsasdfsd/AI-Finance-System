@@ -1,7 +1,7 @@
 // backend/src/main/java/org/example/backend/service/TransactionAdapterService.java
 package org.example.backend.service;
 
-import org.example.backend.domain.aggregate.transaction.Transaction;
+import org.example.backend.domain.aggregate.transaction.TransactionAggregate;
 import org.example.backend.domain.valueobject.Money;
 import org.example.backend.model.Company;
 import org.example.backend.model.User;
@@ -193,7 +193,7 @@ public class TransactionAdapterService {
     // ========== 类型转换方法 ==========
     
     private org.example.backend.model.Transaction.TransactionType convertTransactionType(
-            Transaction.TransactionType newType) {
+            TransactionAggregate.TransactionType newType) {
         if (newType == null) return null;
         
         switch (newType) {
@@ -206,15 +206,15 @@ public class TransactionAdapterService {
         }
     }
     
-    private Transaction.TransactionType convertFromOldTransactionType(
+    private TransactionAggregate.TransactionType convertFromOldTransactionType(
             org.example.backend.model.Transaction.TransactionType oldType) {
         if (oldType == null) return null;
         
         switch (oldType) {
             case INCOME:
-                return Transaction.TransactionType.INCOME;
+                return TransactionAggregate.TransactionType.INCOME;
             case EXPENSE:
-                return Transaction.TransactionType.EXPENSE;
+                return TransactionAggregate.TransactionType.EXPENSE;
             default:
                 throw new IllegalArgumentException("不支持的交易类型: " + oldType);
         }
@@ -223,7 +223,7 @@ public class TransactionAdapterService {
     // ========== 内部DTO类 ==========
     
     public static class CreateTransactionRequest {
-        private Transaction.TransactionType transactionType;
+        private TransactionAggregate.TransactionType transactionType;
         private BigDecimal amount;
         private String currency = "CNY";
         private LocalDate transactionDate;
@@ -239,8 +239,8 @@ public class TransactionAdapterService {
         private Boolean isTaxable = false;
         
         // Getters and Setters
-        public Transaction.TransactionType getTransactionType() { return transactionType; }
-        public void setTransactionType(Transaction.TransactionType transactionType) { this.transactionType = transactionType; }
+        public TransactionAggregate.TransactionType getTransactionType() { return transactionType; }
+        public void setTransactionType(TransactionAggregate.TransactionType transactionType) { this.transactionType = transactionType; }
         
         public BigDecimal getAmount() { return amount; }
         public void setAmount(BigDecimal amount) { this.amount = amount; }

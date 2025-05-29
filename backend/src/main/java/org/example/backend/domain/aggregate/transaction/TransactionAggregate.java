@@ -1,4 +1,4 @@
-// backend/src/main/java/org/example/backend/domain/aggregate/transaction/Transaction.java
+// backend/src/main/java/org/example/backend/domain/aggregate/transaction/TransactionAggregate.java
 package org.example.backend.domain.aggregate.transaction;
 
 import org.example.backend.domain.valueobject.Money;
@@ -36,7 +36,7 @@ import java.util.*;
  */
 @Entity
 @Table(name = "Transaction")
-public class Transaction {
+public class TransactionAggregate {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -97,11 +97,11 @@ public class Transaction {
     
     // ========== 构造函数 ==========
     
-    protected Transaction() {
+    protected TransactionAggregate() {
         // JPA需要
     }
     
-    private Transaction(TransactionType type, Money money, LocalDate transactionDate, 
+    private TransactionAggregate(TransactionType type, Money money, LocalDate transactionDate, 
                        String description, Integer companyId, Integer userId) {
         // 业务规则验证
         validateTransactionCreation(type, money, transactionDate, companyId, userId);
@@ -127,17 +127,17 @@ public class Transaction {
     /**
      * 创建收入交易
      */
-    public static Transaction createIncome(Money amount, LocalDate date, String description,
+    public static TransactionAggregate createIncome(Money amount, LocalDate date, String description,
                                          Integer companyId, Integer userId) {
-        return new Transaction(TransactionType.INCOME, amount, date, description, companyId, userId);
+        return new TransactionAggregate(TransactionType.INCOME, amount, date, description, companyId, userId);
     }
     
     /**
      * 创建支出交易
      */
-    public static Transaction createExpense(Money amount, LocalDate date, String description,
+    public static TransactionAggregate createExpense(Money amount, LocalDate date, String description,
                                           Integer companyId, Integer userId) {
-        return new Transaction(TransactionType.EXPENSE, amount, date, description, companyId, userId);
+        return new TransactionAggregate(TransactionType.EXPENSE, amount, date, description, companyId, userId);
     }
     
     // ========== 业务方法 ==========
@@ -480,7 +480,7 @@ public class Transaction {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         
-        Transaction that = (Transaction) obj;
+        TransactionAggregate that = (TransactionAggregate) obj;
         return Objects.equals(transactionId, that.transactionId);
     }
     
