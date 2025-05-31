@@ -1,5 +1,5 @@
 // backend/src/main/java/org/example/backend/infrastructure/migration/DataMigrationService.java
-package org.example.backend.infanstructure.migration;
+package org.example.backend.infrastructure.migration;
 
 import org.example.backend.domain.aggregate.transaction.TransactionAggregate;
 import org.example.backend.domain.aggregate.transaction.TransactionAggregateRepository;
