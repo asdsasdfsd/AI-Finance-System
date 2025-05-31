@@ -1,17 +1,19 @@
 // backend/src/main/java/org/example/backend/domain/event/DomainEventPublisher.java
 package org.example.backend.domain.event;
 
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 /**
- * 领域事件发布器
+ * Domain Event Publisher - Fixed for type compatibility
  * 
- * 职责：
- * 1. 发布领域事件到Spring应用上下文
- * 2. 确保事件发布的可靠性
- * 3. 提供统一的事件发布接口
+ * Responsibilities:
+ * 1. Publish domain events to Spring application context
+ * 2. Ensure event publishing reliability
+ * 3. Provide unified event publishing interface
  */
 @Component
 public class DomainEventPublisher {
@@ -20,37 +22,49 @@ public class DomainEventPublisher {
     private ApplicationEventPublisher applicationEventPublisher;
     
     /**
-     * 发布领域事件
+     * Publish single domain event
      * 
-     * @param event 要发布的领域事件
+     * @param event Domain event to publish
      */
-    public void publish(DomainEvent event) {
+    public void publish(Object event) {
         if (event == null) {
-            throw new IllegalArgumentException("领域事件不能为null");
+            throw new IllegalArgumentException("Domain event cannot be null");
         }
         
         try {
             applicationEventPublisher.publishEvent(event);
-            System.out.println("领域事件已发布: " + event);
+            System.out.println("Domain event published: " + event);
         } catch (Exception e) {
-            System.err.println("发布领域事件失败: " + event + ", 错误: " + e.getMessage());
-            // 在实际项目中，这里可能需要更复杂的错误处理
-            // 比如写入死信队列、重试机制等
-            throw new RuntimeException("发布领域事件失败", e);
+            System.err.println("Failed to publish domain event: " + event + ", error: " + e.getMessage());
+            // In production, this might need more complex error handling
+            // such as dead letter queue, retry mechanism, etc.
+            throw new RuntimeException("Failed to publish domain event", e);
         }
     }
     
     /**
-     * 批量发布领域事件
+     * Publish multiple domain events
      * 
-     * @param events 要发布的领域事件列表
+     * @param events List of domain events to publish
      */
-    public void publishAll(java.util.List<DomainEvent> events) {
+    public void publishAll(List<Object> events) {
         if (events == null || events.isEmpty()) {
             return;
         }
         
-        for (DomainEvent event : events) {
+        for (Object event : events) {
+            publish(event);
+        }
+    }
+    
+    /**
+     * Publish domain event if condition is met
+     * 
+     * @param event Domain event to publish
+     * @param condition Condition to check before publishing
+     */
+    public void publishIf(Object event, boolean condition) {
+        if (condition) {
             publish(event);
         }
     }
