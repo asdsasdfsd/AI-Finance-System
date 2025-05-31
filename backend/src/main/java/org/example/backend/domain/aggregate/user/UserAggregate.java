@@ -4,32 +4,28 @@ package org.example.backend.domain.aggregate.user;
 import org.example.backend.domain.event.UserCreatedEvent;
 import org.example.backend.domain.valueobject.TenantId;
 import org.example.backend.model.Role;
-import org.springframework.data.domain.*;
+import org.springframework.data.domain.AfterDomainEventPublication;
+import org.springframework.data.domain.DomainEvents;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.*;
 
 /**
- * User 聚合根
+ * User Aggregate Root - Refactored to align with DDD principles
  * 
- * 聚合边界：
- * - User (聚合根)
- * - UserRole (内部实体)
- * - 外部引用：Company, Department通过ID引用
- * 
- * 业务不变量：
- * 1. 用户名在租户内必须唯一
- * 2. 邮箱在全系统内必须唯一
- * 3. 用户必须属于一个有效的公司（租户）
- * 4. 用户必须至少有一个角色
+ * Responsibilities:
+ * 1. Manage user identity and authentication within tenant boundaries
+ * 2. Handle user roles and permissions
+ * 3. Enforce security policies and account locking
+ * 4. Manage user preferences and profile information
  */
 @Entity
 @Table(name = "User", indexes = {
-    @Index(name = "idx_user_company_username", columnList = "company_id, username", unique = true),
+    @Index(name = "idx_user_tenant_username", columnList = "company_id, username", unique = true),
     @Index(name = "idx_user_email", columnList = "email", unique = true),
     @Index(name = "idx_user_external_id", columnList = "external_id"),
-    @Index(name = "idx_user_company_enabled", columnList = "company_id, enabled")
+    @Index(name = "idx_user_tenant_enabled", columnList = "company_id, enabled")
 })
 public class UserAggregate {
     
@@ -53,9 +49,9 @@ public class UserAggregate {
     private Boolean enabled;
     
     @Column(length = 100)
-    private String externalId; // SSO外部ID
+    private String externalId; // SSO external ID
     
-    // 多租户隔离 - 用户所属公司（租户）
+    // Multi-tenant isolation - user belongs to a tenant (company)
     @Embedded
     @AttributeOverride(name = "value", column = @Column(name = "company_id", nullable = false))
     private TenantId tenantId;
@@ -63,20 +59,27 @@ public class UserAggregate {
     @Column(name = "department_id")
     private Integer departmentId;
     
-    // 用户偏好设置
-    @Column(length = 10)
+    // User preferences
+    @Column(name = "preferred_language", length = 10)
     private String preferredLanguage;
     
     @Column(length = 50)
     private String timezone;
     
-    // 审计字段
+    // Audit fields
+    @Column(name = "last_login")
     private LocalDateTime lastLogin;
+    
+    @Column(name = "created_at")
     private LocalDateTime createdAt;
+    
+    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+    
+    @Column(name = "password_changed_at")
     private LocalDateTime passwordChangedAt;
     
-    // 角色关联 - 聚合内管理
+    // Role associations - managed within aggregate boundary
     @ManyToMany(fetch = FetchType.EAGER, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinTable(
         name = "User_Role",
@@ -85,18 +88,21 @@ public class UserAggregate {
     )
     private Set<Role> roles = new HashSet<>();
     
-    // 安全字段
+    // Security fields
+    @Column(name = "failed_login_attempts")
     private Integer failedLoginAttempts;
+    
+    @Column(name = "locked_until")
     private LocalDateTime lockedUntil;
     
-    // 领域事件
+    // Domain events
     @Transient
     private List<Object> domainEvents = new ArrayList<>();
     
-    // ========== 构造函数 ==========
+    // ========== Constructors ==========
     
     protected UserAggregate() {
-        // JPA需要
+        // JPA requires default constructor
     }
     
     private UserAggregate(String username, String email, String encodedPassword, String fullName, 
@@ -117,14 +123,14 @@ public class UserAggregate {
         this.updatedAt = LocalDateTime.now();
         this.passwordChangedAt = LocalDateTime.now();
         
-        // 发布用户创建事件
+        // Publish user creation event
         addDomainEvent(new UserCreatedEvent(this.userId, this.username, this.email, this.tenantId.getValue()));
     }
     
-    // ========== 工厂方法 ==========
+    // ========== Factory Methods ==========
     
     /**
-     * 创建普通用户
+     * Create regular user
      */
     public static UserAggregate createUser(String username, String email, String encodedPassword, 
                                  String fullName, TenantId tenantId, Role userRole) {
@@ -132,7 +138,7 @@ public class UserAggregate {
     }
     
     /**
-     * 创建管理员用户
+     * Create admin user
      */
     public static UserAggregate createAdmin(String username, String email, String encodedPassword, 
                                   String fullName, TenantId tenantId, Role adminRole) {
@@ -140,7 +146,7 @@ public class UserAggregate {
     }
     
     /**
-     * 通过SSO创建用户
+     * Create user from SSO
      */
     public static UserAggregate createFromSso(String username, String email, String fullName, 
                                     String externalId, TenantId tenantId, Role defaultRole) {
@@ -149,10 +155,10 @@ public class UserAggregate {
         return user;
     }
     
-    // ========== 业务方法 ==========
+    // ========== Business Methods ==========
     
     /**
-     * 更新用户基本信息
+     * Update user basic information
      */
     public void updateBasicInfo(String fullName, String email) {
         if (fullName != null && !fullName.trim().isEmpty()) {
@@ -168,32 +174,32 @@ public class UserAggregate {
     }
     
     /**
-     * 更改密码
+     * Change password
      */
     public void changePassword(String newEncodedPassword) {
         if (newEncodedPassword == null || newEncodedPassword.trim().isEmpty()) {
-            throw new IllegalArgumentException("新密码不能为空");
+            throw new IllegalArgumentException("New password cannot be empty");
         }
         
         if (this.externalId != null) {
-            throw new IllegalStateException("SSO用户不能修改密码");
+            throw new IllegalStateException("SSO users cannot change password");
         }
         
         this.password = newEncodedPassword;
         this.passwordChangedAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
         
-        // 重置失败登录次数
+        // Reset failed login attempts
         this.failedLoginAttempts = 0;
         this.lockedUntil = null;
     }
     
     /**
-     * 分配角色
+     * Assign role
      */
     public void assignRole(Role role) {
         if (role == null) {
-            throw new IllegalArgumentException("角色不能为空");
+            throw new IllegalArgumentException("Role cannot be null");
         }
         
         this.roles.add(role);
@@ -201,15 +207,15 @@ public class UserAggregate {
     }
     
     /**
-     * 移除角色
+     * Remove role
      */
     public void removeRole(Role role) {
         if (role == null) {
-            throw new IllegalArgumentException("角色不能为空");
+            throw new IllegalArgumentException("Role cannot be null");
         }
         
         if (this.roles.size() <= 1) {
-            throw new IllegalStateException("用户必须至少有一个角色");
+            throw new IllegalStateException("User must have at least one role");
         }
         
         this.roles.remove(role);
@@ -217,11 +223,11 @@ public class UserAggregate {
     }
     
     /**
-     * 替换所有角色
+     * Replace all roles
      */
     public void replaceRoles(Set<Role> newRoles) {
         if (newRoles == null || newRoles.isEmpty()) {
-            throw new IllegalArgumentException("用户必须至少有一个角色");
+            throw new IllegalArgumentException("User must have at least one role");
         }
         
         this.roles.clear();
@@ -230,7 +236,7 @@ public class UserAggregate {
     }
     
     /**
-     * 设置部门
+     * Set department
      */
     public void setDepartment(Integer departmentId) {
         this.departmentId = departmentId;
@@ -238,7 +244,7 @@ public class UserAggregate {
     }
     
     /**
-     * 启用用户
+     * Enable user
      */
     public void enable() {
         this.enabled = true;
@@ -248,7 +254,7 @@ public class UserAggregate {
     }
     
     /**
-     * 禁用用户
+     * Disable user
      */
     public void disable() {
         this.enabled = false;
@@ -256,7 +262,7 @@ public class UserAggregate {
     }
     
     /**
-     * 记录登录成功
+     * Record successful login
      */
     public void recordSuccessfulLogin() {
         this.lastLogin = LocalDateTime.now();
@@ -266,12 +272,12 @@ public class UserAggregate {
     }
     
     /**
-     * 记录登录失败
+     * Record failed login
      */
     public void recordFailedLogin() {
         this.failedLoginAttempts = (this.failedLoginAttempts == null ? 0 : this.failedLoginAttempts) + 1;
         
-        // 超过5次失败登录，锁定账户30分钟
+        // Lock account after 5 failed attempts for 30 minutes
         if (this.failedLoginAttempts >= 5) {
             this.lockedUntil = LocalDateTime.now().plusMinutes(30);
         }
@@ -280,7 +286,7 @@ public class UserAggregate {
     }
     
     /**
-     * 解锁账户
+     * Unlock account
      */
     public void unlock() {
         this.failedLoginAttempts = 0;
@@ -289,7 +295,7 @@ public class UserAggregate {
     }
     
     /**
-     * 更新用户偏好
+     * Update user preferences
      */
     public void updatePreferences(String language, String timezone) {
         if (language != null && !language.trim().isEmpty()) {
@@ -303,31 +309,31 @@ public class UserAggregate {
         this.updatedAt = LocalDateTime.now();
     }
     
-    // ========== 查询方法 ==========
+    // ========== Query Methods ==========
     
     /**
-     * 检查用户是否被锁定
+     * Check if user is locked
      */
     public boolean isLocked() {
         return lockedUntil != null && LocalDateTime.now().isBefore(lockedUntil);
     }
     
     /**
-     * 检查用户是否启用且未锁定
+     * Check if user is active and unlocked
      */
     public boolean isActiveAndUnlocked() {
         return enabled && !isLocked();
     }
     
     /**
-     * 检查用户是否有指定角色
+     * Check if user has specific role
      */
     public boolean hasRole(String roleName) {
         return roles.stream().anyMatch(role -> role.getName().equals(roleName));
     }
     
     /**
-     * 检查用户是否有任意指定角色
+     * Check if user has any of the specified roles
      */
     public boolean hasAnyRole(String... roleNames) {
         return Arrays.stream(roleNames)
@@ -335,7 +341,7 @@ public class UserAggregate {
     }
     
     /**
-     * 获取角色名称集合
+     * Get role names
      */
     public Set<String> getRoleNames() {
         return roles.stream()
@@ -344,32 +350,32 @@ public class UserAggregate {
     }
     
     /**
-     * 检查是否是SSO用户
+     * Check if user is SSO user
      */
     public boolean isSsoUser() {
         return externalId != null && !externalId.trim().isEmpty();
     }
     
     /**
-     * 检查是否属于指定租户
+     * Check if user belongs to specific tenant
      */
     public boolean belongsToTenant(TenantId tenantId) {
         return this.tenantId.equals(tenantId);
     }
     
     /**
-     * 检查密码是否需要更新（超过90天）
+     * Check if password is expired (90 days)
      */
     public boolean isPasswordExpired() {
         if (isSsoUser()) {
-            return false; // SSO用户密码不会过期
+            return false; // SSO users' passwords don't expire
         }
         
         return passwordChangedAt != null && 
                passwordChangedAt.isBefore(LocalDateTime.now().minusDays(90));
     }
     
-    // ========== 验证方法 ==========
+    // ========== Validation Methods ==========
     
     private void validateUserCreation(String username, String email, String encodedPassword, 
                                     String fullName, TenantId tenantId, Set<Role> roles) {
@@ -383,59 +389,59 @@ public class UserAggregate {
     
     private void validateUsername(String username) {
         if (username == null || username.trim().isEmpty()) {
-            throw new IllegalArgumentException("用户名不能为空");
+            throw new IllegalArgumentException("Username cannot be empty");
         }
         
         if (username.length() < 3 || username.length() > 50) {
-            throw new IllegalArgumentException("用户名长度必须在3-50个字符之间");
+            throw new IllegalArgumentException("Username must be between 3-50 characters");
         }
         
         if (!username.matches("^[a-zA-Z0-9_.-]+$")) {
-            throw new IllegalArgumentException("用户名只能包含字母、数字、下划线、点和连字符");
+            throw new IllegalArgumentException("Username can only contain letters, numbers, underscore, dot and hyphen");
         }
     }
     
     private void validateEmail(String email) {
         if (email == null || email.trim().isEmpty()) {
-            throw new IllegalArgumentException("邮箱不能为空");
+            throw new IllegalArgumentException("Email cannot be empty");
         }
         
         if (!email.matches("^[A-Za-z0-9+_.-]+@([A-Za-z0-9.-]+\\.[A-Za-z]{2,})$")) {
-            throw new IllegalArgumentException("邮箱格式不正确");
+            throw new IllegalArgumentException("Invalid email format");
         }
     }
     
     private void validatePassword(String password) {
         if (password == null || password.trim().isEmpty()) {
-            throw new IllegalArgumentException("密码不能为空");
+            throw new IllegalArgumentException("Password cannot be empty");
         }
         
-        // 这里假设传入的是已加密的密码，在实际项目中可能需要更复杂的验证
+        // Assuming password is already encoded, in real project might need more validation
     }
     
     private void validateFullName(String fullName) {
         if (fullName == null || fullName.trim().isEmpty()) {
-            throw new IllegalArgumentException("姓名不能为空");
+            throw new IllegalArgumentException("Full name cannot be empty");
         }
         
         if (fullName.length() > 100) {
-            throw new IllegalArgumentException("姓名长度不能超过100个字符");
+            throw new IllegalArgumentException("Full name cannot exceed 100 characters");
         }
     }
     
     private void validateTenantId(TenantId tenantId) {
         if (tenantId == null) {
-            throw new IllegalArgumentException("租户ID不能为空");
+            throw new IllegalArgumentException("Tenant ID cannot be null");
         }
     }
     
     private void validateRoles(Set<Role> roles) {
         if (roles == null || roles.isEmpty()) {
-            throw new IllegalArgumentException("用户必须至少有一个角色");
+            throw new IllegalArgumentException("User must have at least one role");
         }
     }
     
-    // ========== 领域事件管理 ==========
+    // ========== Domain Events Management ==========
     
     private void addDomainEvent(Object event) {
         this.domainEvents.add(event);
@@ -451,7 +457,7 @@ public class UserAggregate {
         this.domainEvents.clear();
     }
     
-    // ========== Getter方法 ==========
+    // ========== Getters ==========
     
     public Integer getUserId() {
         return userId;
@@ -525,7 +531,7 @@ public class UserAggregate {
         return lockedUntil;
     }
     
-    // ========== Object方法重写 ==========
+    // ========== Object Methods ==========
     
     @Override
     public boolean equals(Object obj) {

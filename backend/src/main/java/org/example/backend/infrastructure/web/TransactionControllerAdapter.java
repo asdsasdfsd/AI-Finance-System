@@ -1,5 +1,5 @@
 // backend/src/main/java/org/example/backend/infrastructure/web/TransactionControllerAdapter.java
-package org.example.backend.infanstructure.web;
+package org.example.backend.infrastructure.web;
 
 import org.example.backend.application.service.TransactionApplicationService;
 import org.example.backend.application.dto.CreateTransactionCommand;
