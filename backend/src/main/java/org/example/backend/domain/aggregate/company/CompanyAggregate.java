@@ -26,13 +26,9 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
 
 /**
- * Company Aggregate Root - Refactored to align with DDD principles
+ * Company Aggregate Root - 修复字段映射冲突
  * 
- * Responsibilities:
- * 1. Act as tenant root entity for multi-tenancy
- * 2. Manage company basic information and configurations
- * 3. Provide tenant isolation boundaries
- * 4. Control subscription and user limits
+ * 修复了与传统Company实体的字段映射冲突问题
  */
 @Entity
 @Table(name = "Company", indexes = {
@@ -45,15 +41,16 @@ public class CompanyAggregate {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "company_id")  // 明确指定数据库字段名
     private Integer companyId;
     
     @Column(name = "company_name", nullable = false, length = 200)
     private String companyName;
     
-    @Column(length = 500)
+    @Column(name = "address", length = 500)
     private String address;
     
-    @Column(length = 100)
+    @Column(name = "city", length = 100)
     private String city;
     
     @Column(name = "state_province", length = 100)
@@ -62,10 +59,10 @@ public class CompanyAggregate {
     @Column(name = "postal_code", length = 20)
     private String postalCode;
     
-    @Column(nullable = false, unique = true, length = 100)
+    @Column(name = "email", nullable = false, unique = true, length = 100)
     private String email;
     
-    @Column(length = 200)
+    @Column(name = "website", length = 200)
     private String website;
     
     @Column(name = "registration_number", length = 100)
