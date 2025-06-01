@@ -3,13 +3,16 @@ package org.example.backend.application.dto;
 
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 
-/**
- * Command for updating existing transactions
- */
 @Data
 @Builder
+@Getter
+@AllArgsConstructor
+@NoArgsConstructor
 public class UpdateTransactionCommand {
     private BigDecimal amount;
     private String currency;
