@@ -3,7 +3,7 @@ package org.example.backend.domain.aggregate.user;
 
 import org.example.backend.domain.event.UserCreatedEvent;
 import org.example.backend.domain.valueobject.TenantId;
-import org.example.backend.domain.shared.Role;
+import org.example.backend.model.Role; // 统一使用model.Role
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.AfterDomainEventPublication;
 import org.springframework.data.domain.DomainEvents;
@@ -13,13 +13,9 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 /**
- * User Aggregate Root - Refactored to align with DDD principles
+ * User Aggregate Root - 统一Role实体版本
  * 
- * Responsibilities:
- * 1. Manage user identity and authentication within tenant boundaries
- * 2. Handle user roles and permissions
- * 3. Enforce security policies and account locking
- * 4. Manage user preferences and profile information
+ * 统一使用org.example.backend.model.Role，避免类型冲突
  */
 @Entity
 @Table(name = "User", indexes = {
@@ -81,7 +77,7 @@ public class UserAggregate {
     @Column(name = "password_changed_at")
     private LocalDateTime passwordChangedAt;
     
-    // Role associations - managed within aggregate boundary
+    // Role associations - 统一使用model.Role
     @ManyToMany(fetch = FetchType.EAGER, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinTable(
         name = "User_Role",
@@ -417,8 +413,6 @@ public class UserAggregate {
         if (password == null || password.trim().isEmpty()) {
             throw new IllegalArgumentException("Password cannot be empty");
         }
-        
-        // Assuming password is already encoded, in real project might need more validation
     }
     
     private void validateFullName(String fullName) {
