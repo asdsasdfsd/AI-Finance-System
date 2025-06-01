@@ -5,6 +5,7 @@ import org.example.backend.domain.event.UserCreatedEvent;
 import org.example.backend.domain.event.CompanyCreatedEvent;
 import org.example.backend.service.AuditLogService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Profile;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 用户和公司事件处理器
  */
 @Component
+@Profile("ddd")
 @Transactional
 public class UserEventHandler {
     

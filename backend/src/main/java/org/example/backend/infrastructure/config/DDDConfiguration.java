@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Profile;
  * Configures DDD-specific beans and infrastructure components
  */
 @Configuration
+@Profile("ddd")
 public class DDDConfiguration {
     
     /**

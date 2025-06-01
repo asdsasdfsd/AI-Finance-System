@@ -40,7 +40,7 @@ import jakarta.persistence.Transient;
     @Index(name = "idx_company_registration", columnList = "registration_number"),
     @Index(name = "idx_company_status", columnList = "status")
 })
-@Profile("ddd-disabled")
+@Profile("ddd")
 public class CompanyAggregate {
     
     @Id

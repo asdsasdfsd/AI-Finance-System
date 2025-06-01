@@ -13,7 +13,7 @@ import org.example.backend.domain.valueobject.TransactionStatus;
 import org.example.backend.domain.event.DomainEventPublisher;
 import org.example.backend.exception.ResourceNotFoundException;
 import org.example.backend.exception.UnauthorizedException;
-
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
  * domain aggregates, ensuring business rules and transaction boundaries
  */
 @Service
+@Profile("ddd") 
 @Transactional
 public class TransactionApplicationService {
     

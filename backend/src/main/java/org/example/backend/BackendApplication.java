@@ -8,16 +8,17 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 @SpringBootApplication
 @EntityScan(basePackages = {
-    "org.example.backend.model",  // 原始 model 包
-    "org.example.backend.domain.aggregate"  // DDD 聚合实体
+    "org.example.backend.model"  // 只扫描传统ORM实体
+    // 暂时排除DDD实体: "org.example.backend.domain.aggregate"
 })
 @EnableJpaRepositories(basePackages = {
-    "org.example.backend.repository",  // 原始 repository 包
-    "org.example.backend.domain.aggregate.*.repository",  // DDD 聚合仓库，虽然不存在但为了保险
-    "org.example.backend.domain.aggregate.**"  // 扫描所有 DDD 聚合仓库
+    "org.example.backend.repository"  // 只扫描传统Repository
+    // 暂时排除DDD仓库: "org.example.backend.domain.aggregate.*.repository"
 })
 @ComponentScan(basePackages = {
-    "org.example.backend"  // 扫描所有包确保 DDD 组件被发现
+    "org.example.backend",
+    // 排除DDD聚合扫描，避免冲突
+    "!org.example.backend.domain.aggregate"
 })
 public class BackendApplication {
 
