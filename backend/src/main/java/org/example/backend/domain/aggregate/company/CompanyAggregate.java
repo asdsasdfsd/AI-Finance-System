@@ -1,15 +1,29 @@
 // backend/src/main/java/org/example/backend/domain/aggregate/company/CompanyAggregate.java
 package org.example.backend.domain.aggregate.company;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+
 import org.example.backend.domain.event.CompanyCreatedEvent;
-import org.example.backend.domain.valueobject.TenantId;
 import org.example.backend.domain.valueobject.CompanyStatus;
+import org.example.backend.domain.valueobject.TenantId;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.AfterDomainEventPublication;
 import org.springframework.data.domain.DomainEvents;
 
-import jakarta.persistence.*;
-import java.time.LocalDateTime;
-import java.util.*;
+import jakarta.persistence.AttributeOverride;
+import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 
 /**
  * Company Aggregate Root - Refactored to align with DDD principles
@@ -26,6 +40,7 @@ import java.util.*;
     @Index(name = "idx_company_registration", columnList = "registration_number"),
     @Index(name = "idx_company_status", columnList = "status")
 })
+@Profile("ddd-disabled")
 public class CompanyAggregate {
     
     @Id
