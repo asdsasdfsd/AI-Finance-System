@@ -1,4 +1,4 @@
-// src/main/java/org/example/backend/service/JournalEntryService.java
+// backend/src/main/java/org/example/backend/service/JournalEntryService.java
 package org.example.backend.service;
 
 import org.example.backend.model.Company;
@@ -15,6 +15,12 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * 传统JournalEntry Service - 处理传统model.JournalEntry
+ * 
+ * 注意：这与DDD的JournalEntryApplicationService是不同的类
+ * 这个处理传统的model.JournalEntry实体
+ */
 @Service
 public class JournalEntryService {
     @Autowired
@@ -58,7 +64,7 @@ public class JournalEntryService {
         
         if (lines != null) {
             lines.forEach(line -> {
-                line.setJournalEntry(savedEntry);
+                line.setJournalEntry(savedEntry);  // 这里使用的是传统的model.JournalEntry
                 journalLineRepository.save(line);
             });
         }
