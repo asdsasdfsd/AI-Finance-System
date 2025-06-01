@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
  * domain aggregates, ensuring business rules and transaction boundaries
  */
 @Service
-@Profile("ddd") 
+ 
 @Transactional
 public class TransactionApplicationService {
     

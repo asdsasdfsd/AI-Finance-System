@@ -48,7 +48,7 @@ import jakarta.persistence.Transient;
     @Index(name = "idx_transaction_status", columnList = "status"),
     @Index(name = "idx_transaction_type", columnList = "transaction_type")
 })
-@Profile("ddd")
+
 public class TransactionAggregate {
     
     @Id

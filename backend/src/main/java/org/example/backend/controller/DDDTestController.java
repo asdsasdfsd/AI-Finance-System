@@ -1,5 +1,5 @@
 // backend/src/main/java/org/example/backend/infrastructure/web/DDDTestController.java
-package org.example.backend.infrastructure.web;
+package org.example.backend.controller;
 
 import org.example.backend.application.service.CompanyApplicationService;
 import org.example.backend.application.service.UserApplicationService;
@@ -32,7 +32,7 @@ import java.util.Set;
 @RestController
 @RequestMapping("/api/ddd-test")
 @CrossOrigin(origins = "http://localhost:3000")
-@Profile("ddd")
+
 public class DDDTestController {
     
     private final CompanyApplicationService companyApplicationService;

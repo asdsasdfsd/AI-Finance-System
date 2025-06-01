@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 用户和公司事件处理器
  */
 @Component
-@Profile("ddd")
+
 @Transactional
 public class UserEventHandler {
     
