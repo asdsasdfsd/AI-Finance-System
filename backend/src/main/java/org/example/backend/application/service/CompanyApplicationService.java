@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
  * multi-tenant operations, subscription management, and business rules
  */
 @Service
-@Profile("ddd")  // 只在DDD模式下启用
+  // 只在DDD模式下启用
 @Transactional
 public class CompanyApplicationService {
     

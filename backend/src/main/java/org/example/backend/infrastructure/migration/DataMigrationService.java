@@ -29,7 +29,7 @@ import java.util.List;
  * while preserving data integrity and relationships
  */
 @Service
-@Profile("ddd") 
+ 
 public class DataMigrationService implements CommandLineRunner {
     
     private final TransactionRepository oldTransactionRepository;

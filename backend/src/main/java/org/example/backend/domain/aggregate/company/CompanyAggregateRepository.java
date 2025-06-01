@@ -19,7 +19,7 @@ import java.util.Optional;
  * 注意：这个Repository接口需要放在正确的包结构中
  */
 @Repository
-@Profile("ddd")
+
 public interface CompanyAggregateRepository extends JpaRepository<CompanyAggregate, Integer> {
     
     // ========== Tenant Discovery ==========
