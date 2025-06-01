@@ -12,6 +12,7 @@ import org.example.backend.domain.valueobject.TenantId;
 import org.example.backend.domain.event.DomainEventPublisher;
 import org.example.backend.exception.ResourceNotFoundException;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,12 +22,13 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Company Application Service
+ * Company Application Service - 仅在DDD模式下启用
  * 
  * Orchestrates company management use cases and coordinates
  * multi-tenant operations, subscription management, and business rules
  */
 @Service
+@Profile("ddd")  // 只在DDD模式下启用
 @Transactional
 public class CompanyApplicationService {
     
@@ -77,7 +79,7 @@ public class CompanyApplicationService {
         
         return mapToDTO(savedCompany);
     }
-    
+
     /**
      * Update company information
      */
@@ -320,7 +322,7 @@ public class CompanyApplicationService {
         }
     }
     
-    private CompanyDTO mapToDTO(CompanyAggregate company) {
+private CompanyDTO mapToDTO(CompanyAggregate company) {
         return CompanyDTO.builder()
                 .companyId(company.getCompanyId())
                 .companyName(company.getCompanyName())
@@ -346,4 +348,5 @@ public class CompanyApplicationService {
                 .subscriptionValid(company.isSubscriptionValid())
                 .build();
     }
+        
 }

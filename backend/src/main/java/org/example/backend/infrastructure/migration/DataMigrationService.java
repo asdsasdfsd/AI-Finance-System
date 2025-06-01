@@ -15,6 +15,7 @@ import org.example.backend.repository.TransactionRepository;
 import org.example.backend.repository.CompanyRepository;
 
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +29,7 @@ import java.util.List;
  * while preserving data integrity and relationships
  */
 @Service
+@Profile("ddd") 
 public class DataMigrationService implements CommandLineRunner {
     
     private final TransactionRepository oldTransactionRepository;

@@ -28,7 +28,7 @@ import java.util.*;
     @Index(name = "idx_user_external_id", columnList = "external_id"),
     @Index(name = "idx_user_tenant_enabled", columnList = "company_id, enabled")
 })
-@Profile("ddd-disabled")
+@Profile("ddd")
 public class UserAggregate {
     
     @Id

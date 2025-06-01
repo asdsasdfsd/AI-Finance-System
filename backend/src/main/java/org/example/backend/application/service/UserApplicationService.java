@@ -14,7 +14,7 @@ import org.example.backend.exception.ResourceNotFoundException;
 import org.example.backend.exception.UnauthorizedException;
 import org.example.backend.model.Role;
 import org.example.backend.repository.RoleRepository;
-
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
  * authorization, role management, and multi-tenant user operations
  */
 @Service
+@Profile("ddd") 
 @Transactional
 public class UserApplicationService {
     
