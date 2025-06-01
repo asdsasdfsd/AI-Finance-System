@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Fixed Asset Aggregate Repository
+ * Fixed Asset Aggregate Repository - 修复版本
  */
 @Repository
 public interface FixedAssetAggregateRepository extends JpaRepository<FixedAssetAggregate, Integer> {
@@ -20,44 +20,63 @@ public interface FixedAssetAggregateRepository extends JpaRepository<FixedAssetA
     /**
      * Find fixed asset by ID and tenant
      */
-    @Query("SELECT f FROM FixedAssetAggregate f WHERE f.assetId = :assetId AND f.tenantId = :tenantId")
+    @Query("SELECT f FROM FixedAssetAggregate f WHERE f.assetId = :assetId AND f.companyId = :companyId")
     Optional<FixedAssetAggregate> findByIdAndTenant(@Param("assetId") Integer assetId, 
-                                                   @Param("tenantId") TenantId tenantId);
+                                                   @Param("companyId") Integer companyId);
     
     /**
      * Find fixed assets by tenant
      */
-    List<FixedAssetAggregate> findByTenantIdOrderByNameAsc(TenantId tenantId);
+    List<FixedAssetAggregate> findByCompanyIdOrderByNameAsc(Integer companyId);
     
     /**
      * Find fixed assets by tenant and department
      */
-    List<FixedAssetAggregate> findByTenantIdAndDepartmentId(TenantId tenantId, Integer departmentId);
+    List<FixedAssetAggregate> findByCompanyIdAndDepartmentId(Integer companyId, Integer departmentId);
     
     /**
      * Find fixed assets by tenant and status
      */
-    @Query("SELECT f FROM FixedAssetAggregate f WHERE f.tenantId = :tenantId AND f.status = :status")
-    List<FixedAssetAggregate> findByTenantIdAndStatus(@Param("tenantId") TenantId tenantId, 
-                                                     @Param("status") String status);
+    @Query("SELECT f FROM FixedAssetAggregate f WHERE f.companyId = :companyId AND f.status = :status")
+    List<FixedAssetAggregate> findByCompanyIdAndStatus(@Param("companyId") Integer companyId, 
+                                                      @Param("status") String status);
     
     /**
-     * Sum current value by tenant
+     * Sum current value by tenant - 修复版本
      */
-    @Query("SELECT COALESCE(SUM(f.currentValue.amount), 0) FROM FixedAssetAggregate f " +
-           "WHERE f.tenantId = :tenantId AND f.status = 'ACTIVE'")
-    BigDecimal sumCurrentValueByTenant(@Param("tenantId") TenantId tenantId);
+    @Query("SELECT COALESCE(SUM(f.currentValue), 0) FROM FixedAssetAggregate f " +
+           "WHERE f.companyId = :companyId AND f.status = 'ACTIVE'")
+    BigDecimal sumCurrentValueByTenant(@Param("companyId") Integer companyId);
     
     /**
      * Count assets by tenant and status
      */
-    @Query("SELECT COUNT(f) FROM FixedAssetAggregate f WHERE f.tenantId = :tenantId AND f.status = :status")
-    long countByTenantIdAndStatus(@Param("tenantId") TenantId tenantId, @Param("status") String status);
+    @Query("SELECT COUNT(f) FROM FixedAssetAggregate f WHERE f.companyId = :companyId AND f.status = :status")
+    long countByTenantIdAndStatus(@Param("companyId") Integer companyId, @Param("status") String status);
     
     /**
      * Find fixed assets by tenant (alias method)
      */
     default List<FixedAssetAggregate> findByTenantId(TenantId tenantId) {
-        return findByTenantIdOrderByNameAsc(tenantId);
+        return findByCompanyIdOrderByNameAsc(tenantId.getValue());
+    }
+    
+    /**
+     * Additional convenience method for TenantId compatibility
+     */
+    default Optional<FixedAssetAggregate> findByIdAndTenant(Integer assetId, TenantId tenantId) {
+        return findByIdAndTenant(assetId, tenantId.getValue());
+    }
+    
+    default List<FixedAssetAggregate> findByTenantIdAndDepartmentId(TenantId tenantId, Integer departmentId) {
+        return findByCompanyIdAndDepartmentId(tenantId.getValue(), departmentId);
+    }
+    
+    default List<FixedAssetAggregate> findByTenantIdAndStatus(TenantId tenantId, String status) {
+        return findByCompanyIdAndStatus(tenantId.getValue(), status);
+    }
+    
+    default BigDecimal sumCurrentValueByTenant(TenantId tenantId) {
+        return sumCurrentValueByTenant(tenantId.getValue());
     }
 }
