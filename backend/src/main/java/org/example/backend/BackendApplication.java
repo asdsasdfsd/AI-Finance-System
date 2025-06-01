@@ -7,27 +7,31 @@ import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
-/**
- * Spring Boot Application Main Class
- * 
- * 重要：移除了静态的EntityScan和EnableJpaRepositories注解
- * 改为通过ProfileBasedConfiguration动态配置，避免Profile间冲突
- */
 @SpringBootApplication
-// 移除静态扫描配置，改为Profile动态配置
+@EntityScan(basePackages = {
+    "org.example.backend.domain.aggregate",  // DDD聚合
+    "org.example.backend.model"              // 共享实体(Role等)
+})
+@EnableJpaRepositories(basePackages = {
+    "org.example.backend.domain.aggregate.company",
+    "org.example.backend.domain.aggregate.transaction", 
+    "org.example.backend.domain.aggregate.user",
+    "org.example.backend.repository"  // 共享Repository
+})
 @ComponentScan(basePackages = {
-    "org.example.backend.config" // 只扫描配置包，其他由Profile配置决定
+    "org.example.backend.domain",
+    "org.example.backend.application",
+    "org.example.backend.infrastructure",
+    "org.example.backend.config",
+    "org.example.backend.security",
+    "org.example.backend.util",
+    "org.example.backend.exception",
+    "org.example.backend.service.AuditLogService",  // 保留审计服务
+    "org.example.backend.service.RoleService"       // 保留角色服务
 })
 public class BackendApplication {
-
     public static void main(String[] args) {
-        // 启动前显示Profile信息
-        System.out.println("🚀 启动AI财务管理系统...");
-        System.out.println("📋 支持的Profile模式:");
-        System.out.println("   - orm: 传统ORM架构模式");
-        System.out.println("   - ddd: 领域驱动设计模式");
-        System.out.println("⚙️ 当前Profile: " + System.getProperty("spring.profiles.active", "orm(默认)"));
-        
+        System.out.println("🚀 启动AI财务管理系统 - DDD模式");
         SpringApplication.run(BackendApplication.class, args);
     }
 }
