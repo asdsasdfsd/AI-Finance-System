@@ -2,7 +2,6 @@
 package org.example.backend.application.dto;
 
 import java.util.Set;
-
 import lombok.Builder;
 import lombok.Data;
 
