@@ -12,7 +12,7 @@ import org.example.backend.domain.valueobject.TenantId;
 import org.example.backend.domain.event.DomainEventPublisher;
 import org.example.backend.exception.ResourceNotFoundException;
 import org.example.backend.exception.UnauthorizedException;
-import org.example.backend.model.Role;
+import org.example.backend.model.Role; // 改为使用统一的model.Role
 import org.example.backend.repository.RoleRepository;
 import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -82,7 +82,7 @@ public class UserApplicationService {
             throw new IllegalArgumentException("Company has reached maximum user limit");
         }
         
-        // Get roles - 修复这里的Role查找
+        // Get roles - 修复这里的Role查找，使用统一的model.Role
         Set<Role> roles = getRolesByNames(command.getRoleNames());
         if (roles.isEmpty()) {
             // Default to USER role if no roles specified
@@ -159,7 +159,7 @@ public class UserApplicationService {
             user.changePassword(encodedPassword);
         }
         
-        // Update roles if provided
+        // Update roles if provided - 修复角色更新
         if (command.getRoleNames() != null && !command.getRoleNames().isEmpty()) {
             Set<Role> newRoles = getRolesByNames(command.getRoleNames());
             user.replaceRoles(newRoles);
@@ -202,7 +202,7 @@ public class UserApplicationService {
     }
     
     /**
-     * Assign role to user
+     * Assign role to user - 修复角色分配
      */
     public UserDTO assignRole(Integer userId, String roleName) {
         UserAggregate user = findUserById(userId);
@@ -216,7 +216,7 @@ public class UserApplicationService {
     }
     
     /**
-     * Remove role from user
+     * Remove role from user - 修复角色移除
      */
     public UserDTO removeRole(Integer userId, String roleName) {
         UserAggregate user = findUserById(userId);
@@ -337,7 +337,7 @@ public class UserApplicationService {
     }
     
     /**
-     * Search users by name or email
+     * Search users by name or email within tenant
      */
     @Transactional(readOnly = true)
     public List<UserDTO> searchUsers(Integer companyId, String searchTerm) {
@@ -375,7 +375,7 @@ public class UserApplicationService {
     }
     
     /**
-     * 修复：根据角色名称获取角色集合，使用Optional处理
+     * 修复：根据角色名称获取统一的Role集合
      */
     private Set<Role> getRolesByNames(Set<String> roleNames) {
         Set<Role> roles = new HashSet<>();
@@ -431,6 +431,9 @@ public class UserApplicationService {
         }
     }
     
+    /**
+     * 修复：映射UserAggregate到DTO，正确处理Role类型
+     */
     private UserDTO mapToDTO(UserAggregate user) {
         Set<String> roleNames = user.getRoles().stream()
                 .map(Role::getName)
