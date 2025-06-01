@@ -1,4 +1,4 @@
-// src/main/java/org/example/backend/model/Role.java
+// backend/src/main/java/org/example/backend/model/Role.java
 package org.example.backend.model;
 
 import java.util.HashSet;
@@ -30,6 +30,15 @@ public class Role {
     @JsonIgnore // Preventing loops in JSON serialization
     @ManyToMany(mappedBy = "roles")
     private Set<User> users = new HashSet<>();
+    
+    // 确保有getName方法（Lombok @Data应该自动生成，但明确添加以防万一）
+    public String getName() {
+        return this.name;
+    }
+    
+    public void setName(String name) {
+        this.name = name;
+    }
     
     // Add convenience methods for Optional handling
     public boolean isEmpty() {

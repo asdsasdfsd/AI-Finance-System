@@ -4,6 +4,7 @@ package org.example.backend.domain.aggregate.user;
 import org.example.backend.domain.event.UserCreatedEvent;
 import org.example.backend.domain.valueobject.TenantId;
 import org.example.backend.model.Role;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.AfterDomainEventPublication;
 import org.springframework.data.domain.DomainEvents;
 
@@ -27,6 +28,7 @@ import java.util.*;
     @Index(name = "idx_user_external_id", columnList = "external_id"),
     @Index(name = "idx_user_tenant_enabled", columnList = "company_id, enabled")
 })
+@Profile("ddd-disabled")
 public class UserAggregate {
     
     @Id

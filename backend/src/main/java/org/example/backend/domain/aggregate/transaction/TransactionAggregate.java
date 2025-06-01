@@ -1,19 +1,36 @@
 // backend/src/main/java/org/example/backend/domain/aggregate/transaction/TransactionAggregate.java
 package org.example.backend.domain.aggregate.transaction;
 
-import org.example.backend.domain.valueobject.Money;
-import org.example.backend.domain.valueobject.TransactionStatus;
-import org.example.backend.domain.valueobject.TenantId;
-import org.example.backend.domain.event.TransactionCreatedEvent;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+
 import org.example.backend.domain.event.TransactionApprovedEvent;
 import org.example.backend.domain.event.TransactionCancelledEvent;
+import org.example.backend.domain.event.TransactionCreatedEvent;
+import org.example.backend.domain.valueobject.Money;
+import org.example.backend.domain.valueobject.TenantId;
+import org.example.backend.domain.valueobject.TransactionStatus;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.AfterDomainEventPublication;
 import org.springframework.data.domain.DomainEvents;
 
-import jakarta.persistence.*;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.*;
+import jakarta.persistence.AttributeOverride;
+import jakarta.persistence.AttributeOverrides;
+import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 
 /**
  * Transaction Aggregate Root - Refactored to align with DDD principles
@@ -31,6 +48,7 @@ import java.util.*;
     @Index(name = "idx_transaction_status", columnList = "status"),
     @Index(name = "idx_transaction_type", columnList = "transaction_type")
 })
+@Profile("ddd-disabled")
 public class TransactionAggregate {
     
     @Id
