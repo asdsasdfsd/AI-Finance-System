@@ -2,6 +2,7 @@
 package org.example.backend.application.dto;
 
 import java.util.Set;
+
 import lombok.Builder;
 import lombok.Data;
 
@@ -35,5 +36,42 @@ public class CreateUserCommand {
      */
     public Boolean getEnabledAsBoolean() {
         return enabled;
+    }
+
+    // 明确添加所有 getter 方法以确保兼容性
+    public String getUsername() {
+        return username;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public String getFullName() {
+        return fullName;
+    }
+
+    public Integer getCompanyId() {
+        return companyId;
+    }
+
+    public Integer getDepartmentId() {
+        return departmentId;
+    }
+
+    public String getPreferredLanguage() {
+        return preferredLanguage;
+    }
+
+    public String getTimezone() {
+        return timezone;
+    }
+
+    public Set<String> getRoleNames() {
+        return roleNames;
     }
 }

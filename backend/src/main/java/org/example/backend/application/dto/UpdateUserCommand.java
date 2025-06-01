@@ -18,4 +18,33 @@ public class UpdateUserCommand {
     private String preferredLanguage;
     private String timezone;
     private Set<String> roleNames;
+
+    // 明确添加所有 getter 方法以确保兼容性
+    public String getFullName() {
+        return fullName;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public Integer getDepartmentId() {
+        return departmentId;
+    }
+
+    public String getPreferredLanguage() {
+        return preferredLanguage;
+    }
+
+    public String getTimezone() {
+        return timezone;
+    }
+
+    public Set<String> getRoleNames() {
+        return roleNames;
+    }
 }
