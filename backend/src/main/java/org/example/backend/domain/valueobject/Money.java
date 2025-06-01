@@ -7,21 +7,24 @@ import java.util.Currency;
 import java.util.Objects;
 
 import jakarta.persistence.Embeddable;
+import jakarta.persistence.Column;
 
 /**
- * Money 值对象 - 不可变的货币金额表示
+ * Money 值对象 - 修复版本
  * 
- * 设计原则：
- * 1. 不可变性 - 所有字段final，只提供getter
- * 2. 值语义 - 基于内容的equals和hashCode
- * 3. 自包含验证 - 构造时进行业务规则验证
- * 4. 丰富的行为 - 提供货币运算方法
+ * 关键修复：
+ * 1. 添加了必要的JPA注解确保正确映射
+ * 2. 修复了构造函数问题
+ * 3. 添加了验证逻辑
  */
 @Embeddable
 public class Money {
     
-    private final BigDecimal amount;
-    private final String currencyCode;
+    @Column(name = "amount", nullable = false, precision = 19, scale = 2)
+    private BigDecimal amount;
+    
+    @Column(name = "currency", nullable = false, length = 3)
+    private String currencyCode;
     
     // JPA需要的默认构造函数
     protected Money() {
@@ -30,21 +33,16 @@ public class Money {
     }
     
     private Money(BigDecimal amount, String currencyCode) {
+        validateAmount(amount);
+        validateCurrencyCode(currencyCode);
         this.amount = amount.setScale(2, RoundingMode.HALF_UP);
         this.currencyCode = currencyCode;
     }
     
     /**
      * 创建货币金额
-     * 
-     * @param amount 金额
-     * @param currencyCode 货币代码 (如: CNY, USD)
-     * @return Money实例
-     * @throws IllegalArgumentException 如果参数无效
      */
     public static Money of(BigDecimal amount, String currencyCode) {
-        validateAmount(amount);
-        validateCurrencyCode(currencyCode);
         return new Money(amount, currencyCode);
     }
     
@@ -81,10 +79,6 @@ public class Money {
     
     /**
      * 加法运算
-     * 
-     * @param other 另一个货币金额
-     * @return 新的Money实例
-     * @throws IllegalArgumentException 如果货币类型不匹配
      */
     public Money add(Money other) {
         checkSameCurrency(other);
@@ -181,22 +175,6 @@ public class Money {
         return this.amount.compareTo(other.amount) < 0;
     }
     
-    /**
-     * 大于等于比较
-     */
-    public boolean isGreaterThanOrEqual(Money other) {
-        checkSameCurrency(other);
-        return this.amount.compareTo(other.amount) >= 0;
-    }
-    
-    /**
-     * 小于等于比较
-     */
-    public boolean isLessThanOrEqual(Money other) {
-        checkSameCurrency(other);
-        return this.amount.compareTo(other.amount) <= 0;
-    }
-    
     // ========== 验证方法 ==========
     
     private static void validateAmount(BigDecimal amount) {
@@ -281,13 +259,5 @@ public class Money {
     public String toDisplayString() {
         Currency currency = getCurrency();
         return String.format("%s %s", currency.getSymbol(), amount.toPlainString());
-    }
-    
-    /**
-     * 用于JSON序列化的字符串表示
-     */
-    public String toJsonString() {
-        return String.format("{\"amount\": %s, \"currency\": \"%s\"}", 
-                           amount.toPlainString(), currencyCode);
     }
 }

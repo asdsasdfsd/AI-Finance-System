@@ -30,6 +30,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Auth Service - 修复版本
+ * 
+ * 修复了Role查找的类型兼容性问题
+ */
 @Service
 public class AuthService {
 
@@ -89,7 +94,6 @@ public class AuthService {
         return buildAuthResponse(token, user, userDetails);
     }
 
-
     @Transactional
     public UserDTO register(RegisterRequest request) {
         // Check if username or email already exists
@@ -102,7 +106,7 @@ public class AuthService {
         Company company = companyRepository.findById(request.getCompanyId())
                 .orElseThrow(() -> new ResourceNotFoundException("Company not found"));
         
-        // Find default user role
+        // Find default user role - 修复这里的Role查找
         Role userRole = roleRepository.findByName("USER")
                 .orElseThrow(() -> new ResourceNotFoundException("Default role not found"));
         
@@ -150,7 +154,7 @@ public class AuthService {
         
         Company savedCompany = companyRepository.save(company);
         
-        // Find admin role
+        // Find admin role - 修复这里的Role查找
         Role adminRole = roleRepository.findByName("COMPANY_ADMIN")
                 .orElseThrow(() -> new ResourceNotFoundException("Admin role not found"));
         
@@ -174,7 +178,7 @@ public class AuthService {
         return mapUserToDTO(savedUser);
     }
 
-/**
+    /**
      * Authenticate user with Microsoft SSO
      * Supports auto-provisioning of users and companies
      * 

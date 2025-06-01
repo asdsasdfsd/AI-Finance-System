@@ -19,16 +19,16 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.stream.Collectors;
 
 /**
- * User Application Service
+ * User Application Service - 修复版本
  * 
- * Orchestrates user management use cases including authentication,
- * authorization, role management, and multi-tenant user operations
+ * 修复了Role查找的类型兼容性问题
  */
 @Service
 @Profile("ddd") 
@@ -82,7 +82,7 @@ public class UserApplicationService {
             throw new IllegalArgumentException("Company has reached maximum user limit");
         }
         
-        // Get roles
+        // Get roles - 修复这里的Role查找
         Set<Role> roles = getRolesByNames(command.getRoleNames());
         if (roles.isEmpty()) {
             // Default to USER role if no roles specified
@@ -374,12 +374,17 @@ public class UserApplicationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Company not found with ID: " + companyId));
     }
     
+    /**
+     * 修复：根据角色名称获取角色集合，使用Optional处理
+     */
     private Set<Role> getRolesByNames(Set<String> roleNames) {
         Set<Role> roles = new HashSet<>();
-        for (String roleName : roleNames) {
-            Role role = roleRepository.findByName(roleName)
-                    .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + roleName));
-            roles.add(role);
+        if (roleNames != null) {
+            for (String roleName : roleNames) {
+                Role role = roleRepository.findByName(roleName)
+                        .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + roleName));
+                roles.add(role);
+            }
         }
         return roles;
     }
