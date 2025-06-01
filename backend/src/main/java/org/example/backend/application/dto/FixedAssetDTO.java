@@ -1,17 +1,17 @@
 // backend/src/main/java/org/example/backend/application/dto/FixedAssetDTO.java
 package org.example.backend.application.dto;
 
-import lombok.Builder;
-import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-/**
- * Fixed Asset DTO
- */
+import lombok.Builder;
+import lombok.Data;
+import lombok.Getter;
+
 @Data
 @Builder
+@Getter
 public class FixedAssetDTO {
     private Integer assetId;
     private String name;

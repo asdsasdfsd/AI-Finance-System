@@ -3,18 +3,18 @@ package org.example.backend.application.dto;
 
 import org.example.backend.domain.aggregate.transaction.TransactionAggregate;
 import org.example.backend.domain.valueobject.TransactionStatus;
-import lombok.Builder;
-import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-/**
- * Transaction Data Transfer Object for API responses
- */
+import lombok.Builder;
+import lombok.Data;
+import lombok.Getter;
+
 @Data
 @Builder
+@Getter
 public class TransactionDTO {
     private Integer transactionId;
     private BigDecimal amount;

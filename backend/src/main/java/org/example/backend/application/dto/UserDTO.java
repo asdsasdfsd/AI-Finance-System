@@ -6,12 +6,11 @@ import java.util.Set;
 
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
 
-/**
- * User Data Transfer Object for API responses
- */
 @Data
 @Builder
+@Getter
 public class UserDTO {
     private Integer userId;
     private String username;

@@ -3,15 +3,18 @@ package org.example.backend.application.dto;
 
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
-/**
- * Command for creating journal entries
- */
 @Data
 @Builder
+@Getter
+@AllArgsConstructor
+@NoArgsConstructor
 public class CreateJournalEntryCommand {
     private Integer companyId;
     private LocalDate entryDate;
@@ -21,6 +24,9 @@ public class CreateJournalEntryCommand {
     
     @Data
     @Builder
+    @Getter
+    @AllArgsConstructor
+    @NoArgsConstructor
     public static class JournalLineCommand {
         private Integer accountId;
         private String description;

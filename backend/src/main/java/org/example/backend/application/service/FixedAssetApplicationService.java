@@ -254,7 +254,7 @@ public class FixedAssetApplicationService {
                 .accumulatedDepreciation(fixedAsset.getAccumulatedDepreciation().getAmount())
                 .location(fixedAsset.getLocation())
                 .serialNumber(fixedAsset.getSerialNumber())
-                .status(fixedAsset.getStatus())
+                .status(fixedAsset.getStatus().name())
                 .companyId(fixedAsset.getTenantId().getValue())
                 .departmentId(fixedAsset.getDepartmentId())
                 .createdAt(fixedAsset.getCreatedAt())

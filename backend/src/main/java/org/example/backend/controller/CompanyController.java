@@ -1,5 +1,5 @@
 // backend/src/main/java/org/example/backend/infrastructure/web/CompanyControllerAdapter.java
-package org.example.backend.infrastructure.web;
+package org.example.backend.controller;
 
 import org.example.backend.application.service.CompanyApplicationService;
 import org.example.backend.application.dto.CreateCompanyCommand;
@@ -25,11 +25,11 @@ import java.util.Map;
 @RequestMapping("/api/companies")
 @CrossOrigin(origins = "http://localhost:3000")
 
-public class CompanyControllerAdapter {
+public class CompanyController {
     
     private final CompanyApplicationService companyApplicationService;
     
-    public CompanyControllerAdapter(CompanyApplicationService companyApplicationService) {
+    public CompanyController(CompanyApplicationService companyApplicationService) {
         this.companyApplicationService = companyApplicationService;
     }
     

@@ -3,14 +3,17 @@ package org.example.backend.application.dto;
 
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-/**
- * Command for creating fixed assets
- */
 @Data
 @Builder
+@Getter
+@AllArgsConstructor
+@NoArgsConstructor
 public class CreateFixedAssetCommand {
     private String name;
     private String description;
@@ -21,4 +24,3 @@ public class CreateFixedAssetCommand {
     private Integer companyId;
     private Integer departmentId;
 }
-
