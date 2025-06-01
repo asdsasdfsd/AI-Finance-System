@@ -11,6 +11,7 @@ import org.example.backend.domain.valueobject.TransactionStatus;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.context.annotation.Profile;
 import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDate;
@@ -27,6 +28,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/transactions")
 @CrossOrigin(origins = "http://localhost:3000")
+@Profile("ddd")
 public class TransactionControllerAdapter {
     
     private final TransactionApplicationService transactionApplicationService;
