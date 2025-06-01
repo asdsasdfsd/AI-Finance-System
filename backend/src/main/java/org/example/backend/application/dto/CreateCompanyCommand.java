@@ -3,12 +3,15 @@ package org.example.backend.application.dto;
 
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 
-/**
- * Command for creating new companies
- */
 @Data
 @Builder
+@Getter
+@AllArgsConstructor
+@NoArgsConstructor
 public class CreateCompanyCommand {
     private String companyName;
     private String address;

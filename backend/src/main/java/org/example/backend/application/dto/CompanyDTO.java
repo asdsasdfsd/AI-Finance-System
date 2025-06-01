@@ -7,12 +7,11 @@ import org.example.backend.domain.valueobject.CompanyStatus;
 
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
 
-/**
- * Company Data Transfer Object for API responses
- */
 @Data
 @Builder
+@Getter
 public class CompanyDTO {
     private Integer companyId;
     private String companyName;

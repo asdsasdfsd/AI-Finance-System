@@ -1,16 +1,20 @@
 // backend/src/main/java/org/example/backend/application/dto/CreateTransactionCommand.java
+// 3. 修复 CreateTransactionCommand.java
 package org.example.backend.application.dto;
 
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-/**
- * Command for creating new transactions
- */
 @Data
 @Builder
+@Getter
+@AllArgsConstructor
+@NoArgsConstructor
 public class CreateTransactionCommand {
     private BigDecimal amount;
     private String currency;
@@ -28,4 +32,3 @@ public class CreateTransactionCommand {
     private Integer fundId;
     private Integer categoryId;
 }
-
