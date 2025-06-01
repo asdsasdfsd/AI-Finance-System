@@ -1,6 +1,7 @@
 // backend/src/main/java/org/example/backend/service/AuthService.java
 package org.example.backend.service;
 
+import org.example.backend.application.service.UserApplicationService;
 import org.example.backend.dto.AuthRequest;
 import org.example.backend.dto.AuthResponse;
 import org.example.backend.dto.RegisterRequest;
@@ -41,7 +42,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final CustomUserDetailsService userDetailsService;
     private final JwtUtil jwtUtil;
-    private final UserRepository userRepository;
+    private final UserApplicationService userApplicationService;
     private final RoleRepository roleRepository;
     private final CompanyRepository companyRepository;
     private final PasswordEncoder passwordEncoder;

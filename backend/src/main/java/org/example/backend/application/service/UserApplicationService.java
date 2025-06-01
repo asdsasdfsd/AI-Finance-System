@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
  * 修复了Role查找的类型兼容性问题
  */
 @Service
-@Profile("ddd") 
+ 
 @Transactional
 public class UserApplicationService {
     

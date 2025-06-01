@@ -21,7 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 3. 维护数据一致性
  */
 @Component
-@Profile("ddd")
+
 @Transactional
 public class TransactionEventHandler {
     
