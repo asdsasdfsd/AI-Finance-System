@@ -3,7 +3,7 @@ package org.example.backend.domain.aggregate.user;
 
 import org.example.backend.domain.event.UserCreatedEvent;
 import org.example.backend.domain.valueobject.TenantId;
-import org.example.backend.model.Role;
+import org.example.backend.domain.shared.Role;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.AfterDomainEventPublication;
 import org.springframework.data.domain.DomainEvents;

@@ -1,4 +1,4 @@
-// src/main/java/org/example/backend/security/CustomUserDetailsService.java
+// backend/src/main/java/org/example/backend/security/CustomUserDetailsService.java
 package org.example.backend.security;
 
 import java.util.Collection;
@@ -18,11 +18,21 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * CustomUserDetailsService - 修复版本
+ * 
+ * 支持DDD和ORM两种模式：
+ * - ORM模式：直接使用UserRepository
+ * - DDD模式：通过UserRepositoryAdapter使用UserAggregateRepository
+ */
 @Service
 public class CustomUserDetailsService implements UserDetailsService {
 
-    @Autowired
-    private UserRepository userRepository;
+    private final UserRepository userRepository;
+
+    public CustomUserDetailsService(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -39,7 +49,7 @@ public class CustomUserDetailsService implements UserDetailsService {
                 true, // accountNonExpired
                 true, // credentialsNonExpired
                 true, // accountNonLocked
-                getAuthorities(user.getRoles())
+                getAuthorities(roles)
         );
     }
 
