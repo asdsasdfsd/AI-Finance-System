@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Journal Entry Application Service
+ * Journal Entry Application Service - 修复版本
  * 
  * 协调会计分录的业务用例，确保借贷平衡和会计合规性
  */
@@ -169,8 +169,7 @@ public class JournalEntryApplicationService {
      */
     @Transactional(readOnly = true)
     public List<JournalEntryDTO> getJournalEntriesByCompany(Integer companyId) {
-        TenantId tenantId = TenantId.of(companyId);
-        List<JournalEntryAggregate> entries = journalEntryRepository.findByTenantId(tenantId);
+        List<JournalEntryAggregate> entries = journalEntryRepository.findByTenantIdOrderByEntryDateDesc(companyId);
         return entries.stream().map(this::mapToDTO).collect(Collectors.toList());
     }
     
@@ -181,16 +180,15 @@ public class JournalEntryApplicationService {
     public List<JournalEntryDTO> getJournalEntriesByDateRange(Integer companyId, 
                                                              LocalDate startDate, 
                                                              LocalDate endDate) {
-        TenantId tenantId = TenantId.of(companyId);
         List<JournalEntryAggregate> entries = journalEntryRepository.findByTenantIdAndDateRange(
-            tenantId, startDate, endDate);
+            companyId, startDate, endDate);
         return entries.stream().map(this::mapToDTO).collect(Collectors.toList());
     }
     
     // ========== Helper Methods ==========
     
     private JournalEntryAggregate findJournalEntryByIdAndTenant(Integer entryId, TenantId tenantId) {
-        return journalEntryRepository.findByIdAndTenant(entryId, tenantId)
+        return journalEntryRepository.findByIdAndTenant(entryId, tenantId.getValue())
                 .orElseThrow(() -> new ResourceNotFoundException("Journal entry not found with ID: " + entryId));
     }
     
@@ -226,7 +224,7 @@ public class JournalEntryApplicationService {
                 .isBalanced(journalEntry.isBalanced())
                 .journalLines(journalEntry.getJournalLines().stream()
                     .map(line -> JournalEntryDTO.JournalLineDTO.builder()
-                        .lineId(line.getLineId())
+                        .lineId(null) // JournalLineData没有lineId
                         .accountId(line.getAccountId())
                         .description(line.getDescription())
                         .debitAmount(line.getDebitAmount())

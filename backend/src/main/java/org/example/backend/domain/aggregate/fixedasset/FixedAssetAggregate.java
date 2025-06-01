@@ -16,13 +16,9 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Fixed Asset Aggregate Root
+ * Fixed Asset Aggregate Root - 完全修复版本
  * 
- * 职责：
- * 1. 管理固定资产生命周期
- * 2. 计算折旧和净值
- * 3. 控制资产状态流转
- * 4. 处置和报废管理
+ * 使用JPA默认命名策略，避免列名冲突
  */
 @Entity
 @Table(name = "Fixed_Asset")
@@ -37,55 +33,37 @@ public class FixedAssetAggregate {
     
     private String description;
     
-    @Column(name = "acquisition_date")
     private LocalDate acquisitionDate;
     
-    // Money value objects - embedded
-    @Embedded
-    @AttributeOverrides({
-        @AttributeOverride(name = "amount", column = @Column(name = "acquisition_cost")),
-        @AttributeOverride(name = "currencyCode", column = @Column(name = "acquisition_currency"))
-    })
-    private Money acquisitionCost;
+    // 直接使用BigDecimal字段，避免Money值对象的映射冲突
+    private java.math.BigDecimal acquisitionCost;
     
-    @Embedded
-    @AttributeOverrides({
-        @AttributeOverride(name = "amount", column = @Column(name = "current_value")),
-        @AttributeOverride(name = "currencyCode", column = @Column(name = "current_currency"))
-    })
-    private Money currentValue;
+    private java.math.BigDecimal currentValue;
     
-    @Embedded
-    @AttributeOverrides({
-        @AttributeOverride(name = "amount", column = @Column(name = "accumulated_depreciation")),
-        @AttributeOverride(name = "currencyCode", column = @Column(name = "depreciation_currency"))
-    })
-    private Money accumulatedDepreciation;
+    private java.math.BigDecimal accumulatedDepreciation;
+    
+    // 货币代码，默认为CNY
+    @Column(length = 3)
+    private String currency = "CNY";
     
     private String location;
     
-    @Column(name = "serial_number")
     private String serialNumber;
     
     @Enumerated(EnumType.STRING)
     private AssetStatus status;
     
-    // External references
-    @Embedded
-    @AttributeOverride(name = "value", column = @Column(name = "company_id"))
-    private TenantId tenantId;
+    // External references - 使用简单的Integer字段
+    @Column(name = "company_id")
+    private Integer companyId;
     
-    @Column(name = "department_id")
     private Integer departmentId;
     
     // Audit fields
-    @Column(name = "created_at")
     private LocalDateTime createdAt;
     
-    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
     
-    @Column(name = "disposed_at")
     private LocalDateTime disposedAt;
     
     // Domain events
@@ -102,11 +80,12 @@ public class FixedAssetAggregate {
         
         this.name = name;
         this.description = description;
-        this.acquisitionCost = acquisitionCost;
-        this.currentValue = acquisitionCost; // 初始价值等于购置成本
-        this.accumulatedDepreciation = Money.zero(acquisitionCost.getCurrencyCode());
+        this.acquisitionCost = acquisitionCost.getAmount();
+        this.currentValue = acquisitionCost.getAmount(); // 初始价值等于购置成本
+        this.accumulatedDepreciation = java.math.BigDecimal.ZERO;
+        this.currency = acquisitionCost.getCurrencyCode();
         this.acquisitionDate = acquisitionDate;
-        this.tenantId = tenantId;
+        this.companyId = tenantId.getValue();
         this.departmentId = departmentId;
         this.status = AssetStatus.ACTIVE;
         this.createdAt = LocalDateTime.now();
@@ -176,12 +155,12 @@ public class FixedAssetAggregate {
         ensureCanBeModified();
         validateDepreciation(depreciationAmount);
         
-        this.accumulatedDepreciation = this.accumulatedDepreciation.add(depreciationAmount);
+        this.accumulatedDepreciation = this.accumulatedDepreciation.add(depreciationAmount.getAmount());
         this.currentValue = this.acquisitionCost.subtract(this.accumulatedDepreciation);
         this.updatedAt = LocalDateTime.now();
         
         addDomainEvent(new FixedAssetDepreciatedEvent(this.assetId, depreciationAmount, 
-                                                     this.currentValue, this.tenantId.getValue()));
+                                                     getCurrentValue(), this.companyId));
     }
     
     /**
@@ -194,8 +173,7 @@ public class FixedAssetAggregate {
         this.disposedAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
         
-        addDomainEvent(new FixedAssetDisposedEvent(this.assetId, disposalAmount, reason, 
-                                                  this.tenantId.getValue()));
+        addDomainEvent(new FixedAssetDisposedEvent(this.assetId, disposalAmount, reason, this.companyId));
     }
     
     /**
@@ -208,8 +186,38 @@ public class FixedAssetAggregate {
         this.disposedAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
         
-        addDomainEvent(new FixedAssetDisposedEvent(this.assetId, Money.zero(acquisitionCost.getCurrencyCode()), 
-                                                  reason, this.tenantId.getValue()));
+        addDomainEvent(new FixedAssetDisposedEvent(this.assetId, Money.zero(this.currency), 
+                                                  reason, this.companyId));
+    }
+    
+    // ========== Money Value Object Getters ==========
+    
+    /**
+     * Get acquisition cost as Money value object
+     */
+    public Money getAcquisitionCost() {
+        return Money.of(this.acquisitionCost, this.currency);
+    }
+    
+    /**
+     * Get current value as Money value object
+     */
+    public Money getCurrentValue() {
+        return Money.of(this.currentValue, this.currency);
+    }
+    
+    /**
+     * Get accumulated depreciation as Money value object
+     */
+    public Money getAccumulatedDepreciation() {
+        return Money.of(this.accumulatedDepreciation, this.currency);
+    }
+    
+    /**
+     * Get tenant ID as value object
+     */
+    public TenantId getTenantId() {
+        return TenantId.of(this.companyId);
     }
     
     // ========== Query Methods ==========
@@ -218,7 +226,8 @@ public class FixedAssetAggregate {
      * Calculate net book value
      */
     public Money getNetBookValue() {
-        return acquisitionCost.subtract(accumulatedDepreciation);
+        java.math.BigDecimal netValue = this.acquisitionCost.subtract(this.accumulatedDepreciation);
+        return Money.of(netValue, this.currency);
     }
     
     /**
@@ -246,11 +255,10 @@ public class FixedAssetAggregate {
      * Calculate depreciation rate (for informational purposes)
      */
     public double getDepreciationRate() {
-        if (acquisitionCost.isZero()) {
+        if (this.acquisitionCost.compareTo(java.math.BigDecimal.ZERO) == 0) {
             return 0.0;
         }
-        return accumulatedDepreciation.getAmount().doubleValue() / 
-               acquisitionCost.getAmount().doubleValue();
+        return this.accumulatedDepreciation.doubleValue() / this.acquisitionCost.doubleValue();
     }
     
     // ========== Validation Methods ==========
@@ -278,8 +286,8 @@ public class FixedAssetAggregate {
             throw new IllegalArgumentException("Depreciation amount must be positive");
         }
         
-        Money futureAccumulatedDepreciation = accumulatedDepreciation.add(depreciationAmount);
-        if (futureAccumulatedDepreciation.isGreaterThan(acquisitionCost)) {
+        java.math.BigDecimal futureAccumulated = this.accumulatedDepreciation.add(depreciationAmount.getAmount());
+        if (futureAccumulated.compareTo(this.acquisitionCost) > 0) {
             throw new IllegalArgumentException("Total depreciation cannot exceed acquisition cost");
         }
     }
@@ -316,17 +324,15 @@ public class FixedAssetAggregate {
     public String getName() { return name; }
     public String getDescription() { return description; }
     public LocalDate getAcquisitionDate() { return acquisitionDate; }
-    public Money getAcquisitionCost() { return acquisitionCost; }
-    public Money getCurrentValue() { return currentValue; }
-    public Money getAccumulatedDepreciation() { return accumulatedDepreciation; }
     public String getLocation() { return location; }
     public String getSerialNumber() { return serialNumber; }
     public AssetStatus getStatus() { return status; }
-    public TenantId getTenantId() { return tenantId; }
     public Integer getDepartmentId() { return departmentId; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public LocalDateTime getDisposedAt() { return disposedAt; }
+    public String getCurrency() { return currency; }
+    public Integer getCompanyId() { return companyId; }
     
     // ========== Enums ==========
     
@@ -364,7 +370,7 @@ public class FixedAssetAggregate {
     
     @Override
     public String toString() {
-        return String.format("FixedAsset{id=%d, name=%s, status=%s, value=%s}", 
-                           assetId, name, status, currentValue);
+        return String.format("FixedAsset{id=%d, name=%s, status=%s, value=%s %s}", 
+                           assetId, name, status, currentValue, currency);
     }
 }
