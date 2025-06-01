@@ -27,6 +27,9 @@ public class User {
     private String fullName;
     private Boolean enabled;
     private String externalId;
+
+    private String preferredLanguage;
+    private String timezone;
     
     @ManyToOne
     @JoinColumn(name = "department_id")
@@ -83,5 +86,13 @@ public class User {
     // Get Company
     public Company getCompany() {
         return this.company;
+    }
+
+    public void setPreferredLanguage(String preferredLanguage) {
+        this.preferredLanguage = preferredLanguage;
+    }
+
+    public void setTimezone(String timezone) {
+        this.timezone = timezone;
     }
 }

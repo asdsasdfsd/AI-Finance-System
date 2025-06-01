@@ -361,7 +361,19 @@ public class UserApplicationService {
     public boolean existsByEmail(String email) {
         return userRepository.existsByEmail(email);
     }
+
     
+    /**
+     * Get password for authentication (安全方法)
+     * 注意：这个方法仅用于Spring Security认证，不应该暴露给其他业务逻辑
+     */
+    @Transactional(readOnly = true)
+    public String getPasswordForAuthentication(String username) {
+        UserAggregate user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with username: " + username));
+        return user.getPassword();
+    }
+
     // ========== Helper Methods ==========
     
     private UserAggregate findUserById(Integer userId) {

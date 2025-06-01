@@ -17,9 +17,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * CustomUserDetailsService - DDD版本
+ * CustomUserDetailsService - 修复版本
  * 
- * 使用DDD的UserApplicationService获取用户信息
+ * 使用DDD的UserApplicationService获取用户信息，并通过安全方法获取密码
  */
 @Service
 public class CustomUserDetailsService implements UserDetailsService {
@@ -41,11 +41,14 @@ public class CustomUserDetailsService implements UserDetailsService {
                 throw new UsernameNotFoundException("User not found with username: " + username);
             }
 
+            // 通过应用服务的安全方法获取密码
+            String password = userApplicationService.getPasswordForAuthentication(username);
+
             Set<String> roleNames = user.getRoleNames();
 
             return new org.springframework.security.core.userdetails.User(
                     user.getUsername(),
-                    getPasswordForUser(user), // 获取密码
+                    password,
                     user.isActiveAndUnlocked(),
                     true, // accountNonExpired
                     !user.isPasswordExpired(), // credentialsNonExpired
@@ -58,46 +61,6 @@ public class CustomUserDetailsService implements UserDetailsService {
             System.err.println("Error loading user by username: " + e.getMessage());
             throw new UsernameNotFoundException("Error loading user: " + username, e);
         }
-    }
-
-    /**
-     * 获取用户密码
-     * 注意：在DDD模式下，密码不应该通过DTO暴露
-     * 这里需要特殊处理或者修改UserApplicationService添加获取密码的方法
-     */
-    private String getPasswordForUser(UserDTO user) {
-        // 临时解决方案：如果是SSO用户，返回一个占位符密码
-        if (user.isSsoUser()) {
-            return "{noop}SSO_MANAGED"; // SSO用户的占位符密码
-        }
-        
-        // 对于非SSO用户，我们需要从UserApplicationService获取实际的加密密码
-        // 这可能需要在UserApplicationService中添加一个getPasswordForAuthentication方法
-        try {
-            // 暂时的解决方案：通过UserApplicationService获取完整用户信息
-            // 注意：这里需要UserApplicationService提供获取密码的安全方法
-            return getUserPasswordSecurely(user.getUsername());
-        } catch (Exception e) {
-            System.err.println("Failed to get password for user: " + user.getUsername());
-            throw new RuntimeException("Failed to authenticate user", e);
-        }
-    }
-    
-    /**
-     * 安全地获取用户密码用于认证
-     * 注意：这个方法可能需要在UserApplicationService中实现
-     */
-    private String getUserPasswordSecurely(String username) {
-        // 这里需要调用UserApplicationService的一个特殊方法来获取密码
-        // 或者直接访问UserAggregate的密码字段
-        // 临时解决方案：返回一个默认值，后续需要改进
-        
-        // TODO: 在UserApplicationService中添加getPasswordForAuthentication方法
-        // return userApplicationService.getPasswordForAuthentication(username);
-        
-        // 临时解决方案：抛出异常提醒需要实现
-        throw new RuntimeException("Password retrieval not implemented in DDD mode. " +
-                "Need to add getPasswordForAuthentication method to UserApplicationService");
     }
 
     private Collection<? extends GrantedAuthority> getAuthorities(Set<String> roleNames) {

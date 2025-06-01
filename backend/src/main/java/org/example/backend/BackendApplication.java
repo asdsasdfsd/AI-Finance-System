@@ -9,14 +9,16 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 @SpringBootApplication
 @EntityScan(basePackages = {
-    "org.example.backend.domain.aggregate",  // DDD聚合
-    "org.example.backend.model"              // 共享实体(Role等)
+    "org.example.backend.domain.aggregate",      // DDD聚合根
+    "org.example.backend.model"                  // 共享实体(Role等)
 })
 @EnableJpaRepositories(basePackages = {
     "org.example.backend.domain.aggregate.company",
     "org.example.backend.domain.aggregate.transaction", 
     "org.example.backend.domain.aggregate.user",
-    "org.example.backend.repository"  // 共享Repository
+    "org.example.backend.domain.aggregate.journalentry",  // DDD Repository
+    "org.example.backend.domain.aggregate.fixedasset",    // DDD Repository
+    "org.example.backend.repository"             // 传统Repository
 })
 @ComponentScan(basePackages = {
     "org.example.backend.domain",
@@ -26,8 +28,8 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
     "org.example.backend.security",
     "org.example.backend.util",
     "org.example.backend.exception",
-    "org.example.backend.service.AuditLogService",  // 保留审计服务
-    "org.example.backend.service.RoleService"       // 保留角色服务
+    "org.example.backend.controller",             
+    "org.example.backend.service"                // 扫描所有service包
 })
 public class BackendApplication {
     public static void main(String[] args) {

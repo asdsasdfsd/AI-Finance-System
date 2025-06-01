@@ -3,12 +3,16 @@ package org.example.backend.domain.aggregate.journalentry;
 
 import org.example.backend.domain.valueobject.Money;
 import org.example.backend.domain.valueobject.TenantId;
+import org.example.backend.model.JournalLine;
 import org.example.backend.domain.event.JournalEntryPostedEvent;
+import org.springframework.data.domain.AfterDomainEventPublication;
+import org.springframework.data.domain.DomainEvents;
 
 import jakarta.persistence.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.math.BigDecimal;
 
@@ -54,7 +58,7 @@ public class JournalEntryAggregate {
     private LocalDateTime postedAt;
     
     // 分录行 - 内部管理
-    @OneToMany(mappedBy = "journalEntry", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "journalEntry", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<JournalLine> journalLines = new ArrayList<>();
     
     @Transient
@@ -131,11 +135,25 @@ public class JournalEntryAggregate {
         }
     }
     
+    // ========== Domain Events Management ==========
+    
+    @DomainEvents
+    public List<Object> getDomainEvents() {
+        return Collections.unmodifiableList(domainEvents);
+    }
+    
+    @AfterDomainEventPublication
+    public void clearDomainEvents() {
+        this.domainEvents.clear();
+    }
+    
     // Getters
     public Integer getEntryId() { return entryId; }
     public TenantId getTenantId() { return tenantId; }
     public LocalDate getEntryDate() { return entryDate; }
+    public String getDescription() { return description; }
     public EntryStatus getStatus() { return status; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
     public List<JournalLine> getJournalLines() { return new ArrayList<>(journalLines); }
     
     public enum EntryStatus {
@@ -143,38 +161,4 @@ public class JournalEntryAggregate {
     }
 }
 
-// 分录行实体
-@Entity
-@Table(name = "Journal_Line")
-class JournalLine {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer lineId;
-    
-    @ManyToOne
-    @JoinColumn(name = "entry_id")
-    private JournalEntryAggregate journalEntry;
-    
-    @Column(name = "account_id")
-    private Integer accountId;
-    
-    private String description;
-    
-    @Column(name = "debit_amount")
-    private BigDecimal debitAmount;
-    
-    @Column(name = "credit_amount") 
-    private BigDecimal creditAmount;
-    
-    // 构造函数和getter/setter
-    protected JournalLine() {}
-    
-    public Integer getLineId() { return lineId; }
-    public void setJournalEntry(JournalEntryAggregate journalEntry) { this.journalEntry = journalEntry; }
-    public void setAccountId(Integer accountId) { this.accountId = accountId; }
-    public void setDescription(String description) { this.description = description; }
-    public void setDebitAmount(BigDecimal debitAmount) { this.debitAmount = debitAmount; }
-    public void setCreditAmount(BigDecimal creditAmount) { this.creditAmount = creditAmount; }
-    public BigDecimal getDebitAmount() { return debitAmount; }
-    public BigDecimal getCreditAmount() { return creditAmount; }
-}
+// 分录行实体 - 改为public类
