@@ -4,29 +4,29 @@ package org.example.backend.infrastructure.adapter;
 import org.example.backend.domain.aggregate.user.UserAggregate;
 import org.example.backend.domain.aggregate.user.UserAggregateRepository;
 import org.example.backend.model.Department;
-import org.example.backend.model.Role;
 import org.example.backend.model.User;
 import org.example.backend.repository.UserRepository;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Example;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.repository.query.FluentQuery;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Repository;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
  * UserRepository委托 - DDD模式下的简化实现
  * 
- * 只实现必要的方法，其他方法抛出UnsupportedOperationException
+ * 修复了Role类型转换问题
  */
 @Repository
 @Primary
@@ -94,6 +94,7 @@ public class UserRepositoryDelegate implements UserRepository {
     
     /**
      * 将UserAggregate转换为User实体
+     * 修复：现在使用统一的Role，不需要类型转换
      */
     private User convertToUser(UserAggregate userAggregate) {
         User user = new User();
@@ -107,6 +108,8 @@ public class UserRepositoryDelegate implements UserRepository {
         user.setLastLogin(userAggregate.getLastLogin());
         user.setCreatedAt(userAggregate.getCreatedAt());
         user.setUpdatedAt(userAggregate.getUpdatedAt());
+        
+        // 现在使用统一的Role，直接设置
         user.setRoles(userAggregate.getRoles());
         
         return user;
