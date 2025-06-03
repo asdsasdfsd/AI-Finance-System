@@ -12,9 +12,9 @@ import org.example.backend.domain.valueobject.TenantId;
 import org.example.backend.domain.event.DomainEventPublisher;
 import org.example.backend.exception.ResourceNotFoundException;
 import org.example.backend.exception.UnauthorizedException;
-import org.example.backend.model.Role; // 改为使用统一的model.Role
+import org.example.backend.model.Role;
 import org.example.backend.repository.RoleRepository;
-import org.springframework.context.annotation.Profile;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,12 +26,11 @@ import java.util.HashSet;
 import java.util.stream.Collectors;
 
 /**
- * User Application Service - 修复版本
+ * User Application Service - 修复循环依赖版本
  * 
- * 修复了Role查找的类型兼容性问题
+ * 使用 @Lazy 注解解决与 SecurityConfig 的循环依赖
  */
 @Service
- 
 @Transactional
 public class UserApplicationService {
     
@@ -45,7 +44,7 @@ public class UserApplicationService {
                                 CompanyAggregateRepository companyRepository,
                                 RoleRepository roleRepository,
                                 DomainEventPublisher eventPublisher,
-                                PasswordEncoder passwordEncoder) {
+                                @Lazy PasswordEncoder passwordEncoder) {  // 添加 @Lazy 注解
         this.userRepository = userRepository;
         this.companyRepository = companyRepository;
         this.roleRepository = roleRepository;
@@ -82,7 +81,7 @@ public class UserApplicationService {
             throw new IllegalArgumentException("Company has reached maximum user limit");
         }
         
-        // Get roles - 修复这里的Role查找，使用统一的model.Role
+        // Get roles
         Set<Role> roles = getRolesByNames(command.getRoleNames());
         if (roles.isEmpty()) {
             // Default to USER role if no roles specified
@@ -159,7 +158,7 @@ public class UserApplicationService {
             user.changePassword(encodedPassword);
         }
         
-        // Update roles if provided - 修复角色更新
+        // Update roles if provided
         if (command.getRoleNames() != null && !command.getRoleNames().isEmpty()) {
             Set<Role> newRoles = getRolesByNames(command.getRoleNames());
             user.replaceRoles(newRoles);
@@ -202,7 +201,7 @@ public class UserApplicationService {
     }
     
     /**
-     * Assign role to user - 修复角色分配
+     * Assign role to user
      */
     public UserDTO assignRole(Integer userId, String roleName) {
         UserAggregate user = findUserById(userId);
@@ -216,7 +215,7 @@ public class UserApplicationService {
     }
     
     /**
-     * Remove role from user - 修复角色移除
+     * Remove role from user
      */
     public UserDTO removeRole(Integer userId, String roleName) {
         UserAggregate user = findUserById(userId);
@@ -362,7 +361,6 @@ public class UserApplicationService {
         return userRepository.existsByEmail(email);
     }
 
-    
     /**
      * Get password for authentication (安全方法)
      * 注意：这个方法仅用于Spring Security认证，不应该暴露给其他业务逻辑
@@ -386,9 +384,6 @@ public class UserApplicationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Company not found with ID: " + companyId));
     }
     
-    /**
-     * 修复：根据角色名称获取统一的Role集合
-     */
     private Set<Role> getRolesByNames(Set<String> roleNames) {
         Set<Role> roles = new HashSet<>();
         if (roleNames != null) {
@@ -437,15 +432,11 @@ public class UserApplicationService {
             user.updatePreferences(command.getPreferredLanguage(), command.getTimezone());
         }
         
-        // Fix: Use the method that returns primitive boolean to avoid null comparison issues
         if (!command.getEnabled()) {
             user.disable();
         }
     }
     
-    /**
-     * 修复：映射UserAggregate到DTO，正确处理Role类型
-     */
     private UserDTO mapToDTO(UserAggregate user) {
         Set<String> roleNames = user.getRoles().stream()
                 .map(Role::getName)

@@ -229,7 +229,6 @@ public class DDDTestController {
             
             // 测试公司操作
             // 1. 激活/暂停公司
-            CompanyDTO suspendedCompany = companyApplicationService.suspendCompany(company.getCompanyId(), "测试暂停");
             CompanyDTO reactivatedCompany = companyApplicationService.activateCompany(company.getCompanyId());
             
             // 2. 测试用户操作
@@ -247,7 +246,6 @@ public class DDDTestController {
             response.put("message", "业务操作测试完成");
             response.put("results", Map.of(
                 "companyOperations", Map.of(
-                    "suspendTest", !suspendedCompany.isActive(),
                     "activateTest", reactivatedCompany.isActive()
                 ),
                 "userOperations", Map.of(
@@ -319,44 +317,6 @@ public class DDDTestController {
     }
     
     /**
-     * 清理测试数据
-     */
-    @DeleteMapping("/cleanup-test-data")
-    public ResponseEntity<Map<String, Object>> cleanupTestData() {
-        Map<String, Object> response = new HashMap<>();
-        
-        try {
-            var companies = companyApplicationService.getAllCompanies();
-            int deletedCompanies = 0;
-            
-            for (CompanyDTO company : companies) {
-                if (company.getCompanyName().contains("测试") || 
-                    company.getCompanyName().contains("DDD") ||
-                    company.getEmail().contains("test")) {
-                    
-                    companyApplicationService.deleteCompany(company.getCompanyId());
-                    deletedCompanies++;
-                }
-            }
-            
-            response.put("status", "success");
-            response.put("message", "测试数据清理完成");
-            response.put("deletedCompanies", deletedCompanies);
-            response.put("timestamp", LocalDateTime.now());
-            
-            return ResponseEntity.ok(response);
-            
-        } catch (Exception e) {
-            response.put("status", "error");
-            response.put("message", "清理测试数据失败: " + e.getMessage());
-            response.put("error", e.getClass().getSimpleName());
-            response.put("timestamp", LocalDateTime.now());
-            
-            return ResponseEntity.status(500).body(response);
-        }
-    }
-    
-    /**
      * 获取DDD模式统计信息
      */
     @GetMapping("/statistics")
@@ -383,8 +343,6 @@ public class DDDTestController {
                 "companies", Map.of(
                     "total", companyStats.getTotalCompanies(),
                     "active", companyStats.getActiveCompanies(),
-                    "suspended", companyStats.getSuspendedCompanies(),
-                    "deleted", companyStats.getDeletedCompanies(),
                     "activePercentage", String.format("%.2f%%", companyStats.getActivePercentage())
                 ),
                 "users", Map.of(
