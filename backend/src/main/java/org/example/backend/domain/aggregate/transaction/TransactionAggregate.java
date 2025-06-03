@@ -53,6 +53,7 @@ public class TransactionAggregate {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "transaction_id")
     private Integer transactionId;
     
     // Money value object - embedded

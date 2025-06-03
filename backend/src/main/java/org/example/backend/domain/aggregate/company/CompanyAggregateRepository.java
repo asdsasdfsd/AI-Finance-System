@@ -64,9 +64,8 @@ public interface CompanyAggregateRepository extends JpaRepository<CompanyAggrega
     /**
      * Find active companies only
      */
-    @Query("SELECT c FROM CompanyAggregate c WHERE c.companyStatus.status = 'ACTIVE'")
-    List<CompanyAggregate> findActiveCompanies();
-    
+    @Query("SELECT c FROM CompanyAggregate c WHERE c.status.status = :status")
+List<CompanyAggregate> findActiveCompanies(@Param("status") CompanyStatus.Status status);
     // ========== Subscription Management ==========
     
     /**
