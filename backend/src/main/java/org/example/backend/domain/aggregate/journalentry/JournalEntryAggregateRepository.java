@@ -16,35 +16,35 @@ import java.util.Optional;
  */
 @Repository
 public interface JournalEntryAggregateRepository extends JpaRepository<JournalEntryAggregate, Integer> {
-    
+
     /**
      * Find journal entry by ID and tenant
      */
-    @Query("SELECT j FROM JournalEntryAggregate j WHERE j.journalId = :entryId AND j.companyId = :companyId")
+    @Query("SELECT j FROM JournalEntryAggregate j WHERE j.entryId = :entryId AND j.tenantId.value = :companyId")
     Optional<JournalEntryAggregate> findByIdAndTenant(@Param("entryId") Integer entryId, 
-                                                     @Param("companyId") Integer companyId);
-    
+                                                    @Param("companyId") Integer companyId);
+
     /**
      * Find journal entries by tenant
      */
-    @Query("SELECT j FROM JournalEntryAggregate j WHERE j.companyId = :companyId ORDER BY j.entryDate DESC")
+    @Query("SELECT j FROM JournalEntryAggregate j WHERE j.tenantId.value = :companyId ORDER BY j.entryDate DESC")
     List<JournalEntryAggregate> findByTenantIdOrderByEntryDateDesc(@Param("companyId") Integer companyId);
-    
+
     /**
      * Find journal entries by tenant and date range
      */
-    @Query("SELECT j FROM JournalEntryAggregate j WHERE j.companyId = :companyId " +
-           "AND j.entryDate BETWEEN :startDate AND :endDate ORDER BY j.entryDate DESC")
+    @Query("SELECT j FROM JournalEntryAggregate j WHERE j.tenantId.value = :companyId " +
+        "AND j.entryDate BETWEEN :startDate AND :endDate ORDER BY j.entryDate DESC")
     List<JournalEntryAggregate> findByTenantIdAndDateRange(@Param("companyId") Integer companyId,
-                                                          @Param("startDate") LocalDate startDate,
-                                                          @Param("endDate") LocalDate endDate);
-    
+                                                        @Param("startDate") LocalDate startDate,
+                                                        @Param("endDate") LocalDate endDate);
+
     /**
      * Find journal entries by tenant and status
      */
-    @Query("SELECT j FROM JournalEntryAggregate j WHERE j.companyId = :companyId AND j.status = :status")
+    @Query("SELECT j FROM JournalEntryAggregate j WHERE j.tenantId.value = :companyId AND j.status = :status")
     List<JournalEntryAggregate> findByTenantIdAndStatus(@Param("companyId") Integer companyId, 
-                                                       @Param("status") JournalEntryAggregate.EntryStatus status);
+                                                    @Param("status") JournalEntryAggregate.EntryStatus status);
     
     /**
      * Find journal entries by tenant (alias method)
