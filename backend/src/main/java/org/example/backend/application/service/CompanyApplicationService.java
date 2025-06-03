@@ -122,7 +122,7 @@ public class CompanyApplicationService {
         CompanyAggregate savedCompany = companyRepository.save(company);
         return mapToDTO(savedCompany);
     }
-    
+
     /**
      * Activate company
      */
@@ -133,31 +133,22 @@ public class CompanyApplicationService {
         CompanyAggregate savedCompany = companyRepository.save(company);
         return mapToDTO(savedCompany);
     }
-    
+
     /**
-     * Suspend company operations
+     * Deactivate company (改名，原来的 suspend)
      */
-    public CompanyDTO suspendCompany(Integer companyId, String reason) {
+    public CompanyDTO deactivateCompany(Integer companyId, String reason) {
         CompanyAggregate company = findCompanyById(companyId);
-        company.suspend();
+        company.deactivate();  // 需要在 CompanyAggregate 中添加这个方法
         
         CompanyAggregate savedCompany = companyRepository.save(company);
         
-        // TODO: Add suspension event with reason
-        // eventPublisher.publish(new CompanySuspendedEvent(companyId, reason));
+        // TODO: Add deactivation event with reason
+        // eventPublisher.publish(new CompanyDeactivatedEvent(companyId, reason));
         
         return mapToDTO(savedCompany);
     }
-    
-    /**
-     * Delete company (soft delete)
-     */
-    public void deleteCompany(Integer companyId) {
-        CompanyAggregate company = findCompanyById(companyId);
-        company.delete();
-        
-        companyRepository.save(company);
-    }
+
     
     /**
      * Update subscription
@@ -252,17 +243,14 @@ public class CompanyApplicationService {
     public CompanyStatsDTO getCompanyStatistics() {
         long totalCompanies = companyRepository.count();
         long activeCompanies = companyRepository.countActiveCompanies();
-        long suspendedCompanies = companyRepository.countByStatus(CompanyStatus.Status.SUSPENDED);
-        long deletedCompanies = companyRepository.countByStatus(CompanyStatus.Status.DELETED);
+        long inactiveCompanies = companyRepository.countByStatus("INACTIVE");
         
         return CompanyStatsDTO.builder()
                 .totalCompanies(totalCompanies)
                 .activeCompanies(activeCompanies)
-                .suspendedCompanies(suspendedCompanies)
-                .deletedCompanies(deletedCompanies)
+                .inactiveCompanies(inactiveCompanies)  // 改为 inactiveCompanies
                 .build();
     }
-    
     // ========== Helper Methods ==========
     
     private CompanyAggregate findCompanyById(Integer companyId) {

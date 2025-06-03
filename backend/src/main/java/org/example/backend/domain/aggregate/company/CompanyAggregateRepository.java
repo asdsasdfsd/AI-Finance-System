@@ -64,8 +64,8 @@ public interface CompanyAggregateRepository extends JpaRepository<CompanyAggrega
     /**
      * Find active companies only
      */
-    @Query("SELECT c FROM CompanyAggregate c WHERE c.status.status = :status")
-List<CompanyAggregate> findActiveCompanies(@Param("status") CompanyStatus.Status status);
+    @Query("SELECT c FROM CompanyAggregate c WHERE c.companyStatus.status = 'ACTIVE'")
+    List<CompanyAggregate> findActiveCompanies();
     // ========== Subscription Management ==========
     
     /**
@@ -95,8 +95,8 @@ List<CompanyAggregate> findActiveCompanies(@Param("status") CompanyStatus.Status
      * Count companies by status
      */
     @Query("SELECT COUNT(c) FROM CompanyAggregate c WHERE c.companyStatus.status = :status")
-    long countByStatus(@Param("status") CompanyStatus.Status status);
-    
+    long countByStatus(@Param("status") String status);  // 改为 String 参数
+
     /**
      * Count active companies
      */
