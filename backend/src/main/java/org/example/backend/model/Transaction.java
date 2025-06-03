@@ -11,8 +11,9 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "Transaction")
 public class Transaction {
-    @Id
+@Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "transaction_id")
     private Integer transactionId;
     
     @ManyToOne
@@ -35,19 +36,38 @@ public class Transaction {
     @JoinColumn(name = "category_id")
     private Category category;
     
+    @Column(name = "amount", precision = 19, scale = 2)
     private BigDecimal amount;
     
     @Enumerated(EnumType.STRING)
+    @Column(name = "transaction_type")
     private TransactionType transactionType;
     
+    @Column(name = "currency", length = 3)
     private String currency;
+    
+    @Column(name = "transaction_date")
     private LocalDate transactionDate;
+    
+    @Column(name = "description", length = 500)
     private String description;
+    
+    @Column(name = "payment_method", length = 100)
     private String paymentMethod;
+    
+    @Column(name = "reference_number", length = 100)
     private String referenceNumber;
+    
+    @Column(name = "is_recurring")
     private Boolean isRecurring;
+    
+    @Column(name = "is_taxable")
     private Boolean isTaxable;
+
+    @Column(name = "created_at")
     private LocalDateTime createdAt;
+    
+    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
     // Default values

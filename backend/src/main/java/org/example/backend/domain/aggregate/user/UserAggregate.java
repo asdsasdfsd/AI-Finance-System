@@ -29,24 +29,25 @@ public class UserAggregate {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "user_id")
     private Integer userId;
     
-    @Column(nullable = false, length = 50)
+    @Column(name = "username", nullable = false, length = 50)
     private String username;
     
-    @Column(nullable = false, length = 100, unique = true)
+    @Column(name = "email", nullable = false, length = 100, unique = true)
     private String email;
     
-    @Column(nullable = false, length = 255)
+    @Column(name = "password", nullable = false, length = 255)
     private String password;
     
-    @Column(nullable = false, length = 100)
+    @Column(name = "full_name", nullable = false, length = 100)
     private String fullName;
     
     @Column(nullable = false)
     private Boolean enabled;
     
-    @Column(length = 100)
+    @Column(name = "external_id", length = 100)
     private String externalId; // SSO external ID
     
     // Multi-tenant isolation - user belongs to a tenant (company)

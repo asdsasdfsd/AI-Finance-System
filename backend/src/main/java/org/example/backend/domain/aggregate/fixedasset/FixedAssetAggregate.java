@@ -16,9 +16,9 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Fixed Asset Aggregate Root - 完全修复版本
+ * Fixed Asset Aggregate Root - 彻底修复版本
  * 
- * 使用JPA默认命名策略，避免列名冲突
+ * 所有字段都明确指定列名，避免命名策略冲突
  */
 @Entity
 @Table(name = "Fixed_Asset")
@@ -26,44 +26,57 @@ public class FixedAssetAggregate {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "asset_id")
     private Integer assetId;
     
-    @Column(nullable = false)
+    @Column(name = "name", nullable = false)
     private String name;
     
+    @Column(name = "description")
     private String description;
     
+    @Column(name = "acquisition_date")
     private LocalDate acquisitionDate;
     
     // 直接使用BigDecimal字段，避免Money值对象的映射冲突
+    @Column(name = "acquisition_cost", precision = 19, scale = 2)
     private java.math.BigDecimal acquisitionCost;
     
+    @Column(name = "current_value", precision = 19, scale = 2)
     private java.math.BigDecimal currentValue;
     
+    @Column(name = "accumulated_depreciation", precision = 19, scale = 2)
     private java.math.BigDecimal accumulatedDepreciation;
     
     // 货币代码，默认为CNY
-    @Column(length = 3)
+    @Column(name = "currency", length = 3)
     private String currency = "CNY";
     
+    @Column(name = "location")
     private String location;
     
+    @Column(name = "serial_number")
     private String serialNumber;
     
     @Enumerated(EnumType.STRING)
+    @Column(name = "status")
     private AssetStatus status;
     
     // External references - 使用简单的Integer字段
     @Column(name = "company_id")
     private Integer companyId;
     
+    @Column(name = "department_id")
     private Integer departmentId;
     
     // Audit fields
+    @Column(name = "created_at")
     private LocalDateTime createdAt;
     
+    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
     
+    @Column(name = "disposed_at")
     private LocalDateTime disposedAt;
     
     // Domain events

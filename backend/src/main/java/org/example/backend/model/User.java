@@ -19,16 +19,31 @@ import java.util.Set;
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "user_id")
     private Integer userId;
     
+    @Column(name = "username", nullable = false, length = 50)
     private String username;
+    
+    @Column(name = "email", nullable = false, length = 100, unique = true)
     private String email;
+    
+    @Column(name = "password", nullable = false, length = 255)
     private String password;
+    
+    @Column(name = "full_name", nullable = false, length = 100)
     private String fullName;
+    
+    @Column(name = "enabled", nullable = false)
     private Boolean enabled;
+    
+    @Column(name = "external_id", length = 100)
     private String externalId;
 
+    @Column(name = "preferred_language", length = 10)
     private String preferredLanguage;
+    
+    @Column(name = "timezone", length = 50)
     private String timezone;
     
     @ManyToOne
@@ -42,8 +57,13 @@ public class User {
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Company company;
     
+    @Column(name = "last_login")
     private LocalDateTime lastLogin;
+    
+    @Column(name = "created_at")
     private LocalDateTime createdAt;
+    
+    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
     
     // add User - Role joint
