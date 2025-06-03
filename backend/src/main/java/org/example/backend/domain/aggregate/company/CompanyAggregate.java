@@ -80,7 +80,6 @@ public class CompanyAggregate {
     
     // Company status value object - embedded
     @Embedded
-    @AttributeOverride(name = "status", column = @Column(name = "status"))
     private CompanyStatus companyStatus;
     
     // Subscription and limits
@@ -201,18 +200,10 @@ public class CompanyAggregate {
     }
     
     /**
-     * Suspend company operations
+     * Deactivate company operations (替代原来的 suspend)
      */
-    public void suspend() {
-        this.companyStatus = CompanyStatus.suspended();
-        this.updatedAt = LocalDateTime.now();
-    }
-    
-    /**
-     * Delete company (soft delete)
-     */
-    public void delete() {
-        this.companyStatus = CompanyStatus.deleted();
+    public void deactivate() {
+        this.companyStatus = CompanyStatus.inactive();
         this.updatedAt = LocalDateTime.now();
     }
     

@@ -112,22 +112,6 @@ public class CompanyController {
     }
     
     /**
-     * 暂停公司
-     */
-    @PostMapping("/{id}/suspend")
-    public ResponseEntity<CompanyDTO> suspendCompany(@PathVariable Integer id,
-                                                   @RequestBody Map<String, Object> request) {
-        try {
-            String reason = (String) request.getOrDefault("reason", "管理员操作");
-            CompanyDTO result = companyApplicationService.suspendCompany(id, reason);
-            return ResponseEntity.ok(result);
-            
-        } catch (Exception e) {
-            return ResponseEntity.status(400).build();
-        }
-    }
-    
-    /**
      * 更新订阅
      */
     @PostMapping("/{id}/subscription")
@@ -226,22 +210,6 @@ public class CompanyController {
             
         } catch (Exception e) {
             return ResponseEntity.status(400).build();
-        }
-    }
-    
-    // ========== Delete Operations ==========
-    
-    /**
-     * 删除公司 (软删除, 向后兼容)
-     */
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteCompany(@PathVariable Integer id) {
-        try {
-            companyApplicationService.deleteCompany(id);
-            return ResponseEntity.noContent().build();
-            
-        } catch (Exception e) {
-            return ResponseEntity.notFound().build();
         }
     }
     

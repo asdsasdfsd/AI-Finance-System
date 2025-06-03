@@ -59,7 +59,7 @@ public interface TransactionAggregateRepository extends JpaRepository<Transactio
     List<TransactionAggregate> findByTenantIdAndTransactionDateBetween(TenantId tenantId, 
                                                                      LocalDate startDate, 
                                                                      LocalDate endDate);
-    
+
     /**
      * Find transactions by date range, type and status
      */
@@ -125,15 +125,16 @@ public interface TransactionAggregateRepository extends JpaRepository<Transactio
     List<Object[]> findMonthlyStatistics(@Param("tenantId") TenantId tenantId, 
                                        @Param("status") TransactionStatus.Status status);
     
-    /**
-     * Find transactions pending approval for tenant
-     */
-    @Query("SELECT t FROM TransactionAggregate t " +
-           "WHERE t.tenantId = :tenantId " +
-           "AND t.transactionStatus.status IN ('DRAFT', 'PENDING_APPROVAL') " +
-           "ORDER BY t.createdAt ASC")
-    List<TransactionAggregate> findPendingApprovalByTenant(@Param("tenantId") TenantId tenantId);
-    
+       /**
+        * Find transactions pending approval for tenant
+        */
+       @Query("SELECT t FROM TransactionAggregate t " +
+              "WHERE t.tenantId = :tenantId " +
+              "AND (t.transactionStatus.status = org.example.backend.domain.valueobject.TransactionStatus.Status.DRAFT " +
+              "OR t.transactionStatus.status = org.example.backend.domain.valueobject.TransactionStatus.Status.PENDING_APPROVAL) " +
+              "ORDER BY t.createdAt ASC")
+       List<TransactionAggregate> findPendingApprovalByTenant(@Param("tenantId") TenantId tenantId);
+
     /**
      * Find transactions by amount range
      */

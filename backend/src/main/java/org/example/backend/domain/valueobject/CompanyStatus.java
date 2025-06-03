@@ -2,23 +2,17 @@
 package org.example.backend.domain.valueobject;
 
 import java.util.Objects;
-
 import jakarta.persistence.Embeddable;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Column;
 
-/**
- * Company Status value object
- * 
- * Represents the current operational status of a company
- * with business validation rules
- */
 @Embeddable
 public class CompanyStatus {
     
     public enum Status {
         ACTIVE("Active"),
-        SUSPENDED("Suspended"), 
-        DELETED("Deleted"),
-        PENDING("Pending Activation");
+        INACTIVE("Inactive");  // 改为 INACTIVE
         
         private final String displayName;
         
@@ -31,6 +25,8 @@ public class CompanyStatus {
         }
     }
     
+    @Enumerated(EnumType.STRING)  // 关键：指定存储为字符串
+    @Column(name = "status", length = 20)
     private Status status;
     
     // JPA requires default constructor
@@ -43,51 +39,28 @@ public class CompanyStatus {
         this.status = status;
     }
     
-    /**
-     * Create company status with validation
-     */
     public static CompanyStatus of(Status status) {
         return new CompanyStatus(status);
     }
     
-    /**
-     * Create active status
-     */
     public static CompanyStatus active() {
         return new CompanyStatus(Status.ACTIVE);
     }
     
-    /**
-     * Create suspended status
-     */
-    public static CompanyStatus suspended() {
-        return new CompanyStatus(Status.SUSPENDED);
+    public static CompanyStatus inactive() {  // 改为 inactive
+        return new CompanyStatus(Status.INACTIVE);
     }
     
-    /**
-     * Create deleted status
-     */
-    public static CompanyStatus deleted() {
-        return new CompanyStatus(Status.DELETED);
-    }
+    // 移除 suspended() 和 deleted() 方法，因为只有两种状态
     
-    /**
-     * Check if company is operational
-     */
     public boolean isOperational() {
         return status == Status.ACTIVE;
     }
     
-    /**
-     * Check if company can be modified
-     */
     public boolean canBeModified() {
-        return status != Status.DELETED;
+        return status == Status.ACTIVE;  // 简化逻辑
     }
     
-    /**
-     * Check if company can accept new users
-     */
     public boolean canAcceptNewUsers() {
         return status == Status.ACTIVE;
     }

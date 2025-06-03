@@ -12,13 +12,19 @@ import lombok.Data;
 public class CompanyStatsDTO {
     private long totalCompanies;
     private long activeCompanies;
-    private long suspendedCompanies;
-    private long deletedCompanies;
+    private long inactiveCompanies;  // 改为 inactiveCompanies
     
     /**
      * Calculate active percentage
      */
     public double getActivePercentage() {
         return totalCompanies > 0 ? (double) activeCompanies / totalCompanies * 100 : 0;
+    }
+    
+    /**
+     * Calculate inactive percentage
+     */
+    public double getInactivePercentage() {
+        return totalCompanies > 0 ? (double) inactiveCompanies / totalCompanies * 100 : 0;
     }
 }
