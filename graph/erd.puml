@@ -1,0 +1,254 @@
+@startuml
+!define RECTANGLE class
+
+package "Core Entities" {
+  RECTANGLE Company {
+    +companyId: Integer <<PK>>
+    +companyName: String
+    +address: String
+    +city: String
+    +stateProvince: String
+    +postalCode: String
+    +email: String
+    +website: String
+    +registrationNumber: String
+    +taxId: String
+    +fiscalYearStart: String
+    +defaultCurrency: String
+    +status: String
+    +createdAt: LocalDateTime
+    +updatedAt: LocalDateTime
+  }
+  
+  RECTANGLE User {
+    +userId: Integer <<PK>>
+    +username: String
+    +email: String
+    +password: String
+    +fullName: String
+    +enabled: Boolean
+    +externalId: String
+    +lastLogin: LocalDateTime
+    +createdAt: LocalDateTime
+    +updatedAt: LocalDateTime
+  }
+  
+  RECTANGLE Department {
+    +departmentId: Integer <<PK>>
+    +name: String
+    +code: String
+    +budget: BigDecimal
+    +isActive: Boolean
+    +createdAt: LocalDateTime
+    +updatedAt: LocalDateTime
+  }
+}
+
+package "Accounting Entities" {
+  RECTANGLE Account {
+    +accountId: Integer <<PK>>
+    +accountCode: String
+    +name: String
+    +accountType: Enum
+    +isActive: Boolean
+    +balanceDirection: Enum
+    +createdAt: LocalDateTime
+    +updatedAt: LocalDateTime
+  }
+  
+  RECTANGLE JournalEntry {
+    +entryId: Integer <<PK>>
+    +entryDate: LocalDate
+    +reference: String
+    +description: String
+    +status: Enum
+    +createdAt: LocalDateTime
+    +updatedAt: LocalDateTime
+  }
+  
+  RECTANGLE JournalLine {
+    +lineId: Integer <<PK>>
+    +description: String
+    +debitAmount: BigDecimal
+    +creditAmount: BigDecimal
+  }
+  
+  RECTANGLE Transaction {
+    +transactionId: Integer <<PK>>
+    +amount: BigDecimal
+    +transactionType: Enum
+    +currency: String
+    +transactionDate: LocalDate
+    +description: String
+    +paymentMethod: String
+    +referenceNumber: String
+    +isRecurring: Boolean
+    +isTaxable: Boolean
+    +createdAt: LocalDateTime
+    +updatedAt: LocalDateTime
+  }
+}
+
+package "Supporting Entities" {
+  RECTANGLE Category {
+    +categoryId: Integer <<PK>>
+    +name: String
+    +type: Enum
+    +isActive: Boolean
+    +createdAt: LocalDateTime
+    +updatedAt: LocalDateTime
+  }
+  
+  RECTANGLE Fund {
+    +fundId: Integer <<PK>>
+    +name: String
+    +description: String
+    +fundType: String
+    +isActive: Boolean
+    +balance: BigDecimal
+    +createdAt: LocalDateTime
+    +updatedAt: LocalDateTime
+  }
+  
+  RECTANGLE FiscalPeriod {
+    +periodId: Integer <<PK>>
+    +startDate: LocalDate
+    +endDate: LocalDate
+    +periodType: Enum
+    +status: Enum
+    +createdAt: LocalDateTime
+    +updatedAt: LocalDateTime
+  }
+  
+  RECTANGLE Budget {
+    +budgetId: Integer <<PK>>
+    +name: String
+    +description: String
+    +totalAmount: BigDecimal
+    +status: Enum
+    +createdAt: LocalDateTime
+    +updatedAt: LocalDateTime
+  }
+  
+  RECTANGLE BudgetLine {
+    +lineId: Integer <<PK>>
+    +amount: BigDecimal
+    +usedAmount: BigDecimal
+    +notes: String
+  }
+  
+  RECTANGLE FixedAsset {
+    +assetId: Integer <<PK>>
+    +name: String
+    +description: String
+    +acquisitionDate: LocalDate
+    +acquisitionCost: BigDecimal
+    +currentValue: BigDecimal
+    +accumulatedDepreciation: BigDecimal
+    +location: String
+    +serialNumber: String
+    +status: Enum
+    +createdAt: LocalDateTime
+    +updatedAt: LocalDateTime
+  }
+}
+
+package "Identity & Security" {
+  RECTANGLE Role {
+    +roleId: Integer <<PK>>
+    +name: String
+    +description: String
+  }
+  
+  RECTANGLE UserRole {
+    +userId: Integer <<FK>>
+    +roleId: Integer <<FK>>
+  }
+}
+
+package "Audit & Logging" {
+  RECTANGLE AuditLog {
+    +logId: Integer <<PK>>
+    +action: String
+    +entityType: String
+    +entityId: String
+    +details: String
+    +timestamp: LocalDateTime
+    +ipAddress: String
+  }
+}
+
+' 主要关系
+Company ||--o{ User : employs
+Company ||--o{ Department : has
+Company ||--o{ Account : owns
+Company ||--o{ Fund : manages
+Company ||--o{ Category : defines
+Company ||--o{ Transaction : records
+Company ||--o{ JournalEntry : contains
+Company ||--o{ Budget : plans
+Company ||--o{ FiscalPeriod : operates_in
+Company ||--o{ FixedAsset : owns
+
+User }o--|| Company : belongs_to
+User }o--o| Department : works_in
+User ||--o{ Transaction : creates
+User ||--o{ AuditLog : generates
+User ||--o{ JournalEntry : authors
+
+Department }o--|| Company : belongs_to
+Department }o--o| User : managed_by
+Department }o--o| Department : parent_department
+Department ||--o{ Transaction : has
+Department ||--o{ Budget : uses
+Department ||--o{ FixedAsset : owns
+Department ||--o{ JournalLine : associated_with
+
+Account }o--|| Company : belongs_to
+Account }o--o| Account : parent_account
+Account ||--o{ JournalLine : affects
+
+JournalEntry }o--|| Company : belongs_to
+JournalEntry }o--o| Fund : uses
+JournalEntry }o--|| User : created_by
+JournalEntry ||--o{ JournalLine : contains
+
+JournalLine }o--|| JournalEntry : belongs_to
+JournalLine }o--|| Account : debits_credits
+JournalLine }o--o| Department : allocated_to
+JournalLine }o--o| Transaction : references
+
+Transaction }o--|| User : created_by
+Transaction }o--|| Company : belongs_to
+Transaction }o--o| Department : allocated_to
+Transaction }o--o| Fund : affects
+Transaction }o--o| Category : categorized_as
+
+Category }o--|| Company : belongs_to
+Category }o--o| Category : parent_category
+
+Fund }o--|| Company : belongs_to
+
+Budget }o--|| Company : belongs_to
+Budget }o--o| Department : allocated_to
+Budget }o--o| FiscalPeriod : covers
+Budget ||--o{ BudgetLine : contains
+
+BudgetLine }o--|| Budget : belongs_to
+BudgetLine }o--|| Account : maps_to
+
+FiscalPeriod }o--|| Company : belongs_to
+
+FixedAsset }o--|| Company : belongs_to
+FixedAsset }o--o| Department : assigned_to
+
+' Identity relationships
+User ||--o{ UserRole : has
+Role ||--o{ UserRole : assigned_to
+UserRole }o--|| User : belongs_to
+UserRole }o--|| Role : represents
+
+' Audit relationships
+AuditLog }o--|| User : performed_by
+
+@enduml
