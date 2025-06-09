@@ -34,6 +34,11 @@ public class Category {
     @ManyToOne
     @JoinColumn(name = "parent_category_id")
     private Category parentCategory;
+
+    @ManyToOne
+    @JoinColumn(name = "account_id")
+    private Account account;
+
     
     private Boolean isActive;
     private LocalDateTime createdAt;
