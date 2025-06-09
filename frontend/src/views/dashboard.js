@@ -27,6 +27,7 @@ import DepartmentManagement from './Dashboard/DepartmentManagement';
 import FundManagement from './Dashboard/FundManagement';
 import AssetManagement from './Dashboard/AssetManagement';
 import TransactionManagement from './Dashboard/TransactionManagement';
+import BalanceSheet from './Dashboard/BalanceSheet';
 
 const { Header, Sider, Content } = Layout;
 
@@ -66,13 +67,14 @@ const Dashboard = () => {
     switch (selectedKey) {
       case '1': return <DashboardHome />;
       case '2': return <DataManagement />;
-      case '3': return <CompanyManagement />;
-      case '4': return <UserManagement />;
-      case '5': return <DepartmentManagement />;
-      case '6': return <TransactionManagement />;
-      case '7': return <FundManagement />;
-      case '8': return <AssetManagement />;
-      case '9': return <SystemSettings />;
+      case '3': return <BalanceSheet />;
+      case '4': return <CompanyManagement />;
+      case '5': return <UserManagement />;
+      case '6': return <DepartmentManagement />;
+      case '7': return <TransactionManagement />;
+      case '8': return <FundManagement />;
+      case '9': return <AssetManagement />;
+      case '10': return <SystemSettings />;
       default: return <DashboardHome />;
     }
   };
@@ -93,27 +95,30 @@ const Dashboard = () => {
           <Menu.Item key="2" icon={<PieChartOutlined />}>
             Data Management
           </Menu.Item>
+          <Menu.Item key="3" icon={<PieChartOutlined />}>
+            Balance Sheet
+          </Menu.Item>
           <Menu.SubMenu key="organization" icon={<TeamOutlined />} title="Organization Management">
-            <Menu.Item key="3" icon={<BankOutlined />}>
+            <Menu.Item key="4" icon={<BankOutlined />}>
               Company Management
             </Menu.Item>
-            <Menu.Item key="4" icon={<UserOutlined />}>
+            <Menu.Item key="5" icon={<UserOutlined />}>
               User Management
             </Menu.Item>
-            <Menu.Item key="5" icon={<ApartmentOutlined />}>
+            <Menu.Item key="6" icon={<ApartmentOutlined />}>
               Department Management
             </Menu.Item>
           </Menu.SubMenu>
-          <Menu.Item key="6" icon={<SettingOutlined />}>
+          <Menu.Item key="7" icon={<SettingOutlined />}>
             Transaction Management
           </Menu.Item>
-          <Menu.Item key="7" icon={<FundOutlined />}>
+          <Menu.Item key="8" icon={<FundOutlined />}>
             Fund Management
           </Menu.Item>
-          <Menu.Item key="8" icon={<AppstoreOutlined />}>
+          <Menu.Item key="9" icon={<AppstoreOutlined />}>
             Asset Management
           </Menu.Item>
-          <Menu.Item key="9" icon={<DollarCircleOutlined />}>
+          <Menu.Item key="10" icon={<DollarCircleOutlined />}>
             System Settings
           </Menu.Item>
         </Menu>
