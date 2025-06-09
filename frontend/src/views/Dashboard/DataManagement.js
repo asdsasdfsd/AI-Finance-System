@@ -1,76 +1,162 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import * as XLSX from 'xlsx';
-import { saveAs } from 'file-saver';
-import { Table, Button, Space, Card } from 'antd';
-import '../../assets/styles/DataManagement.css';
+import { Table, DatePicker, InputNumber, Button, message, Card, Row, Col, Space } from 'antd';
+import dayjs from 'dayjs';
 
-export default function FinancialDashboard() {
-  const [incomeData, setIncomeData] = useState([]);
+const IncomeExpenseReport = () => {
+  const [companyId, setCompanyId] = useState(1);
+  const [asOfDate, setAsOfDate] = useState(dayjs());
   const [loading, setLoading] = useState(false);
+  const [data, setData] = useState([]);
 
-  useEffect(() => {
+  const fetchData = async () => {
     setLoading(true);
-    axios.get('http://localhost:8085/api/transactions', {
-      withCredentials: true
-    })
-    .then(res => {
-      console.log("✅ 成功获取数据：", res.data);
-      const incomeOnly = res.data.filter(txn => txn.transactionType === 'INCOME');
-      setIncomeData(incomeOnly);
-    })
-    .catch(err => {
-      console.error("❌ 获取失败：", err);
-    })
-    .finally(() => setLoading(false));
-  }, []);
-
-  const handleExport = () => {
-    const worksheetData = incomeData.map(txn => ({
-      Date: txn.transactionDate,
-      Description: txn.description,
-      Amount: txn.amount,
-      Currency: txn.currency,
-      PaymentMethod: txn.paymentMethod,
-      Reference: txn.referenceNumber
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Income Report");
-
-    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([excelBuffer], { type: "application/octet-stream" });
-    saveAs(blob, "Income_Report.xlsx");
+    try {
+      const res = await axios.get('/api/financial-report/json', {
+        params: {
+          companyId,
+          asOfDate: asOfDate.format('YYYY-MM-DD')
+        }
+      });
+      setData(res.data);
+    } catch (err) {
+      message.error('获取报表数据失败');
+    } finally {
+      setLoading(false);
+    }
   };
 
+  const handleExport = async () => {
+    try {
+      const res = await axios.get('/api/financial-report/export', {
+        params: {
+          companyId,
+          asOfDate: asOfDate.format('YYYY-MM-DD')
+        },
+        responseType: 'blob'
+      });
+      const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `IncomeExpenseReport_${asOfDate.format('YYYYMMDD')}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      message.error('导出失败');
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [companyId, asOfDate]);
+
   const columns = [
-    { title: 'Date', dataIndex: 'transactionDate', key: 'date' },
-    { title: 'Description', dataIndex: 'description', key: 'description' },
-    { title: 'Amount', dataIndex: 'amount', key: 'amount', render: val => val.toLocaleString() },
-    { title: 'Currency', dataIndex: 'currency', key: 'currency' },
-    { title: 'Payment Method', dataIndex: 'paymentMethod', key: 'paymentMethod' },
-    { title: 'Reference', dataIndex: 'referenceNumber', key: 'reference' },
+    {
+      title: 'Type',
+      dataIndex: 'type',
+      key: 'type',
+      filters: [
+        { text: 'INCOME', value: 'INCOME' },
+        { text: 'EXPENSE', value: 'EXPENSE' }
+      ],
+      onFilter: (value, record) => record.type === value
+    },
+    {
+      title: 'Category',
+      dataIndex: 'category',
+      key: 'category',
+    },
+    {
+      title: 'Item',
+      dataIndex: 'description',
+      key: 'description',
+    },
+    {
+      title: 'Current Month',
+      dataIndex: 'currentMonth',
+      key: 'currentMonth',
+      align: 'right',
+      render: val => val?.toLocaleString(undefined, { minimumFractionDigits: 2 })
+    },
+    {
+      title: 'Previous Month',
+      dataIndex: 'previousMonth',
+      key: 'previousMonth',
+      align: 'right',
+      render: val => val?.toLocaleString(undefined, { minimumFractionDigits: 2 })
+    },
+    {
+      title: 'YTD',
+      dataIndex: 'yearToDate',
+      key: 'yearToDate',
+      align: 'right',
+      render: val => val?.toLocaleString(undefined, { minimumFractionDigits: 2 })
+    },
+    {
+      title: 'Budget YTD',
+      dataIndex: 'budgetYtd',
+      key: 'budgetYtd',
+      align: 'right',
+      render: val => val?.toLocaleString(undefined, { minimumFractionDigits: 2 })
+    },
+    {
+      title: 'Variance',
+      dataIndex: 'variance',
+      key: 'variance',
+      align: 'right',
+      render: val => val?.toLocaleString(undefined, { minimumFractionDigits: 2 })
+    },
+    {
+      title: 'Full Year Budget',
+      dataIndex: 'fullYearBudget',
+      key: 'fullYearBudget',
+      align: 'right',
+      render: val => val?.toLocaleString(undefined, { minimumFractionDigits: 2 })
+    }
   ];
 
   return (
     <Card
-      title="Income Report"
-      extra={
-        <Button type="primary" onClick={handleExport}>
-          Export to Excel
-        </Button>
-      }
+      title="Income & Expense Report"
       style={{ margin: 24 }}
+      extra={
+        <Row gutter={12} align="middle">
+          <Col>
+            <InputNumber
+              min={1}
+              value={companyId}
+              onChange={setCompanyId}
+              placeholder="Company ID"
+            />
+          </Col>
+          <Col>
+            <DatePicker
+              value={asOfDate}
+              onChange={setAsOfDate}
+              format="YYYY-MM-DD"
+            />
+          </Col>
+          <Col>
+            <Space>
+              <Button type="primary" onClick={fetchData}>Refresh</Button>
+              <Button onClick={handleExport}>Export Excel</Button>
+            </Space>
+          </Col>
+        </Row>
+      }
     >
       <Table
-        rowKey="transactionId"
+        rowKey={(record, index) => `${record.type}-${record.category}-${record.description}-${index}`}
         columns={columns}
-        dataSource={incomeData}
+        dataSource={data}
         loading={loading}
-        pagination={{ pageSize: 10 }}
+        pagination={{ pageSize: 20 }}
         bordered
       />
     </Card>
   );
-}
+};
+
+export default IncomeExpenseReport;
