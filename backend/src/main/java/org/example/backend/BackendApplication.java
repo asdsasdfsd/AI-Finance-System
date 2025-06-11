@@ -18,6 +18,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
     "org.example.backend.domain.aggregate.user",
     "org.example.backend.domain.aggregate.journalentry",  // DDD Repository
     "org.example.backend.domain.aggregate.fixedasset",    // DDD Repository
+    "org.example.backend.domain.aggregate.report",
     "org.example.backend.repository"             // 传统Repository
 })
 @ComponentScan(basePackages = {
