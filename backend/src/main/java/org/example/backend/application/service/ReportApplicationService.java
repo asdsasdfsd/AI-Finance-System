@@ -15,9 +15,6 @@ import org.example.backend.infrastructure.report.ReportGenerationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -25,13 +22,13 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Report Application Service
+ * Report Application Service - Enhanced DDD Implementation
  * 
  * Responsibilities:
- * 1. Orchestrate report generation business processes
+ * 1. Orchestrate report generation business processes for all report types
  * 2. Coordinate between domain aggregates and infrastructure services
- * 3. Handle report lifecycle management
- * 4. Provide unified interface for report operations
+ * 3. Handle report lifecycle management for Balance Sheet, Income Statement, etc.
+ * 4. Provide unified interface for all financial reports
  */
 @Service
 @Transactional
@@ -46,21 +43,21 @@ public class ReportApplicationService {
     @Autowired
     private DomainEventPublisher domainEventPublisher;
     
-    // Data query services for your reports
+    // Enhanced data query services for all report types
     @Autowired
     private IncomeStatementDataService incomeStatementDataService;
     
     @Autowired
     private FinancialGroupingDataService financialGroupingDataService;
     
-    // Other report data services will be injected here
-    // @Autowired
-    // private BalanceSheetDataService balanceSheetDataService;
-    // @Autowired
-    // private IncomeExpenseDataService incomeExpenseDataService;
+    @Autowired
+    private BalanceSheetDataService balanceSheetDataService;
+    
+    @Autowired
+    private IncomeExpenseDataService incomeExpenseDataService;
     
     /**
-     * Generate a new financial report
+     * Generate a new financial report - supports all four report types
      */
     public String generateReport(GenerateReportCommand command) {
         validateGenerateReportCommand(command);
@@ -236,16 +233,15 @@ public class ReportApplicationService {
     // ========== Private Helper Methods ==========
     
     /**
-     * Generate report asynchronously
+     * Generate report asynchronously - Enhanced to support all report types
      */
     private void generateReportAsync(ReportAggregate report) {
         // In a real implementation, this would use @Async or a message queue
-        // For now, we'll call the generation service directly
         try {
             String filePath = null;
             Long fileSize = null;
             
-            // Generate different report types
+            // Generate different report types using DDD services
             switch (report.getReportType()) {
                 case INCOME_STATEMENT:
                     var incomeData = incomeStatementDataService.getIncomeStatementData(
@@ -265,11 +261,24 @@ public class ReportApplicationService {
                     filePath = reportGenerationService.generateFinancialGrouping(groupingData, report.getTenantId().getValue());
                     break;
                     
-                // Add other report types here
-                // case BALANCE_SHEET:
-                // case INCOME_EXPENSE:
+                case BALANCE_SHEET:
+                    var balanceSheetData = balanceSheetDataService.generateBalanceSheet(
+                        report.getTenantId().getValue(),
+                        report.getEndDate()
+                    );
+                    filePath = reportGenerationService.generateBalanceSheet(balanceSheetData, report.getTenantId().getValue());
+                    break;
+                    
+                case INCOME_EXPENSE:
+                    var incomeExpenseData = incomeExpenseDataService.generateIncomeExpenseReport(
+                        report.getTenantId(),
+                        report.getEndDate()
+                    );
+                    filePath = reportGenerationService.generateIncomeExpense(incomeExpenseData, report.getTenantId().getValue());
+                    break;
+                    
                 default:
-                    throw new UnsupportedOperationException("Report type not yet implemented: " + report.getReportType());
+                    throw new UnsupportedOperationException("Report type not supported: " + report.getReportType());
             }
             
             // Get file size
@@ -312,7 +321,6 @@ public class ReportApplicationService {
      */
     private String prepareAIAnalysisData(ReportAggregate report) {
         // This would prepare structured data for AI analysis
-        // For now, return basic metadata
         return String.format("""
             {
                 "reportId": %d,
@@ -471,4 +479,3 @@ public class ReportApplicationService {
         }
     }
 }
-

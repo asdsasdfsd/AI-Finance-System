@@ -31,7 +31,7 @@ public class IncomeStatementDataService {
     @Autowired
     private TransactionAggregateRepository transactionRepository;
     
-    /**
+/**
      * Get income statement data for specified period
      */
     public IncomeStatementData getIncomeStatementData(TenantId tenantId, LocalDate startDate, LocalDate endDate) {

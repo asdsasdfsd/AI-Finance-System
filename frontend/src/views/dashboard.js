@@ -1,3 +1,4 @@
+// frontend/src/views/dashboard.js - Updated with Report Management
 import React, { useState, useEffect } from 'react';
 import { Layout, Menu, Dropdown, Avatar } from 'antd';
 import {
@@ -12,12 +13,15 @@ import {
   FundOutlined,
   AppstoreOutlined,
   DollarCircleOutlined,
+  FileTextOutlined,
+  BarChartOutlined,
+  FundProjectionScreenOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import AuthService from '../services/authService';
 import '../assets/styles/Dashboard.css';
 
-// Import content components
+// Import existing content components
 import DashboardHome from './Dashboard/DashboardHome';
 import DataManagement from './Dashboard/DataManagement';
 import SystemSettings from './Dashboard/SystemSettings';
@@ -28,6 +32,10 @@ import FundManagement from './Dashboard/FundManagement';
 import AssetManagement from './Dashboard/AssetManagement';
 import TransactionManagement from './Dashboard/TransactionManagement';
 import BalanceSheet from './Dashboard/BalanceSheet';
+
+// Import new report components
+import ReportGeneration from './Dashboard/ReportGeneration';
+import ReportList from './Dashboard/ReportList';
 
 const { Header, Sider, Content } = Layout;
 
@@ -75,6 +83,9 @@ const Dashboard = () => {
       case '8': return <FundManagement />;
       case '9': return <AssetManagement />;
       case '10': return <SystemSettings />;
+      // New report menu items
+      case '11': return <ReportGeneration />;
+      case '12': return <ReportList />;
       default: return <DashboardHome />;
     }
   };
@@ -86,19 +97,41 @@ const Dashboard = () => {
         <Menu
           theme="dark"
           mode="inline"
-          selectedKeys={[selectedKey]} // ✅ 修复：绑定状态
+          selectedKeys={[selectedKey]}
           onClick={(e) => setSelectedKey(e.key)}
         >
           <Menu.Item key="1" icon={<HomeOutlined />}>
             Dashboard Home
           </Menu.Item>
+          
           <Menu.Item key="2" icon={<PieChartOutlined />}>
             Data Management
           </Menu.Item>
-          <Menu.Item key="3" icon={<PieChartOutlined />}>
+          
+          <Menu.Item key="3" icon={<BarChartOutlined />}>
             Balance Sheet
           </Menu.Item>
-          <Menu.SubMenu key="organization" icon={<TeamOutlined />} title="Organization Management">
+          
+          {/* Reports Menu Group */}
+          <Menu.SubMenu 
+            key="reports" 
+            icon={<FileTextOutlined />} 
+            title="Financial Reports"
+          >
+            <Menu.Item key="11" icon={<FundProjectionScreenOutlined />}>
+              Generate Reports
+            </Menu.Item>
+            <Menu.Item key="12" icon={<FileTextOutlined />}>
+              Report Management
+            </Menu.Item>
+          </Menu.SubMenu>
+          
+          {/* Organization Management Menu Group */}
+          <Menu.SubMenu 
+            key="organization" 
+            icon={<TeamOutlined />} 
+            title="Organization Management"
+          >
             <Menu.Item key="4" icon={<BankOutlined />}>
               Company Management
             </Menu.Item>
@@ -109,16 +142,20 @@ const Dashboard = () => {
               Department Management
             </Menu.Item>
           </Menu.SubMenu>
-          <Menu.Item key="7" icon={<SettingOutlined />}>
+          
+          <Menu.Item key="7" icon={<DollarCircleOutlined />}>
             Transaction Management
           </Menu.Item>
+          
           <Menu.Item key="8" icon={<FundOutlined />}>
             Fund Management
           </Menu.Item>
+          
           <Menu.Item key="9" icon={<AppstoreOutlined />}>
             Asset Management
           </Menu.Item>
-          <Menu.Item key="10" icon={<DollarCircleOutlined />}>
+          
+          <Menu.Item key="10" icon={<SettingOutlined />}>
             System Settings
           </Menu.Item>
         </Menu>
