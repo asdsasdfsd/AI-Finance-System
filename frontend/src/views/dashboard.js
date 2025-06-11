@@ -1,4 +1,4 @@
-// frontend/src/views/dashboard.js - Updated with Report Management
+// frontend/src/views/dashboard.js - Updated with integrated Financial Reports
 import React, { useState, useEffect } from 'react';
 import { Layout, Menu, Dropdown, Avatar } from 'antd';
 import {
@@ -31,9 +31,11 @@ import DepartmentManagement from './Dashboard/DepartmentManagement';
 import FundManagement from './Dashboard/FundManagement';
 import AssetManagement from './Dashboard/AssetManagement';
 import TransactionManagement from './Dashboard/TransactionManagement';
-import BalanceSheet from './Dashboard/BalanceSheet';
 
-// Import new report components
+// Import new unified financial reports component
+import FinancialReports from './Dashboard/FinancialReports';
+
+// Import report management components
 import ReportGeneration from './Dashboard/ReportGeneration';
 import ReportList from './Dashboard/ReportList';
 
@@ -75,17 +77,23 @@ const Dashboard = () => {
     switch (selectedKey) {
       case '1': return <DashboardHome />;
       case '2': return <DataManagement />;
-      case '3': return <BalanceSheet />;
+      
+      // Financial Reports Section
+      case '3': return <FinancialReports />;
+      case '11': return <ReportGeneration />;
+      case '12': return <ReportList />;
+      
+      // Organization Management
       case '4': return <CompanyManagement />;
       case '5': return <UserManagement />;
       case '6': return <DepartmentManagement />;
+      
+      // Operations
       case '7': return <TransactionManagement />;
       case '8': return <FundManagement />;
       case '9': return <AssetManagement />;
       case '10': return <SystemSettings />;
-      // New report menu items
-      case '11': return <ReportGeneration />;
-      case '12': return <ReportList />;
+      
       default: return <DashboardHome />;
     }
   };
@@ -93,44 +101,47 @@ const Dashboard = () => {
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider collapsible collapsed={collapsed} onCollapse={setCollapsed}>
-        <div className="logo">Finance Management System</div>
+        <div className="logo">
+          {collapsed ? 'FMS' : 'Finance Management System'}
+        </div>
         <Menu
           theme="dark"
           mode="inline"
           selectedKeys={[selectedKey]}
           onClick={(e) => setSelectedKey(e.key)}
         >
+          {/* Dashboard Home */}
           <Menu.Item key="1" icon={<HomeOutlined />}>
             Dashboard Home
           </Menu.Item>
           
+          {/* Legacy Data Management - Keep for now */}
           <Menu.Item key="2" icon={<PieChartOutlined />}>
-            Data Management
+            Legacy Reports
           </Menu.Item>
           
-          <Menu.Item key="3" icon={<BarChartOutlined />}>
-            Balance Sheet
-          </Menu.Item>
-          
-          {/* Reports Menu Group */}
+          {/* Financial Reports - New Unified Section */}
           <Menu.SubMenu 
-            key="reports" 
+            key="financial-reports" 
             icon={<FileTextOutlined />} 
             title="Financial Reports"
           >
+            <Menu.Item key="3" icon={<BarChartOutlined />}>
+              All Financial Reports
+            </Menu.Item>
             <Menu.Item key="11" icon={<FundProjectionScreenOutlined />}>
-              Generate Reports
+              Generate DDD Reports
             </Menu.Item>
             <Menu.Item key="12" icon={<FileTextOutlined />}>
               Report Management
             </Menu.Item>
           </Menu.SubMenu>
           
-          {/* Organization Management Menu Group */}
+          {/* Organization Management */}
           <Menu.SubMenu 
             key="organization" 
             icon={<TeamOutlined />} 
-            title="Organization Management"
+            title="Organization"
           >
             <Menu.Item key="4" icon={<BankOutlined />}>
               Company Management
@@ -143,18 +154,24 @@ const Dashboard = () => {
             </Menu.Item>
           </Menu.SubMenu>
           
-          <Menu.Item key="7" icon={<DollarCircleOutlined />}>
-            Transaction Management
-          </Menu.Item>
+          {/* Operations */}
+          <Menu.SubMenu 
+            key="operations" 
+            icon={<DollarCircleOutlined />} 
+            title="Operations"
+          >
+            <Menu.Item key="7" icon={<DollarCircleOutlined />}>
+              Transaction Management
+            </Menu.Item>
+            <Menu.Item key="8" icon={<FundOutlined />}>
+              Fund Management
+            </Menu.Item>
+            <Menu.Item key="9" icon={<AppstoreOutlined />}>
+              Asset Management
+            </Menu.Item>
+          </Menu.SubMenu>
           
-          <Menu.Item key="8" icon={<FundOutlined />}>
-            Fund Management
-          </Menu.Item>
-          
-          <Menu.Item key="9" icon={<AppstoreOutlined />}>
-            Asset Management
-          </Menu.Item>
-          
+          {/* System Settings */}
           <Menu.Item key="10" icon={<SettingOutlined />}>
             System Settings
           </Menu.Item>
