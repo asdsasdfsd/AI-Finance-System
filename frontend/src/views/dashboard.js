@@ -1,4 +1,4 @@
-// frontend/src/views/dashboard.js - Updated with integrated Financial Reports
+// frontend/src/views/dashboard.js
 import React, { useState, useEffect } from 'react';
 import { Layout, Menu, Dropdown, Avatar } from 'antd';
 import {
@@ -15,7 +15,10 @@ import {
   DollarCircleOutlined,
   FileTextOutlined,
   BarChartOutlined,
-  FundProjectionScreenOutlined
+  FundProjectionScreenOutlined,
+  EyeOutlined,
+  PlayCircleOutlined,
+  UnorderedListOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import AuthService from '../services/authService';
@@ -32,12 +35,9 @@ import FundManagement from './Dashboard/FundManagement';
 import AssetManagement from './Dashboard/AssetManagement';
 import TransactionManagement from './Dashboard/TransactionManagement';
 
-// Import new unified financial reports component
-import FinancialReports from './Dashboard/FinancialReports';
-
-// Import report management components
-import ReportGeneration from './Dashboard/ReportGeneration';
-import ReportList from './Dashboard/ReportList';
+// Import new unified financial reports components
+import FinancialReportsUnified from './Dashboard/FinancialReportsUnified';
+import ReportManagement from './Dashboard/ReportManagement';
 
 const { Header, Sider, Content } = Layout;
 
@@ -75,129 +75,181 @@ const Dashboard = () => {
 
   const renderContent = () => {
     switch (selectedKey) {
-      case '1': return <DashboardHome />;
-      case '2': return <DataManagement />;
+      case '1':
+        return <DashboardHome />;
+      case '2':
+        return <DataManagement />;
+      case '3':
+        return <SystemSettings />;
+      case '4':
+        return <CompanyManagement />;
+      case '5':
+        return <UserManagement />;
+      case '6':
+        return <DepartmentManagement />;
+      case '7':
+        return <FundManagement />;
+      case '8':
+        return <AssetManagement />;
+      case '9':
+        return <TransactionManagement />;
       
-      // Financial Reports Section
-      case '3': return <FinancialReports />;
-      case '11': return <ReportGeneration />;
-      case '12': return <ReportList />;
-      
-      // Organization Management
-      case '4': return <CompanyManagement />;
-      case '5': return <UserManagement />;
-      case '6': return <DepartmentManagement />;
-      
-      // Operations
-      case '7': return <TransactionManagement />;
-      case '8': return <FundManagement />;
-      case '9': return <AssetManagement />;
-      case '10': return <SystemSettings />;
-      
-      default: return <DashboardHome />;
+      // Updated Financial Reports Structure
+      case '10': // Preview & Generate Reports
+        return <FinancialReportsUnified />;
+      case '11': // Report Management
+        return <ReportManagement />;
+        
+      default:
+        return <DashboardHome />;
     }
   };
 
+  const menuItems = [
+    {
+      key: '1',
+      icon: <HomeOutlined />,
+      label: 'Dashboard Home'
+    },
+    {
+      key: 'data',
+      icon: <AppstoreOutlined />,
+      label: 'Data Management',
+      children: [
+        {
+          key: '2',
+          icon: <PieChartOutlined />,
+          label: 'General Data'
+        },
+        {
+          key: '4',
+          icon: <BankOutlined />,
+          label: 'Company Management'
+        },
+        {
+          key: '5',
+          icon: <TeamOutlined />,
+          label: 'User Management'
+        },
+        {
+          key: '6',
+          icon: <ApartmentOutlined />,
+          label: 'Department Management'
+        },
+        {
+          key: '7',
+          icon: <FundOutlined />,
+          label: 'Fund Management'
+        },
+        {
+          key: '8',
+          icon: <DollarCircleOutlined />,
+          label: 'Asset Management'
+        },
+        {
+          key: '9',
+          icon: <BarChartOutlined />,
+          label: 'Transaction Management'
+        }
+      ]
+    },
+    {
+      key: 'reports',
+      icon: <FileTextOutlined />,
+      label: 'Financial Reports',
+      children: [
+        {
+          key: '10',
+          icon: <EyeOutlined />,
+          label: 'Preview & Generate'
+        },
+        {
+          key: '11',
+          icon: <UnorderedListOutlined />,
+          label: 'Report Management'
+        }
+      ]
+    },
+    {
+      key: '3',
+      icon: <SettingOutlined />,
+      label: 'System Settings'
+    }
+  ];
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider collapsible collapsed={collapsed} onCollapse={setCollapsed}>
-        <div className="logo">
-          {collapsed ? 'FMS' : 'Finance Management System'}
+      <Sider 
+        collapsible 
+        collapsed={collapsed} 
+        onCollapse={setCollapsed}
+        theme="dark"
+        width={250}
+      >
+        <div className="logo" style={{ 
+          height: 32, 
+          margin: 16, 
+          background: 'rgba(255, 255, 255, 0.3)',
+          borderRadius: 6,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'white',
+          fontWeight: 'bold'
+        }}>
+          {collapsed ? 'AI财务' : 'AI Financial Management'}
         </div>
+        
         <Menu
           theme="dark"
-          mode="inline"
           selectedKeys={[selectedKey]}
-          onClick={(e) => setSelectedKey(e.key)}
-        >
-          {/* Dashboard Home */}
-          <Menu.Item key="1" icon={<HomeOutlined />}>
-            Dashboard Home
-          </Menu.Item>
-          
-          {/* Legacy Data Management - Keep for now */}
-          <Menu.Item key="2" icon={<PieChartOutlined />}>
-            Legacy Reports
-          </Menu.Item>
-          
-          {/* Financial Reports - New Unified Section */}
-          <Menu.SubMenu 
-            key="financial-reports" 
-            icon={<FileTextOutlined />} 
-            title="Financial Reports"
-          >
-            <Menu.Item key="3" icon={<BarChartOutlined />}>
-              All Financial Reports
-            </Menu.Item>
-            <Menu.Item key="11" icon={<FundProjectionScreenOutlined />}>
-              Generate DDD Reports
-            </Menu.Item>
-            <Menu.Item key="12" icon={<FileTextOutlined />}>
-              Report Management
-            </Menu.Item>
-          </Menu.SubMenu>
-          
-          {/* Organization Management */}
-          <Menu.SubMenu 
-            key="organization" 
-            icon={<TeamOutlined />} 
-            title="Organization"
-          >
-            <Menu.Item key="4" icon={<BankOutlined />}>
-              Company Management
-            </Menu.Item>
-            <Menu.Item key="5" icon={<UserOutlined />}>
-              User Management
-            </Menu.Item>
-            <Menu.Item key="6" icon={<ApartmentOutlined />}>
-              Department Management
-            </Menu.Item>
-          </Menu.SubMenu>
-          
-          {/* Operations */}
-          <Menu.SubMenu 
-            key="operations" 
-            icon={<DollarCircleOutlined />} 
-            title="Operations"
-          >
-            <Menu.Item key="7" icon={<DollarCircleOutlined />}>
-              Transaction Management
-            </Menu.Item>
-            <Menu.Item key="8" icon={<FundOutlined />}>
-              Fund Management
-            </Menu.Item>
-            <Menu.Item key="9" icon={<AppstoreOutlined />}>
-              Asset Management
-            </Menu.Item>
-          </Menu.SubMenu>
-          
-          {/* System Settings */}
-          <Menu.Item key="10" icon={<SettingOutlined />}>
-            System Settings
-          </Menu.Item>
-        </Menu>
+          mode="inline"
+          items={menuItems}
+          onClick={({ key }) => setSelectedKey(key)}
+          style={{ borderRight: 0 }}
+        />
       </Sider>
-
+      
       <Layout>
-        <Header className="dashboard-header">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: '100%' }}>
-            <span style={{ display: 'flex', alignItems: 'center', fontSize: '18px', fontWeight: '500' }}>
-              <HomeOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
-              Dashboard
-            </span>
-            {currentUser && currentUser.user && (
-              <Dropdown overlay={userMenu} trigger={['click']}>
-                <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                  <Avatar icon={<UserOutlined />} style={{ marginRight: '8px', backgroundColor: '#1890ff' }} />
-                  <span style={{ marginRight: '8px', color: '#333' }}>
-                    Hi! {currentUser.user.username || currentUser.user.fullName}
-                  </span>
-                </div>
-              </Dropdown>
-            )}
+        <Header style={{ 
+          background: '#fff', 
+          padding: '0 24px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          boxShadow: '0 1px 4px rgba(0,21,41,.08)'
+        }}>
+          <div style={{ fontSize: '18px', fontWeight: '500' }}>
+            {(() => {
+              const getMenuLabel = (items, key) => {
+                for (const item of items) {
+                  if (item.key === key) {
+                    return item.label;
+                  }
+                  if (item.children) {
+                    const found = getMenuLabel(item.children, key);
+                    if (found) return found;
+                  }
+                }
+                return 'Dashboard';
+              };
+              return getMenuLabel(menuItems, selectedKey);
+            })()}
           </div>
+          
+          <Dropdown overlay={userMenu} placement="bottomRight">
+            <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+              <Avatar icon={<UserOutlined />} style={{ marginRight: 8 }} />
+              <span>{currentUser?.username || 'User'}</span>
+            </div>
+          </Dropdown>
         </Header>
-        <Content className="dashboard-content">
+        
+        <Content style={{ 
+          margin: 0, 
+          minHeight: 280,
+          background: '#f0f2f5'
+        }}>
           {renderContent()}
         </Content>
       </Layout>

@@ -18,6 +18,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -35,6 +36,20 @@ public class ReportController {
     
     @Autowired
     private ReportFileManager fileManager;
+    
+    /**
+     * Health check endpoint for frontend connectivity testing
+     */
+    @GetMapping("/health")
+    public ResponseEntity<Map<String, Object>> healthCheck() {
+        return ResponseEntity.ok(Map.of(
+            "status", "UP",
+            "timestamp", LocalDateTime.now(),
+            "service", "Report Management Service",
+            "version", "1.0.0",
+            "message", "Report service is running normally"
+        ));
+    }
     
     /**
      * Generate a new report
@@ -55,26 +70,18 @@ public class ReportController {
             
             if (request.getStartDate() == null || request.getEndDate() == null) {
                 return ResponseEntity.badRequest().body(Map.of(
-                    "status", "error", 
+                    "status", "error",
                     "message", "Start date and end date are required"
                 ));
             }
             
-            // 生成默认报表名称（如果未提供）
-            String reportName = request.getReportName();
-            if (reportName == null || reportName.trim().isEmpty()) {
-                reportName = String.format("%s Report - %s", 
-                    request.getReportType().toString().replace("_", " "), 
-                    java.time.LocalDate.now().toString());
-            }
-            
             GenerateReportCommand command = GenerateReportCommand.builder()
                 .tenantId(tenantId)
+                .createdBy(userId)
                 .reportType(request.getReportType())
                 .reportName(request.getReportName())
                 .startDate(request.getStartDate())
                 .endDate(request.getEndDate())
-                .createdBy(userId)
                 .aiAnalysisEnabled(request.getAiAnalysisEnabled())
                 .build();
             
@@ -82,36 +89,26 @@ public class ReportController {
             
             return ResponseEntity.ok(Map.of(
                 "status", "success",
-                "message", "Report generation started successfully",
                 "reportId", reportId,
-                "data", Map.of(
-                    "reportId", reportId,
-                    "reportType", request.getReportType().toString(),
-                    "reportName", reportName,
-                    "status", "GENERATING"
-                )
+                "message", "Report generation started successfully"
             ));
             
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of(
                 "status", "error",
-                "message", e.getMessage(),
-                "errorCode", "BUSINESS_LOGIC_ERROR"
+                "message", e.getMessage()
             ));
         } catch (Exception e) {
-            System.err.println("Report generation error: " + e.getMessage());
-            e.printStackTrace();
-            
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
                 "status", "error",
-                "message", "Failed to start report generation. Please try again.",
+                "message", "Failed to generate report. Please try again.",
                 "errorCode", "SYSTEM_ERROR"
             ));
         }
     }
     
     /**
-     * Get report details
+     * Get report details - MOVED AFTER SPECIFIC PATHS
      */
     @GetMapping("/{reportId}")
     public ResponseEntity<Map<String, Object>> getReport(@PathVariable Integer reportId) {
@@ -185,7 +182,7 @@ public class ReportController {
             Integer tenantId = getCurrentTenantId();
             
             return reportApplicationService.getReport(reportId, tenantId)
-                .filter(ReportDTO::isDownloadable)
+                .filter(report -> "COMPLETED".equals(report.getStatus().name()))
                 .map(report -> {
                     Resource resource = new FileSystemResource(report.getFilePath());
                     
@@ -198,11 +195,15 @@ public class ReportController {
                     return ResponseEntity.ok()
                         .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
                         .header(HttpHeaders.CONTENT_TYPE, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                        .header(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate")
+                        .header(HttpHeaders.PRAGMA, "no-cache")
+                        .header(HttpHeaders.EXPIRES, "0")
                         .body(resource);
                 })
                 .orElse(ResponseEntity.notFound().build());
                 
         } catch (Exception e) {
+            System.err.println("Download error: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -330,8 +331,7 @@ public class ReportController {
                     "failedReports", stats.getFailedReports(),
                     "generatingReports", stats.getGeneratingReports(),
                     "totalFileSize", stats.getTotalFileSize(),
-                    "totalFileSizeFormatted", stats.getTotalFileSizeFormatted(),
-                    "successRate", stats.getSuccessRate()
+                    "totalFileSizeFormatted", stats.getTotalFileSizeFormatted()
                 )
             ));
             
@@ -343,27 +343,20 @@ public class ReportController {
         }
     }
     
-    // ========== Helper Methods ==========
-    
-    /**
-     * Get current tenant ID from security context
-     * This is simplified - in real implementation, extract from JWT or session
-     */
+    // Helper methods for extracting user context
     private Integer getCurrentTenantId() {
-        // TODO: Extract from security context
-        return 1; // Placeholder
+        // TODO: Extract from Spring Security context or JWT token
+        return 1; // Temporary hardcoded value
+    }
+    
+    private Integer getCurrentUserId() {
+        // TODO: Extract from Spring Security context or JWT token
+        return 1; // Temporary hardcoded value
     }
     
     /**
-     * Get current user ID from security context
+     * Request DTO for report generation
      */
-    private Integer getCurrentUserId() {
-        // TODO: Extract from security context  
-        return 1; // Placeholder
-    }
-    
-    // ========== Request DTOs ==========
-    
     public static class GenerateReportRequest {
         private ReportType reportType;
         private String reportName;
