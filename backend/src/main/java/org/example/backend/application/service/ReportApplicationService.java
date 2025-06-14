@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -59,49 +60,65 @@ public class ReportApplicationService {
     /**
      * Generate a new financial report - supports all four report types
      */
+
     public String generateReport(GenerateReportCommand command) {
-        validateGenerateReportCommand(command);
-        
-        TenantId tenantId = TenantId.of(command.getTenantId());
-        
-        // Check for duplicate reports
-        if (isDuplicateReport(tenantId, command)) {
-            throw new IllegalArgumentException(
-                "Similar report already exists for the specified period and type");
-        }
-        
-        // Create report aggregate
-        ReportAggregate report = ReportAggregate.create(
-            command.getReportType(),
-            command.getReportName(),
-            command.getStartDate(),
-            command.getEndDate(),
-            tenantId,
-            command.getCreatedBy()
-        );
-        
-        // Enable AI analysis if requested
-        if (Boolean.TRUE.equals(command.getAiAnalysisEnabled())) {
-            report.enableAIAnalysis();
-        }
-        
-        // Save report (in GENERATING status)
-        ReportAggregate savedReport = reportRepository.save(report);
-        
-        // Publish generation started event
-        domainEventPublisher.publish(new ReportGenerationStartedEvent(
-            savedReport.getReportId(),
-            savedReport.getReportType(),
-            savedReport.getTenantId().getValue(),
-            savedReport.getCreatedBy()
-        ));
-        
-        // Start asynchronous report generation
-        generateReportAsync(savedReport);
-        
-        return savedReport.getReportId().toString();
+    validateGenerateReportCommand(command);
+    
+    TenantId tenantId = TenantId.of(command.getTenantId());
+    
+    // 修改重复检查逻辑 - 只检查正在生成的报表，允许重新生成已完成的报表
+    if (reportRepository.existsGeneratingReport(tenantId, command.getReportType(), 
+                                              command.getStartDate(), command.getEndDate())) {
+        throw new IllegalArgumentException(
+            "A report with the same parameters is currently being generated. Please wait for it to complete.");
     }
     
+    // 可选：删除已存在的相同报表（如果需要覆盖）
+    List<ReportAggregate> existingReports = reportRepository.findByMultipleCriteria(
+        tenantId, command.getReportType(), ReportStatus.COMPLETED, 
+        command.getStartDate(), command.getEndDate());
+    
+    if (!existingReports.isEmpty()) {
+        // 可以选择删除旧报表或者给报表加上时间戳后缀
+        for (ReportAggregate existingReport : existingReports) {
+            if (existingReport.getFilePath() != null) {
+                reportGenerationService.deleteReportFile(existingReport.getFilePath());
+            }
+            reportRepository.delete(existingReport);
+        }
+    }
+    
+    // 创建新的报表聚合
+    ReportAggregate report = ReportAggregate.create(
+        command.getReportType(),
+        command.getReportName() + " - " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")),
+        command.getStartDate(),
+        command.getEndDate(),
+        tenantId,
+        command.getCreatedBy()
+    );
+    
+    // 启用AI分析（如果请求）
+    if (Boolean.TRUE.equals(command.getAiAnalysisEnabled())) {
+        report.enableAIAnalysis();
+    }
+    
+    // 保存报表
+    ReportAggregate savedReport = reportRepository.save(report);
+    
+    // 发布生成开始事件
+    domainEventPublisher.publish(new ReportGenerationStartedEvent(
+        savedReport.getReportId(),
+        savedReport.getReportType(),
+        savedReport.getTenantId().getValue(),
+        savedReport.getCreatedBy()
+    ));
+    
+    // 开始异步报表生成
+    generateReportAsync(savedReport);
+    
+    return savedReport.getReportId().toString();
+} 
     /**
      * Get report details by ID
      */
