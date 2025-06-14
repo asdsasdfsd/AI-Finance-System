@@ -5,30 +5,22 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.backend.application.dto.BalanceSheetDetailedResponse;
 import org.example.backend.application.dto.AccountBalanceDTO;
-import org.example.backend.domain.aggregate.transaction.TransactionAggregateRepository;
-import org.example.backend.domain.aggregate.transaction.TransactionAggregate;
 import org.example.backend.domain.aggregate.company.CompanyAggregateRepository;
 import org.example.backend.domain.valueobject.TenantId;
-import org.example.backend.domain.valueobject.TransactionStatus;
-import org.example.backend.repository.CategoryRepository;
-import org.example.backend.model.Category;
-import org.example.backend.model.Account;
+import org.example.backend.repository.AccountRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
- * Balance Sheet Data Service - DDD Implementation
+ * Fixed Balance Sheet Data Service - Using Direct SQL Queries
  * 
- * Responsibilities:
- * 1. Generate balance sheet data using DDD aggregates
- * 2. Calculate account balances for different periods using domain logic
- * 3. Group accounts by financial statement categories
- * 4. Ensure data consistency and business rule compliance
+ * Problem: The original DDD implementation was not getting data from account_balance table.
+ * Solution: Use JdbcTemplate to directly query account_balance table for actual balance data.
  */
 @Slf4j
 @Service
@@ -36,12 +28,12 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class BalanceSheetDataService {
 
-    private final TransactionAggregateRepository transactionRepository;
     private final CompanyAggregateRepository companyRepository;
-    private final CategoryRepository categoryRepository;
+    private final AccountRepository accountRepository;
+    private final JdbcTemplate jdbcTemplate;
 
     /**
-     * Generate balance sheet using DDD approach with TenantId
+     * Generate balance sheet using account_balance table data
      */
     public BalanceSheetDetailedResponse generateBalanceSheetByTenant(TenantId tenantId, LocalDate asOfDate) {
         log.info("Generating balance sheet for tenant {} as of {}", tenantId.getValue(), asOfDate);
@@ -51,17 +43,17 @@ public class BalanceSheetDataService {
             throw new IllegalArgumentException("Company not found: " + tenantId.getValue());
         }
         
-        // Get balance sheet categories using domain logic
-        Map<String, List<AccountBalanceDTO>> assets = generateAssetSection(tenantId, asOfDate);
-        Map<String, List<AccountBalanceDTO>> liabilities = generateLiabilitySection(tenantId, asOfDate);
-        Map<String, List<AccountBalanceDTO>> equity = generateEquitySection(tenantId, asOfDate);
+        // Generate sections using account_balance table
+        Map<String, List<AccountBalanceDTO>> assets = generateSectionFromAccountBalance(tenantId, asOfDate, "ASSET");
+        Map<String, List<AccountBalanceDTO>> liabilities = generateSectionFromAccountBalance(tenantId, asOfDate, "LIABILITY");
+        Map<String, List<AccountBalanceDTO>> equity = generateSectionFromAccountBalance(tenantId, asOfDate, "EQUITY");
         
-        // Calculate totals using domain calculation
+        // Calculate totals
         BigDecimal totalAssets = calculateSectionTotal(assets);
         BigDecimal totalLiabilities = calculateSectionTotal(liabilities);
         BigDecimal totalEquity = calculateSectionTotal(equity);
         
-        // Apply business rule: Assets = Liabilities + Equity
+        // Check if balanced
         boolean isBalanced = totalAssets.compareTo(totalLiabilities.add(totalEquity)) == 0;
         
         log.info("Balance sheet generated - Assets: {}, Liabilities: {}, Equity: {}, Balanced: {}", 
@@ -80,190 +72,77 @@ public class BalanceSheetDataService {
     }
 
     /**
-     * Generate asset section using DDD aggregates
+     * Generate balance sheet section using account_balance table
      */
-    private Map<String, List<AccountBalanceDTO>> generateAssetSection(TenantId tenantId, LocalDate asOfDate) {
-        return generateBalanceSheetSection(tenantId, asOfDate, "ASSET");
-    }
-
-    /**
-     * Generate liability section using DDD aggregates
-     */
-    private Map<String, List<AccountBalanceDTO>> generateLiabilitySection(TenantId tenantId, LocalDate asOfDate) {
-        return generateBalanceSheetSection(tenantId, asOfDate, "LIABILITY");
-    }
-
-    /**
-     * Generate equity section using DDD aggregates
-     */
-    private Map<String, List<AccountBalanceDTO>> generateEquitySection(TenantId tenantId, LocalDate asOfDate) {
-        Map<String, List<AccountBalanceDTO>> equity = generateBalanceSheetSection(tenantId, asOfDate, "EQUITY");
-        
-        // Add retained earnings calculation using domain logic
-        BigDecimal retainedEarnings = calculateRetainedEarnings(tenantId, asOfDate);
-        if (retainedEarnings.compareTo(BigDecimal.ZERO) != 0) {
-            AccountBalanceDTO retainedEarningsAccount = AccountBalanceDTO.builder()
-                    .accountName("Retained Earnings")
-                    .currentMonth(retainedEarnings)
-                    .previousMonth(calculateRetainedEarnings(tenantId, asOfDate.minusMonths(1)))
-                    .lastYearEnd(calculateRetainedEarnings(tenantId, asOfDate.withDayOfYear(1).minusDays(1)))
-                    .build();
-            
-            equity.computeIfAbsent("Retained Earnings", k -> new ArrayList<>()).add(retainedEarningsAccount);
-        }
-        
-        return equity;
-    }
-
-    /**
-     * Generate balance sheet section using DDD aggregates and domain logic
-     */
-    private Map<String, List<AccountBalanceDTO>> generateBalanceSheetSection(
-            TenantId tenantId, LocalDate asOfDate, String sectionType) {
-        
-        // 替换原来的方法调用
-        List<Category> categories = categoryRepository.findByCompanyCompanyId(tenantId.getValue())
-                .stream()
-                .filter(c -> sectionType.equals(c.getType().name()))
-                .collect(Collectors.toList());
+    private Map<String, List<AccountBalanceDTO>> generateSectionFromAccountBalance(
+            TenantId tenantId, LocalDate asOfDate, String accountType) {
         
         Map<String, List<AccountBalanceDTO>> section = new LinkedHashMap<>();
         
-        for (Category category : categories) {
-            // 修复方法调用：使用 getName() 而不是 getCategoryName()
-            String categoryName = category.getName();
+        try {
+            // Query account_balance table directly
+            String sql = """
+                SELECT 
+                    a.account_id,
+                    a.account_code,
+                    a.name as account_name,
+                    a.account_type,
+                    COALESCE(ab.current_month, 0) as current_month,
+                    COALESCE(ab.previous_month, 0) as previous_month,
+                    COALESCE(ab.last_year_end, 0) as last_year_end
+                FROM Account a
+                LEFT JOIN account_balance ab ON a.account_id = ab.account_id 
+                    AND ab.as_of_date = ?
+                WHERE a.company_id = ? 
+                    AND a.account_type = ?
+                    AND a.is_active = true
+                ORDER BY a.account_code
+                """;
             
-            // 由于Category不直接包含Account列表，我们需要不同的逻辑
-            // 这里假设每个Category对应一个Account
-            if (category.getAccount() != null) {
-                AccountBalanceDTO balance = calculateAccountBalanceUsingAggregates(
-                        tenantId, category.getAccount(), asOfDate);
+            List<Map<String, Object>> results = jdbcTemplate.queryForList(
+                sql, asOfDate, tenantId.getValue(), accountType);
+            
+            log.info("Found {} {} accounts for company {}", results.size(), accountType, tenantId.getValue());
+            
+            // Group by account type (can be enhanced to group by categories later)
+            String sectionName = accountType + " Accounts";
+            List<AccountBalanceDTO> accountBalances = new ArrayList<>();
+            
+            for (Map<String, Object> row : results) {
+                BigDecimal currentMonth = new BigDecimal(row.get("current_month").toString());
+                BigDecimal previousMonth = new BigDecimal(row.get("previous_month").toString());
+                BigDecimal lastYearEnd = new BigDecimal(row.get("last_year_end").toString());
                 
-                if (hasNonZeroBalance(balance)) {
-                    section.computeIfAbsent(categoryName, k -> new ArrayList<>()).add(balance);
-                }
+                // Create AccountBalanceDTO with correct field names
+                AccountBalanceDTO balance = AccountBalanceDTO.builder()
+                        .accountName(row.get("account_name").toString())
+                        .currentMonth(currentMonth)
+                        .previousMonth(previousMonth)
+                        .lastYearEnd(lastYearEnd)
+                        .build();
+                
+                accountBalances.add(balance);
             }
+            
+            if (!accountBalances.isEmpty()) {
+                section.put(sectionName, accountBalances);
+            } else {
+                log.warn("No account balances found for {} section", accountType);
+                // Add empty section to maintain structure
+                section.put(sectionName, new ArrayList<>());
+            }
+            
+        } catch (Exception e) {
+            log.error("Error generating {} section: {}", accountType, e.getMessage(), e);
+            // Return empty section instead of failing
+            section.put(accountType + " Accounts", new ArrayList<>());
         }
         
         return section;
     }
-
+    
     /**
-     * Calculate account balance using DDD aggregates
-     */
-    private AccountBalanceDTO calculateAccountBalanceUsingAggregates(
-            TenantId tenantId, Account account, LocalDate asOfDate) {
-        
-        // Current month balance (up to asOfDate)
-        BigDecimal currentMonth = calculateBalanceForPeriodUsingAggregates(
-            tenantId, account.getAccountId(), asOfDate.withDayOfMonth(1), asOfDate
-        );
-        
-        // Previous month balance
-        LocalDate prevMonthStart = asOfDate.minusMonths(1).withDayOfMonth(1);
-        LocalDate prevMonthEnd = asOfDate.minusMonths(1).withDayOfMonth(
-            asOfDate.minusMonths(1).lengthOfMonth()
-        );
-        BigDecimal previousMonth = calculateBalanceForPeriodUsingAggregates(
-            tenantId, account.getAccountId(), prevMonthStart, prevMonthEnd
-        );
-        
-        // Last year end balance
-        LocalDate lastYearEnd = asOfDate.withDayOfYear(1).minusDays(1);
-        BigDecimal lastYearEndBalance = calculateBalanceUpToDateUsingAggregates(
-            tenantId, account.getAccountId(), lastYearEnd
-        );
-        
-        return AccountBalanceDTO.builder()
-                .accountName(account.getName())
-                .currentMonth(currentMonth != null ? currentMonth : BigDecimal.ZERO)
-                .previousMonth(previousMonth != null ? previousMonth : BigDecimal.ZERO)
-                .lastYearEnd(lastYearEndBalance != null ? lastYearEndBalance : BigDecimal.ZERO)
-                .build();
-    }
-
-    /**
-     * Calculate balance for period using transaction aggregates
-     */
-    private BigDecimal calculateBalanceForPeriodUsingAggregates(
-            TenantId tenantId, Integer accountId, LocalDate startDate, LocalDate endDate) {
-        
-        // Get transactions using DDD aggregate repository
-        List<TransactionAggregate> transactions = transactionRepository
-                .findByTenantIdAndAccountIdAndDateRange(tenantId, accountId, startDate, endDate);
-        
-        // Apply domain logic for balance calculation
-        return transactions.stream()
-                .filter(tx -> tx.getTransactionStatus().getStatus() == TransactionStatus.Status.APPROVED)
-                .map(tx -> calculateTransactionImpact(tx, accountId))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    /**
-     * Calculate balance up to date using transaction aggregates
-     */
-    private BigDecimal calculateBalanceUpToDateUsingAggregates(
-            TenantId tenantId, Integer accountId, LocalDate asOfDate) {
-        
-        List<TransactionAggregate> transactions = transactionRepository
-                .findByTenantIdAndAccountIdUpToDate(tenantId, accountId, asOfDate);
-        
-        return transactions.stream()
-                .filter(tx -> tx.getTransactionStatus().getStatus() == TransactionStatus.Status.APPROVED)
-                .map(tx -> calculateTransactionImpact(tx, accountId))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    /**
-     * Calculate transaction impact on account using domain logic
-     */
-    private BigDecimal calculateTransactionImpact(TransactionAggregate transaction, Integer accountId) {
-        // Domain logic: Determine if this account is debited or credited
-        if (transaction.getDebitAccountId().equals(accountId)) {
-            return transaction.getAmount();
-        } else if (transaction.getCreditAccountId().equals(accountId)) {
-            return transaction.getAmount().negate();
-        }
-        return BigDecimal.ZERO;
-    }
-
-    /**
-     * Calculate retained earnings using domain aggregates
-     */
-    private BigDecimal calculateRetainedEarnings(TenantId tenantId, LocalDate asOfDate) {
-        // Get revenue transactions
-        List<TransactionAggregate> revenueTransactions = transactionRepository
-                .findByTenantIdAndTransactionTypeAndDateRange(
-                    tenantId, 
-                    TransactionAggregate.TransactionType.INCOME, 
-                    asOfDate.withDayOfYear(1), 
-                    asOfDate
-                );
-        
-        // Get expense transactions
-        List<TransactionAggregate> expenseTransactions = transactionRepository
-                .findByTenantIdAndTransactionTypeAndDateRange(
-                    tenantId, 
-                    TransactionAggregate.TransactionType.EXPENSE, 
-                    asOfDate.withDayOfYear(1), 
-                    asOfDate
-                );
-        
-        BigDecimal totalRevenue = revenueTransactions.stream()
-                .filter(tx -> tx.getTransactionStatus().getStatus() == TransactionStatus.Status.APPROVED)
-                .map(TransactionAggregate::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        
-        BigDecimal totalExpenses = expenseTransactions.stream()
-                .filter(tx -> tx.getTransactionStatus().getStatus() == TransactionStatus.Status.APPROVED)
-                .map(TransactionAggregate::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        
-        return totalRevenue.subtract(totalExpenses);
-    }
-
-    /**
-     * Calculate section total using domain logic
+     * Calculate section total
      */
     private BigDecimal calculateSectionTotal(Map<String, List<AccountBalanceDTO>> section) {
         return section.values().stream()
@@ -273,17 +152,7 @@ public class BalanceSheetDataService {
     }
 
     /**
-     * Check if account has non-zero balance
-     */
-    private boolean hasNonZeroBalance(AccountBalanceDTO balance) {
-        return balance.getCurrentMonth().compareTo(BigDecimal.ZERO) != 0 ||
-               balance.getPreviousMonth().compareTo(BigDecimal.ZERO) != 0 ||
-               balance.getLastYearEnd().compareTo(BigDecimal.ZERO) != 0;
-    }
-
-    /**
-     * Legacy method for backward compatibility - delegates to DDD implementation
-     * @deprecated Use generateBalanceSheetByTenant instead
+     * Legacy method for backward compatibility
      */
     @Deprecated
     public BalanceSheetDetailedResponse generateBalanceSheet(Integer companyId, LocalDate asOfDate) {

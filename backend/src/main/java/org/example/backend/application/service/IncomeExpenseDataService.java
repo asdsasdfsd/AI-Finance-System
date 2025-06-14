@@ -11,6 +11,8 @@ import org.example.backend.domain.aggregate.company.CompanyAggregateRepository;
 import org.example.backend.domain.aggregate.company.CompanyAggregate;
 import org.example.backend.domain.valueobject.TenantId;
 import org.example.backend.domain.valueobject.TransactionStatus;
+import org.example.backend.model.Category;
+import org.example.backend.repository.CategoryRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +39,7 @@ public class IncomeExpenseDataService {
 
     private final TransactionAggregateRepository transactionRepository;
     private final CompanyAggregateRepository companyRepository;
+	private final CategoryRepository categoryRepository;
 
     /**
      * Generate income expense report using pure DDD approach
@@ -63,9 +66,9 @@ public class IncomeExpenseDataService {
         
         // DDD: Process transactions using domain logic
         List<IncomeExpenseReportRowDTO> incomeRows = processIncomeTransactions(
-                ytdTransactions, monthTransactions);
+                ytdTransactions, monthTransactions, tenantId);
         List<IncomeExpenseReportRowDTO> expenseRows = processExpenseTransactions(
-                ytdTransactions, monthTransactions);
+                ytdTransactions, monthTransactions, tenantId);
         
         // DDD: Calculate totals using domain calculation methods
         BigDecimal totalIncomeYTD = calculateTotalIncome(ytdTransactions);
@@ -111,7 +114,8 @@ public class IncomeExpenseDataService {
      */
     private List<IncomeExpenseReportRowDTO> processIncomeTransactions(
             List<TransactionAggregate> ytdTransactions, 
-            List<TransactionAggregate> monthTransactions) {
+            List<TransactionAggregate> monthTransactions,
+            TenantId tenantId) {
         
         // Filter income transactions using domain logic
         List<TransactionAggregate> ytdIncome = ytdTransactions.stream()
@@ -122,7 +126,7 @@ public class IncomeExpenseDataService {
                 .filter(this::isIncomeTransaction)
                 .collect(Collectors.toList());
         
-        return groupTransactionsByDescription(ytdIncome, monthIncome, "INCOME");
+        return groupTransactionsByDescription(ytdIncome, monthIncome, "INCOME", tenantId);
     }
 
     /**
@@ -130,7 +134,8 @@ public class IncomeExpenseDataService {
      */
     private List<IncomeExpenseReportRowDTO> processExpenseTransactions(
             List<TransactionAggregate> ytdTransactions, 
-            List<TransactionAggregate> monthTransactions) {
+            List<TransactionAggregate> monthTransactions,
+            TenantId tenantId) {
         
         // Filter expense transactions using domain logic
         List<TransactionAggregate> ytdExpenses = ytdTransactions.stream()
@@ -141,16 +146,17 @@ public class IncomeExpenseDataService {
                 .filter(this::isExpenseTransaction)
                 .collect(Collectors.toList());
         
-        return groupTransactionsByDescription(ytdExpenses, monthExpenses, "EXPENSE");
+        return groupTransactionsByDescription(ytdExpenses, monthExpenses, "EXPENSE", tenantId);
     }
 
     /**
      * Group transactions by description using domain logic
      */
     private List<IncomeExpenseReportRowDTO> groupTransactionsByDescription(
-            List<TransactionAggregate> ytdTransactions,
-            List<TransactionAggregate> monthTransactions,
-            String type) {
+                List<TransactionAggregate> ytdTransactions,
+                List<TransactionAggregate> monthTransactions,
+                String type,
+            	TenantId tenantId) {
         
         // Group YTD transactions by description
         Map<String, List<TransactionAggregate>> ytdByDescription = ytdTransactions.stream()
@@ -165,36 +171,44 @@ public class IncomeExpenseDataService {
         allDescriptions.addAll(ytdByDescription.keySet());
         allDescriptions.addAll(monthByDescription.keySet());
         
+        // FIXED: Get all category IDs and fetch real names
+        Set<Integer> allCategoryIds = new HashSet<>();
+        ytdTransactions.stream().filter(t -> t.getCategoryId() != null).forEach(t -> allCategoryIds.add(t.getCategoryId()));
+        monthTransactions.stream().filter(t -> t.getCategoryId() != null).forEach(t -> allCategoryIds.add(t.getCategoryId()));
+        
+        // Get real category names from database - 需要添加 tenantId 参数到方法签名
+        Map<Integer, String> categoryIdToNameMap = getCategoryNames(allCategoryIds, tenantId);
+        
         List<IncomeExpenseReportRowDTO> result = new ArrayList<>();
         
         for (String description : allDescriptions) {
-            List<TransactionAggregate> ytdTxs = ytdByDescription.getOrDefault(description, Collections.emptyList());
-            List<TransactionAggregate> monthTxs = monthByDescription.getOrDefault(description, Collections.emptyList());
-            
-            BigDecimal ytdAmount = calculateTotalAmount(ytdTxs);
-            BigDecimal monthAmount = calculateTotalAmount(monthTxs);
-            
-            // Use category from first transaction (simplified approach for DDD compliance)
-            String categoryKey = ytdTxs.isEmpty() ? 
-                (monthTxs.isEmpty() ? "Unknown" : "Category_" + monthTxs.get(0).getCategoryId()) :
-                "Category_" + ytdTxs.get(0).getCategoryId();
-            
-            IncomeExpenseReportRowDTO row = IncomeExpenseReportRowDTO.builder()
-                    .category(categoryKey)
-                    .description(description)
-                    .type(type)
-                    .currentMonth(monthAmount)
-                    .yearToDate(ytdAmount)
-                    .budgetYtd(BigDecimal.ZERO)
-                    .variance(calculateVariance(ytdAmount, BigDecimal.ZERO))
-                    .variancePercentage(calculateVariancePercentage(ytdAmount, BigDecimal.ZERO))
-                    .build();
-            
-            result.add(row);
+                List<TransactionAggregate> ytdTxs = ytdByDescription.getOrDefault(description, Collections.emptyList());
+                List<TransactionAggregate> monthTxs = monthByDescription.getOrDefault(description, Collections.emptyList());
+                
+                BigDecimal ytdAmount = calculateTotalAmount(ytdTxs);
+                BigDecimal monthAmount = calculateTotalAmount(monthTxs);
+                
+                // FIXED: Use real category name from first transaction
+                String categoryName = ytdTxs.isEmpty() ? 
+                (monthTxs.isEmpty() ? "Unknown Category" : getCategoryName(monthTxs.get(0).getCategoryId(), categoryIdToNameMap)) :
+                getCategoryName(ytdTxs.get(0).getCategoryId(), categoryIdToNameMap);
+                
+                IncomeExpenseReportRowDTO row = IncomeExpenseReportRowDTO.builder()
+                        .category(categoryName) // FIXED: Use real category name
+                        .description(description)
+                        .type(type)
+                        .currentMonth(monthAmount)
+                        .yearToDate(ytdAmount)
+                        .budgetYtd(BigDecimal.ZERO)
+                        .variance(calculateVariance(ytdAmount, BigDecimal.ZERO))
+                        .variancePercentage(calculateVariancePercentage(ytdAmount, BigDecimal.ZERO))
+                        .build();
+                
+                result.add(row);
         }
         
         return result;
-    }
+        }
 
     /**
      * Domain logic: Determine if transaction is income
@@ -287,4 +301,32 @@ public class IncomeExpenseDataService {
         result.addAll(data.getExpenseRows());
         return result;
     }
+
+    /**
+	 * FIXED: Helper method to get category names
+	 */
+	private Map<Integer, String> getCategoryNames(Set<Integer> categoryIds, TenantId tenantId) {
+		if (categoryIds.isEmpty()) {
+				return new HashMap<>();
+		}
+
+		List<Category> categories = categoryRepository.findByIdInAndCompanyId(categoryIds, tenantId.getValue());
+
+		return categories.stream()
+				.collect(Collectors.toMap(
+						Category::getCategoryId,
+						Category::getName,
+						(existing, replacement) -> existing
+				));
+	}
+
+	/**
+	 * FIXED: Helper method to get single category name
+	 */
+	private String getCategoryName(Integer categoryId, Map<Integer, String> categoryIdToNameMap) {
+		if (categoryId == null) {
+				return "Unknown Category";
+		}
+		return categoryIdToNameMap.getOrDefault(categoryId, "Unknown Category (ID: " + categoryId + ")");
+	}
 }
