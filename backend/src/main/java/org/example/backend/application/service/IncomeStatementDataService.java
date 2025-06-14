@@ -10,6 +10,8 @@ import org.example.backend.domain.aggregate.company.CompanyAggregateRepository;
 import org.example.backend.domain.aggregate.company.CompanyAggregate;
 import org.example.backend.domain.valueobject.TenantId;
 import org.example.backend.domain.valueobject.TransactionStatus;
+import org.example.backend.model.Category;
+import org.example.backend.repository.CategoryRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +37,7 @@ public class IncomeStatementDataService {
 
     private final TransactionAggregateRepository transactionRepository;
     private final CompanyAggregateRepository companyRepository;
+    private final CategoryRepository categoryRepository; // FIXED: Added missing dependency
 
     /**
      * Generate income statement using pure DDD approach
@@ -68,13 +71,11 @@ public class IncomeStatementDataService {
         BigDecimal netIncome = calculateNetIncome(totalRevenue, totalExpenses);
         
         // DDD: Generate category breakdowns using domain logic
-        Map<String, BigDecimal> revenueByCategory = groupTransactionsByCategory(revenueTransactions);
-        Map<String, BigDecimal> expensesByCategory = groupTransactionsByCategory(expenseTransactions);
+        Map<String, BigDecimal> revenueByCategory = groupTransactionsByCategory(revenueTransactions, tenantId);
+        Map<String, BigDecimal> expensesByCategory = groupTransactionsByCategory(expenseTransactions, tenantId);
         
-        log.info("Income statement generated - Revenue: {}, Expenses: {}, Net Income: {}", 
-                 totalRevenue, totalExpenses, netIncome);
-        
-        return IncomeStatementData.builder()
+        // Create final income statement data
+        IncomeStatementData incomeStatementData = IncomeStatementData.builder()
                 .companyName(company.getCompanyName())
                 .periodStartDate(startDate)
                 .periodEndDate(endDate)
@@ -85,6 +86,11 @@ public class IncomeStatementDataService {
                 .expensesByCategory(expensesByCategory)
                 .transactionCount(approvedTransactions.size())
                 .build();
+        
+        log.info("Income statement generated successfully for tenant {} - Net Income: {}", 
+                 tenantId.getValue(), netIncome);
+        
+        return incomeStatementData;
     }
 
     /**
@@ -101,7 +107,7 @@ public class IncomeStatementDataService {
     }
 
     /**
-     * Separate revenue transactions using domain logic
+     * Separate revenue transactions using domain business rules
      */
     private List<TransactionAggregate> separateRevenueTransactions(List<TransactionAggregate> transactions) {
         return transactions.stream()
@@ -110,7 +116,7 @@ public class IncomeStatementDataService {
     }
 
     /**
-     * Separate expense transactions using domain logic
+     * Separate expense transactions using domain business rules
      */
     private List<TransactionAggregate> separateExpenseTransactions(List<TransactionAggregate> transactions) {
         return transactions.stream()
@@ -162,9 +168,9 @@ public class IncomeStatementDataService {
 
     /**
      * Group transactions by category using domain logic
-     * Note: This implementation avoids direct entity access
+     * FIXED: Now properly implements category name lookup
      */
-    private Map<String, BigDecimal> groupTransactionsByCategory(List<TransactionAggregate> transactions) {
+    private Map<String, BigDecimal> groupTransactionsByCategory(List<TransactionAggregate> transactions, TenantId tenantId) {
         Map<String, BigDecimal> categoryTotals = new LinkedHashMap<>();
         
         // Group transactions by category ID first
@@ -172,28 +178,53 @@ public class IncomeStatementDataService {
                 .filter(tx -> tx.getCategoryId() != null)
                 .collect(Collectors.groupingBy(TransactionAggregate::getCategoryId));
         
+        // FIXED: Get category names in batch for efficiency
+        Map<Integer, String> categoryIdToNameMap = getCategoryNames(transactionsByCategory.keySet(), tenantId);
+        
         // Calculate totals for each category
         for (Map.Entry<Integer, List<TransactionAggregate>> entry : transactionsByCategory.entrySet()) {
             Integer categoryId = entry.getKey();
             List<TransactionAggregate> categoryTransactions = entry.getValue();
             
-            // Use category ID as key for now to avoid entity access
-            // In a full DDD implementation, we'd have a CategoryAggregate
-            String categoryKey = getCategoryNameById(categoryId);
+            // FIXED: Use proper category name lookup
+            String categoryName = getCategoryName(categoryId, categoryIdToNameMap);
             
             BigDecimal categoryTotal = categoryTransactions.stream()
                     .map(TransactionAggregate::getAmount)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             
-            categoryTotals.put(categoryKey, categoryTotal);
+            categoryTotals.put(categoryName, categoryTotal);
         }
         
         return categoryTotals;
     }
 
-    private String getCategoryNameById(Integer categoryId) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getCategoryNameById'");
+    /**
+     * FIXED: Get category names in batch for efficiency
+     */
+    private Map<Integer, String> getCategoryNames(Set<Integer> categoryIds, TenantId tenantId) {
+        if (categoryIds.isEmpty()) {
+            return new HashMap<>();
+        }
+
+        List<Category> categories = categoryRepository.findByIdInAndCompanyId(categoryIds, tenantId.getValue());
+
+        return categories.stream()
+                .collect(Collectors.toMap(
+                        Category::getCategoryId,
+                        Category::getName,
+                        (existing, replacement) -> existing
+                ));
+    }
+
+    /**
+     * FIXED: Get single category name with fallback
+     */
+    private String getCategoryName(Integer categoryId, Map<Integer, String> categoryIdToNameMap) {
+        if (categoryId == null) {
+            return "Unknown Category";
+        }
+        return categoryIdToNameMap.getOrDefault(categoryId, "Unknown Category (ID: " + categoryId + ")");
     }
 
     /**
