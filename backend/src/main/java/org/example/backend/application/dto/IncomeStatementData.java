@@ -18,6 +18,8 @@ import java.util.ArrayList;
 @Data
 @Builder
 public class IncomeStatementData {
+
+    private String companyName;
     
     // Period information
     private LocalDate periodStartDate;
