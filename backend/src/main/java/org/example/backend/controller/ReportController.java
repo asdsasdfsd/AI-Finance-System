@@ -45,6 +45,28 @@ public class ReportController {
             // Extract tenant ID from security context (simplified)
             Integer tenantId = getCurrentTenantId();
             Integer userId = getCurrentUserId();
+
+            if (request.getReportType() == null) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "Report type is required"
+                ));
+            }
+            
+            if (request.getStartDate() == null || request.getEndDate() == null) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error", 
+                    "message", "Start date and end date are required"
+                ));
+            }
+            
+            // 生成默认报表名称（如果未提供）
+            String reportName = request.getReportName();
+            if (reportName == null || reportName.trim().isEmpty()) {
+                reportName = String.format("%s Report - %s", 
+                    request.getReportType().toString().replace("_", " "), 
+                    java.time.LocalDate.now().toString());
+            }
             
             GenerateReportCommand command = GenerateReportCommand.builder()
                 .tenantId(tenantId)
@@ -60,19 +82,30 @@ public class ReportController {
             
             return ResponseEntity.ok(Map.of(
                 "status", "success",
-                "message", "Report generation started",
-                "reportId", reportId
+                "message", "Report generation started successfully",
+                "reportId", reportId,
+                "data", Map.of(
+                    "reportId", reportId,
+                    "reportType", request.getReportType().toString(),
+                    "reportName", reportName,
+                    "status", "GENERATING"
+                )
             ));
             
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of(
                 "status", "error",
-                "message", e.getMessage()
+                "message", e.getMessage(),
+                "errorCode", "BUSINESS_LOGIC_ERROR"
             ));
         } catch (Exception e) {
+            System.err.println("Report generation error: " + e.getMessage());
+            e.printStackTrace();
+            
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
                 "status", "error",
-                "message", "Failed to start report generation: " + e.getMessage()
+                "message", "Failed to start report generation. Please try again.",
+                "errorCode", "SYSTEM_ERROR"
             ));
         }
     }

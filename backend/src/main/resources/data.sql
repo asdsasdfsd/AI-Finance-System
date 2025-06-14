@@ -7,6 +7,9 @@
 -- ====================
 
 -- Clear transaction-related tables first
+
+SET FOREIGN_KEY_CHECKS = 0;
+
 DELETE FROM Journal_Line;
 DELETE FROM Journal_Entry;
 DELETE FROM Transaction;
@@ -70,12 +73,12 @@ INSERT INTO Department (company_id, name, code, budget, is_active, created_at, u
 
 -- Insert Users
 INSERT INTO User (username, email, password, full_name, enabled, company_id, department_id, preferred_language, timezone, created_at, updated_at) VALUES
-('admin', 'admin@techinnovation.com', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBaLO.ozSYkOTa', 'System Administrator', TRUE, 1, 1, 'zh-CN', 'Asia/Shanghai', NOW(), NOW()),
-('john.doe', 'john.doe@techinnovation.com', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBaLO.ozSYkOTa', 'John Doe', TRUE, 1, 1, 'en-US', 'Asia/Shanghai', NOW(), NOW()),
-('jane.smith', 'jane.smith@techinnovation.com', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBaLO.ozSYkOTa', 'Jane Smith', TRUE, 1, 2, 'en-US', 'Asia/Shanghai', NOW(), NOW()),
-('mike.wilson', 'mike.wilson@techinnovation.com', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBaLO.ozSYkOTa', 'Mike Wilson', TRUE, 1, 3, 'en-US', 'Asia/Shanghai', NOW(), NOW()),
-('sarah.brown', 'sarah.brown@greenenergy.com', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBaLO.ozSYkOTa', 'Sarah Brown', TRUE, 2, 5, 'en-US', 'Asia/Shanghai', NOW(), NOW()),
-('david.lee', 'david.lee@financesolutions.com', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBaLO.ozSYkOTa', 'David Lee', TRUE, 3, 7, 'zh-CN', 'Asia/Shanghai', NOW(), NOW());
+('admin', 'admin@techinnovation.com', '$2a$10$/RldxP.y.CQAPS8varQ9q.xJg6yyvWdXqhTQ90z3CoPnl4i6I1kcG', 'System Administrator', TRUE, 1, 1, 'zh-CN', 'Asia/Shanghai', NOW(), NOW()),
+('john.doe', 'john.doe@techinnovation.com', '$2a$10$/RldxP.y.CQAPS8varQ9q.xJg6yyvWdXqhTQ90z3CoPnl4i6I1kcG', 'John Doe', TRUE, 1, 1, 'en-US', 'Asia/Shanghai', NOW(), NOW()),
+('jane.smith', 'jane.smith@techinnovation.com', '$2a$10$/RldxP.y.CQAPS8varQ9q.xJg6yyvWdXqhTQ90z3CoPnl4i6I1kcG', 'Jane Smith', TRUE, 1, 2, 'en-US', 'Asia/Shanghai', NOW(), NOW()),
+('mike.wilson', 'mike.wilson@techinnovation.com', '$2a$10$/RldxP.y.CQAPS8varQ9q.xJg6yyvWdXqhTQ90z3CoPnl4i6I1kcG', 'Mike Wilson', TRUE, 1, 3, 'en-US', 'Asia/Shanghai', NOW(), NOW()),
+('sarah.brown', 'sarah.brown@greenenergy.com', '$2a$10$/RldxP.y.CQAPS8varQ9q.xJg6yyvWdXqhTQ90z3CoPnl4i6I1kcG', 'Sarah Brown', TRUE, 2, 5, 'en-US', 'Asia/Shanghai', NOW(), NOW()),
+('david.lee', 'david.lee@financesolutions.com', '$2a$10$/RldxP.y.CQAPS8varQ9q.xJg6yyvWdXqhTQ90z3CoPnl4i6I1kcG', 'David Lee', TRUE, 3, 7, 'zh-CN', 'Asia/Shanghai', NOW(), NOW());
 
 -- Insert User-Role mappings
 INSERT INTO User_Role (user_id, role_id) VALUES
@@ -342,3 +345,5 @@ WHERE t.company_id = 1
   AND t.transaction_date <= '2024-03-31'
 GROUP BY t.transaction_type, c.name
 ORDER BY t.transaction_type, total_amount DESC;
+
+SET FOREIGN_KEY_CHECKS = 1;

@@ -246,13 +246,20 @@ public interface ReportAggregateRepository extends JpaRepository<ReportAggregate
     /**
      * Check if similar report exists
      */
-    @Query("SELECT COUNT(r) > 0 FROM ReportAggregate r WHERE r.tenantId = :tenantId " +
-           "AND r.reportType = :reportType AND r.startDate = :startDate " +
-           "AND r.endDate = :endDate AND r.status IN ('GENERATING', 'COMPLETED')")
-    boolean existsSimilarReport(@Param("tenantId") TenantId tenantId,
-                              @Param("reportType") ReportType reportType,
-                              @Param("startDate") LocalDate startDate,
-                              @Param("endDate") LocalDate endDate);
+       @Query("SELECT COUNT(r) > 0 FROM ReportAggregate r WHERE r.tenantId = :tenantId " +
+              "AND r.reportType = :reportType AND r.startDate = :startDate " +
+              "AND r.endDate = :endDate AND r.status IN ('GENERATING', 'COMPLETED')")
+       boolean existsSimilarReport(@Param("tenantId") TenantId tenantId,
+                            @Param("reportType") ReportType reportType,
+                            @Param("startDate") LocalDate startDate,
+                            @Param("endDate") LocalDate endDate);
+       @Query("SELECT COUNT(r) > 0 FROM ReportAggregate r WHERE r.tenantId = :tenantId " +
+       "AND r.reportType = :reportType AND r.startDate = :startDate " +
+       "AND r.endDate = :endDate AND r.status = 'GENERATING'")
+       boolean existsGeneratingReport(@Param("tenantId") TenantId tenantId,
+                                   @Param("reportType") ReportType reportType,
+                                   @Param("startDate") LocalDate startDate,
+                                   @Param("endDate") LocalDate endDate);
     
     /**
      * Find reports with duplicate names in tenant
