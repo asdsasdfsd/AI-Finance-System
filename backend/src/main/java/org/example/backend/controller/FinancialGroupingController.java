@@ -14,9 +14,9 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 
 /**
- * Financial Grouping Controller - DDD Compliant
+ * Financial Grouping Controller - DDD Implementation
  * 
- * Provides REST endpoints for financial grouping reports following DDD principles
+ * Provides REST endpoints for financial grouping reports
  */
 @Slf4j
 @RestController
@@ -26,11 +26,11 @@ import java.time.LocalDate;
 public class FinancialGroupingController {
 
     private final FinancialGroupingDataService financialGroupingDataService;
-    private final FinancialGroupingExportService financialGroupingExportService;
+    private final FinancialGroupingExportService financialGroupingExportService; // FIXED: Added export service
 
     /**
      * Get financial grouping data in JSON format
-     * DDD: Uses TenantId value object and domain services
+     * DDD: Uses domain services for data generation
      */
     @GetMapping("/json")
     public ResponseEntity<FinancialGroupingData> getFinancialGroupingJson(
@@ -42,16 +42,16 @@ public class FinancialGroupingController {
             log.info("Generating financial grouping for company {} from {} to {}", 
                      companyId, startDate, endDate);
             
-            // Validate date range
+            // Validate inputs
             if (startDate.isAfter(endDate)) {
                 log.error("Invalid date range: start date {} is after end date {}", startDate, endDate);
                 return ResponseEntity.badRequest().build();
             }
             
-            // DDD: Convert primitive to value object
+            // DDD: Convert to value object
             TenantId tenantId = TenantId.of(companyId);
             
-            // DDD: Use domain service for business logic
+            // Use DDD service to generate financial grouping data
             FinancialGroupingData data = financialGroupingDataService
                     .getFinancialGroupingDataByTenant(tenantId, startDate, endDate);
             
@@ -70,7 +70,7 @@ public class FinancialGroupingController {
 
     /**
      * Export financial grouping as Excel file
-     * DDD: Uses domain services for export functionality
+     * FIXED: Now properly implemented with actual Excel generation
      */
     @GetMapping("/export")
     public ResponseEntity<byte[]> exportFinancialGrouping(
@@ -92,16 +92,13 @@ public class FinancialGroupingController {
             // DDD: Convert to value object
             TenantId tenantId = TenantId.of(companyId);
             
-            // Get the financial grouping data using DDD service
-            FinancialGroupingData data = financialGroupingDataService
-                    .getFinancialGroupingDataByTenant(tenantId, startDate, endDate);
-            
-            // Generate Excel using domain service
-            byte[] excelData = financialGroupingExportService.generateExcel(data);
+            // FIXED: Use the export service to generate actual Excel file
+            byte[] excelData = financialGroupingExportService.exportFinancialGrouping(
+                    tenantId, startDate, endDate);
             
             // Prepare response headers
             String filename = String.format("Financial_Grouping_%s_%s_to_%s.xlsx", 
-                                           tenantId.getValue(), 
+                                           companyId, 
                                            startDate.toString(), 
                                            endDate.toString());
             
@@ -111,8 +108,8 @@ public class FinancialGroupingController {
             headers.setContentDisposition(ContentDisposition.attachment().filename(filename).build());
             headers.setContentLength(excelData.length);
             
-            log.info("Financial grouping exported successfully for tenant {}, file size: {} bytes", 
-                     tenantId.getValue(), excelData.length);
+            log.info("Financial grouping exported successfully for company {}, file size: {} bytes", 
+                     companyId, excelData.length);
             
             return new ResponseEntity<>(excelData, headers, HttpStatus.OK);
             
@@ -136,84 +133,27 @@ public class FinancialGroupingController {
 
     /**
      * Get financial grouping summary
-     * DDD: Provides domain-specific summary information
      */
     @GetMapping("/summary")
-    public ResponseEntity<Object> getFinancialGroupingSummary(
+    public ResponseEntity<FinancialGroupingData> getFinancialGroupingSummary(
             @RequestParam Integer companyId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
         
         try {
-            TenantId tenantId = TenantId.of(companyId);
+            log.info("Generating financial grouping summary for company {} from {} to {}", 
+                     companyId, startDate, endDate);
             
-            // Get financial grouping data
+            TenantId tenantId = TenantId.of(companyId);
             FinancialGroupingData data = financialGroupingDataService
                     .getFinancialGroupingDataByTenant(tenantId, startDate, endDate);
             
-            // Create summary object with domain information
-            var summary = new Object() {
-                public final String periodDescription = data.getPeriodDescription();
-                public final String grandTotal = data.getGrandTotal().toString();
-                public final int totalTransactionCount = data.getTotalTransactionCount();
-                public final int categoryCount = data.getByCategory().size();
-                public final int departmentCount = data.getByDepartment().size();
-                public final int monthCount = data.getByMonth().size();
-                public final int fundCount = data.getByFund().size();
-            };
-            
-            return ResponseEntity.ok(summary);
+            log.info("Financial grouping summary generated successfully for tenant {}", tenantId.getValue());
+            return ResponseEntity.ok(data);
             
         } catch (Exception e) {
-            log.error("Failed to generate financial grouping summary: {}", e.getMessage(), e);
-            return ResponseEntity.internalServerError().build();
-        }
-    }
-
-    /**
-     * Get financial grouping by specific criteria
-     * DDD: Provides domain-specific filtering capabilities
-     */
-    @GetMapping("/by-category")
-    public ResponseEntity<Object> getFinancialGroupingByCategory(
-            @RequestParam Integer companyId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        
-        try {
-            TenantId tenantId = TenantId.of(companyId);
-            
-            FinancialGroupingData data = financialGroupingDataService
-                    .getFinancialGroupingDataByTenant(tenantId, startDate, endDate);
-            
-            return ResponseEntity.ok(data.getByCategory());
-            
-        } catch (Exception e) {
-            log.error("Failed to get financial grouping by category: {}", e.getMessage(), e);
-            return ResponseEntity.internalServerError().build();
-        }
-    }
-
-    /**
-     * Get financial grouping by department
-     * DDD: Provides department-specific domain information
-     */
-    @GetMapping("/by-department")
-    public ResponseEntity<Object> getFinancialGroupingByDepartment(
-            @RequestParam Integer companyId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        
-        try {
-            TenantId tenantId = TenantId.of(companyId);
-            
-            FinancialGroupingData data = financialGroupingDataService
-                    .getFinancialGroupingDataByTenant(tenantId, startDate, endDate);
-            
-            return ResponseEntity.ok(data.getByDepartment());
-            
-        } catch (Exception e) {
-            log.error("Failed to get financial grouping by department: {}", e.getMessage(), e);
+            log.error("Failed to generate financial grouping summary for company {}: {}", 
+                     companyId, e.getMessage(), e);
             return ResponseEntity.internalServerError().build();
         }
     }
