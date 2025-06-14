@@ -5,6 +5,16 @@
 -- 基于实际 account_balance 表结构的修复脚本
 
 -- ====================
+-- Transaction Status 映射:
+-- 0: DRAFT ("Draft")
+-- 1: PENDING_APPROVAL ("Pending Approval")
+-- 2: APPROVED ("Approved")
+-- 3: REJECTED ("Rejected")
+-- 4: CANCELLED ("Cancelled")
+-- 5: VOIDED ("Voided")
+-- ====================
+
+-- ====================
 -- 1. 检查和修复 Transaction Status
 -- ====================
 
@@ -15,6 +25,23 @@ SELECT 'Current Transaction Status' as report,
 FROM Transaction 
 GROUP BY status;
 
+-- 首先将现有的字符串状态值转换为对应的整数值
+UPDATE Transaction 
+SET status = CASE 
+    WHEN status = 'Draft' OR status = 'DRAFT' THEN '0'
+    WHEN status = 'Pending Approval' OR status = 'PENDING_APPROVAL' THEN '1'
+    WHEN status = 'Approved' OR status = 'APPROVED' THEN '2'
+    WHEN status = 'Rejected' OR status = 'REJECTED' THEN '3'
+    WHEN status = 'Cancelled' OR status = 'CANCELLED' THEN '4'
+    WHEN status = 'Voided' OR status = 'VOIDED' THEN '5'
+    ELSE '0'  -- 默认为DRAFT
+END
+WHERE status IS NOT NULL;
+
+-- 然后修改字段类型
+ALTER TABLE Transaction 
+MODIFY COLUMN status INT DEFAULT 0;
+
 -- 修复 Transaction status 为 APPROVED (整数值 2)
 UPDATE Transaction 
 SET status = 2 
@@ -23,6 +50,15 @@ WHERE status IS NULL OR status = 0 OR status = '';
 -- 验证修复结果
 SELECT 'After Status Fix' as report,
        status,
+       CASE 
+           WHEN status = 0 THEN 'DRAFT'
+           WHEN status = 1 THEN 'PENDING_APPROVAL'
+           WHEN status = 2 THEN 'APPROVED'
+           WHEN status = 3 THEN 'REJECTED'
+           WHEN status = 4 THEN 'CANCELLED'
+           WHEN status = 5 THEN 'VOIDED'
+           ELSE 'UNKNOWN'
+       END as status_name,
        COUNT(*) as count,
        transaction_type,
        SUM(amount) as total_amount
@@ -214,6 +250,15 @@ AND a.is_active = TRUE;
 SELECT 'FINAL: Transaction Data' as report,
        t.company_id,
        t.status,
+       CASE 
+           WHEN t.status = 0 THEN 'DRAFT'
+           WHEN t.status = 1 THEN 'PENDING_APPROVAL'
+           WHEN t.status = 2 THEN 'APPROVED'
+           WHEN t.status = 3 THEN 'REJECTED'
+           WHEN t.status = 4 THEN 'CANCELLED'
+           WHEN t.status = 5 THEN 'VOIDED'
+           ELSE 'UNKNOWN'
+       END as status_name,
        t.transaction_type,
        COUNT(*) as transaction_count,
        SUM(t.amount) as total_amount

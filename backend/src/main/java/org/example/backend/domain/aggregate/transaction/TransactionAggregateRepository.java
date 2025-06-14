@@ -78,7 +78,7 @@ public interface TransactionAggregateRepository extends JpaRepository<Transactio
             @Param("companyId") Integer companyId,
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate,
-            @Param("status") String status);
+            @Param("status") Integer status);
 
     /**
      * Find transactions by date range, type and status
@@ -92,7 +92,7 @@ public interface TransactionAggregateRepository extends JpaRepository<Transactio
                                                           @Param("startDate") LocalDate startDate,
                                                           @Param("endDate") LocalDate endDate,
                                                           @Param("type") String type,
-                                                          @Param("status") String status);
+                                                          @Param("status") Integer status);
     
     // ========== Balance Sheet Specific Queries ==========
 
@@ -182,7 +182,8 @@ public interface TransactionAggregateRepository extends JpaRepository<Transactio
                                                                          LocalDate startDate,
                                                                          LocalDate endDate,
                                                                          TransactionStatus.Status status) {
-        return findByTenantIdAndDateRangeAndStatus(tenantId.getValue(), startDate, endDate, status.name());
+        int statusValue = status.ordinal();
+        return findByTenantIdAndDateRangeAndStatus(tenantId.getValue(), startDate, endDate, statusValue);
     }
     
     default List<TransactionAggregate> findByTenantIdAndAccountIdAndDateRange(TenantId tenantId,
