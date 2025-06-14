@@ -1,7 +1,18 @@
 // frontend/src/services/reportService.js
 import axios from 'axios';
+import AuthService from './authService';
 
-const API_BASE_URL = '/api/reports';
+const API_BASE_URL = 'http://localhost:8085/api/reports';
+
+/**
+ * Get authentication header for API requests
+ */
+const getAuthHeader = () => {
+  const user = AuthService.getCurrentUser();
+  return user && user.token
+    ? { headers: { Authorization: `Bearer ${user.token}` } }
+    : {};
+};
 
 /**
  * Report Service - Frontend service for DDD-based report generation
@@ -21,11 +32,27 @@ class ReportService {
    */
   async generateReport(reportRequest) {
     try {
-      const response = await axios.post(`${API_BASE_URL}/generate`, reportRequest);
+      console.log('Sending report request:', reportRequest);
+      const response = await axios.post(`${API_BASE_URL}/generate`, reportRequest, getAuthHeader());
+      console.log('Report generation response:', response.data);
       return response.data;
     } catch (error) {
       console.error('Error generating report:', error);
-      throw new Error(error.response?.data?.message || 'Failed to generate report');
+      
+      // Enhanced error handling
+      if (error.response) {
+        // Server responded with error status
+        const errorMessage = error.response.data?.message || 
+                           error.response.data?.error || 
+                           `Server error: ${error.response.status}`;
+        throw new Error(errorMessage);
+      } else if (error.request) {
+        // Request was made but no response received
+        throw new Error('Unable to connect to the server. Please check if the backend is running.');
+      } else {
+        // Something else happened
+        throw new Error(error.message || 'Failed to generate report');
+      }
     }
   }
 
@@ -35,11 +62,21 @@ class ReportService {
    */
   async getReport(reportId) {
     try {
-      const response = await axios.get(`${API_BASE_URL}/${reportId}`);
+      const response = await axios.get(`${API_BASE_URL}/${reportId}`, getAuthHeader());
       return response.data;
     } catch (error) {
       console.error('Error fetching report:', error);
-      throw new Error(error.response?.data?.message || 'Failed to fetch report');
+      
+      if (error.response) {
+        const errorMessage = error.response.data?.message || 
+                           error.response.data?.error || 
+                           `Server error: ${error.response.status}`;
+        throw new Error(errorMessage);
+      } else if (error.request) {
+        throw new Error('Unable to connect to the server. Please check if the backend is running.');
+      } else {
+        throw new Error(error.message || 'Failed to fetch report');
+      }
     }
   }
 
@@ -64,11 +101,21 @@ class ReportService {
         }
       });
 
-      const response = await axios.get(`${API_BASE_URL}?${params.toString()}`);
+      const response = await axios.get(`${API_BASE_URL}?${params.toString()}`, getAuthHeader());
       return response.data;
     } catch (error) {
       console.error('Error fetching reports:', error);
-      throw new Error(error.response?.data?.message || 'Failed to fetch reports');
+      
+      if (error.response) {
+        const errorMessage = error.response.data?.message || 
+                           error.response.data?.error || 
+                           `Server error: ${error.response.status}`;
+        throw new Error(errorMessage);
+      } else if (error.request) {
+        throw new Error('Unable to connect to the server. Please check if the backend is running.');
+      } else {
+        throw new Error(error.message || 'Failed to fetch reports');
+      }
     }
   }
 
@@ -78,11 +125,21 @@ class ReportService {
    */
   async getRecentReports(limit = 10) {
     try {
-      const response = await axios.get(`${API_BASE_URL}/recent?limit=${limit}`);
+      const response = await axios.get(`${API_BASE_URL}/recent?limit=${limit}`, getAuthHeader());
       return response.data;
     } catch (error) {
       console.error('Error fetching recent reports:', error);
-      throw new Error(error.response?.data?.message || 'Failed to fetch recent reports');
+      
+      if (error.response) {
+        const errorMessage = error.response.data?.message || 
+                           error.response.data?.error || 
+                           `Server error: ${error.response.status}`;
+        throw new Error(errorMessage);
+      } else if (error.request) {
+        throw new Error('Unable to connect to the server. Please check if the backend is running.');
+      } else {
+        throw new Error(error.message || 'Failed to fetch recent reports');
+      }
     }
   }
 
@@ -92,11 +149,21 @@ class ReportService {
    */
   async getReportsByType(reportType) {
     try {
-      const response = await axios.get(`${API_BASE_URL}/by-type/${reportType}`);
+      const response = await axios.get(`${API_BASE_URL}/by-type/${reportType}`, getAuthHeader());
       return response.data;
     } catch (error) {
       console.error('Error fetching reports by type:', error);
-      throw new Error(error.response?.data?.message || 'Failed to fetch reports by type');
+      
+      if (error.response) {
+        const errorMessage = error.response.data?.message || 
+                           error.response.data?.error || 
+                           `Server error: ${error.response.status}`;
+        throw new Error(errorMessage);
+      } else if (error.request) {
+        throw new Error('Unable to connect to the server. Please check if the backend is running.');
+      } else {
+        throw new Error(error.message || 'Failed to fetch reports by type');
+      }
     }
   }
 
@@ -104,31 +171,46 @@ class ReportService {
    * Download report file
    * @param {number} reportId - Report ID
    * @param {string} fileName - Optional custom file name
-   */
+   */// frontend/src/services/reportService.js 中的 downloadReport 函数
   async downloadReport(reportId, fileName = null) {
     try {
+      const authHeader = getAuthHeader();
       const response = await axios.get(`${API_BASE_URL}/${reportId}/download`, {
-        responseType: 'blob'
+        responseType: 'blob',
+        ...authHeader
       });
 
-      // Create download link
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      // 检查响应的 Content-Type
+      const contentType = response.headers['content-type'];
+      console.log('Content-Type:', contentType);
+
+      // 创建正确类型的 Blob
+      const blob = new Blob([response.data], { 
+        type: contentType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      });
+      
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
 
-      // Set filename
+      // 设置文件名，确保有正确的扩展名
       const contentDisposition = response.headers['content-disposition'];
       let downloadFileName = fileName;
       
       if (!downloadFileName && contentDisposition) {
-        const fileNameMatch = contentDisposition.match(/filename="(.+)"/);
+        const fileNameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
         if (fileNameMatch) {
-          downloadFileName = fileNameMatch[1];
+          downloadFileName = fileNameMatch[1].replace(/['"]/g, '');
         }
       }
       
       if (!downloadFileName) {
         downloadFileName = `report_${reportId}.xlsx`;
+      }
+
+      // 确保文件名有正确的扩展名
+      if (!downloadFileName.match(/\.(xlsx|xls)$/i)) {
+        downloadFileName += '.xlsx';
       }
 
       link.setAttribute('download', downloadFileName);
@@ -140,7 +222,17 @@ class ReportService {
       return { success: true, fileName: downloadFileName };
     } catch (error) {
       console.error('Error downloading report:', error);
-      throw new Error(error.response?.data?.message || 'Failed to download report');
+      
+      if (error.response) {
+        const errorMessage = error.response.data?.message || 
+                          error.response.data?.error || 
+                          `Server error: ${error.response.status}`;
+        throw new Error(errorMessage);
+      } else if (error.request) {
+        throw new Error('Unable to connect to the server. Please check if the backend is running.');
+      } else {
+        throw new Error(error.message || 'Failed to download report');
+      }
     }
   }
 
@@ -150,11 +242,21 @@ class ReportService {
    */
   async archiveReport(reportId) {
     try {
-      const response = await axios.post(`${API_BASE_URL}/${reportId}/archive`);
+      const response = await axios.post(`${API_BASE_URL}/${reportId}/archive`, {}, getAuthHeader());
       return response.data;
     } catch (error) {
       console.error('Error archiving report:', error);
-      throw new Error(error.response?.data?.message || 'Failed to archive report');
+      
+      if (error.response) {
+        const errorMessage = error.response.data?.message || 
+                           error.response.data?.error || 
+                           `Server error: ${error.response.status}`;
+        throw new Error(errorMessage);
+      } else if (error.request) {
+        throw new Error('Unable to connect to the server. Please check if the backend is running.');
+      } else {
+        throw new Error(error.message || 'Failed to archive report');
+      }
     }
   }
 
@@ -164,11 +266,21 @@ class ReportService {
    */
   async deleteReport(reportId) {
     try {
-      const response = await axios.delete(`${API_BASE_URL}/${reportId}`);
+      const response = await axios.delete(`${API_BASE_URL}/${reportId}`, getAuthHeader());
       return response.data;
     } catch (error) {
       console.error('Error deleting report:', error);
-      throw new Error(error.response?.data?.message || 'Failed to delete report');
+      
+      if (error.response) {
+        const errorMessage = error.response.data?.message || 
+                           error.response.data?.error || 
+                           `Server error: ${error.response.status}`;
+        throw new Error(errorMessage);
+      } else if (error.request) {
+        throw new Error('Unable to connect to the server. Please check if the backend is running.');
+      } else {
+        throw new Error(error.message || 'Failed to delete report');
+      }
     }
   }
 
@@ -177,11 +289,21 @@ class ReportService {
    */
   async getReportStatistics() {
     try {
-      const response = await axios.get(`${API_BASE_URL}/statistics`);
+      const response = await axios.get(`${API_BASE_URL}/statistics`, getAuthHeader());
       return response.data;
     } catch (error) {
       console.error('Error fetching report statistics:', error);
-      throw new Error(error.response?.data?.message || 'Failed to fetch report statistics');
+      
+      if (error.response) {
+        const errorMessage = error.response.data?.message || 
+                           error.response.data?.error || 
+                           `Server error: ${error.response.status}`;
+        throw new Error(errorMessage);
+      } else if (error.request) {
+        throw new Error('Unable to connect to the server. Please check if the backend is running.');
+      } else {
+        throw new Error(error.message || 'Failed to fetch report statistics');
+      }
     }
   }
 
@@ -267,6 +389,41 @@ class ReportService {
     };
     
     return `${start.toLocaleDateString('en-US', formatOptions)} - ${end.toLocaleDateString('en-US', formatOptions)}`;
+  }
+
+  /**
+   * Test backend connectivity by making a simple request
+   */
+  async testConnection() {
+    try {
+      // Use statistics endpoint instead of health for connectivity test
+      const response = await axios.get(`${API_BASE_URL}/statistics`, getAuthHeader());
+      return { success: true, data: response.data };
+    } catch (error) {
+      console.error('Backend connection test failed:', error);
+      
+      if (error.response) {
+        // Server is reachable but returned an error
+        return { 
+          success: false, 
+          error: `Server responded with ${error.response.status}: ${error.response.data?.message || error.response.statusText}`,
+          serverReachable: true
+        };
+      } else if (error.request) {
+        // Server is not reachable
+        return { 
+          success: false, 
+          error: 'Cannot connect to server. Please check if backend is running on localhost:8085',
+          serverReachable: false
+        };
+      } else {
+        return { 
+          success: false, 
+          error: error.message || 'Unknown connection error',
+          serverReachable: false
+        };
+      }
+    }
   }
 }
 
