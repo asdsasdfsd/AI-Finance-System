@@ -16,19 +16,28 @@ const UserManagement = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [form] = Form.useForm();
 
-  // 加载用户列表和公司列表
+  // Currently hardcoded companyId - should be dynamic from user context
+  const currentCompanyId = 1;
+
+  // Load user list and company list
   const fetchData = async () => {
     setLoading(true);
     try {
+      console.log('Fetching data...');
+      
       const [usersData, companiesData] = await Promise.all([
-        UserService.getAllUsers(),
+        UserService.getUsersByCompany(currentCompanyId), // Use specific company
         CompanyService.getAllCompanies()
       ]);
       
-      setUsers(usersData);
-      setCompanies(companiesData);
+      console.log('Users data:', usersData);
+      console.log('Companies data:', companiesData);
+      
+      setUsers(usersData || []);
+      setCompanies(companiesData || []);
     } catch (error) {
-      message.error('Failed to fetch data');
+      console.error('Failed to fetch data:', error);
+      message.error('Failed to fetch data: ' + (error.response?.data?.message || error.message));
     } finally {
       setLoading(false);
     }
@@ -38,18 +47,18 @@ const UserManagement = () => {
     fetchData();
   }, []);
 
-  // 处理表单提交
+  // Handle form submission
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
       
-      // 调试：打印表单数据
       console.log('Form values:', values);
       
-      // 确保角色数据格式正确
+      // Ensure role data format is correct
       const userData = {
         ...values,
-        roles: values.roles || [] // 确保roles是数组
+        roles: values.roles || [], // Ensure roles is an array
+        roleNames: values.roles || [] // Backend expects roleNames field
       };
       
       console.log('Sending user data:', userData);
@@ -69,63 +78,78 @@ const UserManagement = () => {
     } catch (error) {
       console.error('Submit error:', error);
       console.error('Error response:', error.response?.data);
-      message.error('Operation failed');
+      const errorMessage = error.response?.data?.message || 'Operation failed';
+      message.error(errorMessage);
     }
   };
 
-  // 处理编辑用户
+  // Handle edit user
   const handleEdit = (record) => {
     console.log('Editing user:', record);
     setCurrentUser(record);
     setModalType('edit');
     
-    // 提取用户角色名称数组
+    // Extract user role names array
     const userRoles = record.roles ? record.roles.map(role => 
       typeof role === 'string' ? role : role.name
     ) : [];
     
     console.log('User roles:', userRoles);
     
-    // 设置表单值，确保角色正确显示
+    // Set form values, ensure roles are displayed correctly
     const formValues = {
       username: record.username,
       fullName: record.fullName,
       email: record.email,
-      companyId: record.company?.companyId,
-      roles: userRoles, // 设置角色数组
+      companyId: record.company?.companyId || record.companyId,
+      roles: userRoles, // Set roles array
       enabled: record.enabled
     };
     
     console.log('Setting form values:', formValues);
-    form.setFieldsValue(formValues);
+    
+    // Delay setting form values to ensure modal is fully rendered
+    setTimeout(() => {
+      form.setFieldsValue(formValues);
+    }, 100);
+    
     setModalVisible(true);
   };
 
-  // 处理删除用户
+  // Handle delete user
   const handleDelete = async (id) => {
     try {
       await UserService.deleteUser(id);
       message.success('User deleted successfully');
       fetchData();
     } catch (error) {
-      message.error('Failed to delete user');
+      console.error('Delete error:', error);
+      message.error('Failed to delete user: ' + (error.response?.data?.message || error.message));
     }
   };
 
-  // 处理新增用户
+  // Handle add user
   const handleAdd = () => {
     setModalType('add');
     setCurrentUser(null);
     form.resetFields();
-    // 设置默认值
-    form.setFieldsValue({ 
+    
+    // Set default values
+    const defaultValues = { 
       enabled: true,
-      roles: [] 
-    });
+      roles: [],
+      companyId: currentCompanyId
+    };
+    
+    // Delay setting form values to ensure modal is fully rendered
+    setTimeout(() => {
+      form.setFieldsValue(defaultValues);
+    }, 100);
+    
     setModalVisible(true);
   };
 
-  // 表格列定义
+  // Table column definitions
   const columns = [
     {
       title: 'Username',
@@ -221,6 +245,7 @@ const UserManagement = () => {
         }}
         width={600}
         destroyOnClose={true}
+        maskClosable={false}
       >
         <Form 
           form={form} 
@@ -228,7 +253,8 @@ const UserManagement = () => {
           preserve={false}
           initialValues={{ 
             enabled: true,
-            roles: [] 
+            roles: [],
+            companyId: currentCompanyId
           }}
         >
           <Form.Item
