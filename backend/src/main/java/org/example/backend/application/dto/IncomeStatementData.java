@@ -26,19 +26,26 @@ public class IncomeStatementData {
     private LocalDate periodEndDate;
     
     // Revenue section
-    private BigDecimal totalRevenue;
+    @Builder.Default
+    private BigDecimal totalRevenue = BigDecimal.ZERO;
     private Map<String, BigDecimal> revenueByCategory;
     
     // Expense section
-    private BigDecimal totalExpenses;
+    @Builder.Default
+    private BigDecimal totalExpenses = BigDecimal.ZERO;
     private Map<String, BigDecimal> expensesByCategory;
     
     // Calculated values
-    private BigDecimal grossProfit;
-    private BigDecimal operatingExpenses;
-    private BigDecimal operatingIncome;
-    private BigDecimal otherIncome;
-    private BigDecimal netIncome;
+    @Builder.Default
+    private BigDecimal grossProfit = BigDecimal.ZERO;
+    @Builder.Default
+    private BigDecimal operatingExpenses = BigDecimal.ZERO;
+    @Builder.Default
+    private BigDecimal operatingIncome = BigDecimal.ZERO;
+    @Builder.Default
+    private BigDecimal otherIncome = BigDecimal.ZERO;
+    @Builder.Default
+    private BigDecimal netIncome = BigDecimal.ZERO;
     
     // Comparison data
     private PeriodComparison previousPeriod;
@@ -265,23 +272,23 @@ public class IncomeStatementData {
     
     // Calculated properties for display
     public BigDecimal getGrossProfitMargin() {
-        if (totalRevenue.compareTo(BigDecimal.ZERO) == 0) {
+        if (grossProfit == null || totalRevenue == null || totalRevenue.compareTo(BigDecimal.ZERO) == 0) {
             return BigDecimal.ZERO;
         }
         return grossProfit.divide(totalRevenue, 4, BigDecimal.ROUND_HALF_UP)
             .multiply(new BigDecimal("100"));
     }
-    
+
     public BigDecimal getNetProfitMargin() {
-        if (totalRevenue.compareTo(BigDecimal.ZERO) == 0) {
+        if (netIncome == null || totalRevenue == null || totalRevenue.compareTo(BigDecimal.ZERO) == 0) {
             return BigDecimal.ZERO;
         }
         return netIncome.divide(totalRevenue, 4, BigDecimal.ROUND_HALF_UP)
             .multiply(new BigDecimal("100"));
     }
-    
+
     public BigDecimal getExpenseRatio() {
-        if (totalRevenue.compareTo(BigDecimal.ZERO) == 0) {
+        if (totalExpenses == null || totalRevenue == null || totalRevenue.compareTo(BigDecimal.ZERO) == 0) {
             return BigDecimal.ZERO;
         }
         return totalExpenses.divide(totalRevenue, 4, BigDecimal.ROUND_HALF_UP)
