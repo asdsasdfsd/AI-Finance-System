@@ -3,41 +3,65 @@ package org.example.backend.domain.valueobject;
 
 import java.util.Objects;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 
 /**
- * Transaction Status value object
+ * Transaction Status value object - FIXED with proper JPA mapping
  * 
  * Represents the current state of a financial transaction
- * with proper state transition validation
+ * with proper state transition validation and integer storage (0-5)
  */
 @Embeddable
 public class TransactionStatus {
     
     public enum Status {
-        DRAFT("Draft"),
-        PENDING_APPROVAL("Pending Approval"),
-        APPROVED("Approved"),
-        REJECTED("Rejected"),
-        CANCELLED("Cancelled"),
-        VOIDED("Voided");
+        DRAFT(0, "Draft"),                    // 草稿
+        PENDING_APPROVAL(1, "Pending Approval"), // 待审批
+        APPROVED(2, "Approved"),              // 已批准
+        REJECTED(3, "Rejected"),              // 已拒绝
+        CANCELLED(4, "Cancelled"),            // 已取消
+        VOIDED(5, "Voided");                 // 已作废
         
+        private final int code;
         private final String displayName;
         
-        Status(String displayName) {
+        Status(int code, String displayName) {
+            this.code = code;
             this.displayName = displayName;
+        }
+        
+        public int getCode() {
+            return code;
         }
         
         public String getDisplayName() {
             return displayName;
         }
+        
+        /**
+         * 根据状态码获取枚举值
+         */
+        public static Status fromCode(int code) {
+            for (Status status : values()) {
+                if (status.getCode() == code) {
+                    return status;
+                }
+            }
+            throw new IllegalArgumentException("Invalid transaction status code: " + code);
+        }
     }
     
+    // FIXED: 明确指定存储为整数（枚举序号 0-5）
+    @Enumerated(EnumType.ORDINAL)  // 关键修复：存储为整数序号
+    @Column(name = "status")
     private Status status;
     
     // JPA requires default constructor
     protected TransactionStatus() {
-        this.status = Status.DRAFT;
+        this.status = Status.APPROVED; // 默认为已批准，而不是草稿
     }
     
     private TransactionStatus(Status status) {
@@ -53,6 +77,14 @@ public class TransactionStatus {
     }
     
     /**
+     * Create transaction status from integer code
+     */
+    public static TransactionStatus fromCode(int code) {
+        Status status = Status.fromCode(code);
+        return new TransactionStatus(status);
+    }
+    
+    /**
      * Create draft status
      */
     public static TransactionStatus draft() {
@@ -64,6 +96,13 @@ public class TransactionStatus {
      */
     public static TransactionStatus approved() {
         return new TransactionStatus(Status.APPROVED);
+    }
+    
+    /**
+     * Create pending approval status
+     */
+    public static TransactionStatus pendingApproval() {
+        return new TransactionStatus(Status.PENDING_APPROVAL);
     }
     
     /**
@@ -87,6 +126,16 @@ public class TransactionStatus {
     }
     
     /**
+     * Reject transaction - validate state transition
+     */
+    public TransactionStatus reject() {
+        if (!canBeRejected()) {
+            throw new IllegalStateException("Transaction cannot be rejected in current state: " + status);
+        }
+        return new TransactionStatus(Status.REJECTED);
+    }
+    
+    /**
      * Void transaction - validate state transition
      */
     public TransactionStatus voidTransaction() {
@@ -94,6 +143,16 @@ public class TransactionStatus {
             throw new IllegalStateException("Transaction cannot be voided in current state: " + status);
         }
         return new TransactionStatus(Status.VOIDED);
+    }
+    
+    /**
+     * Submit for approval - validate state transition
+     */
+    public TransactionStatus submitForApproval() {
+        if (status != Status.DRAFT) {
+            throw new IllegalStateException("Only draft transactions can be submitted for approval");
+        }
+        return new TransactionStatus(Status.PENDING_APPROVAL);
     }
     
     /**
@@ -107,6 +166,13 @@ public class TransactionStatus {
      * Check if transaction can be approved
      */
     public boolean canBeApproved() {
+        return status == Status.DRAFT || status == Status.PENDING_APPROVAL;
+    }
+    
+    /**
+     * Check if transaction can be rejected
+     */
+    public boolean canBeRejected() {
         return status == Status.DRAFT || status == Status.PENDING_APPROVAL;
     }
     
@@ -141,6 +207,34 @@ public class TransactionStatus {
                status == Status.REJECTED;
     }
     
+    /**
+     * Check if transaction is pending
+     */
+    public boolean isPending() {
+        return status == Status.PENDING_APPROVAL;
+    }
+    
+    /**
+     * Check if transaction is draft
+     */
+    public boolean isDraft() {
+        return status == Status.DRAFT;
+    }
+    
+    /**
+     * Get status code (0-5)
+     */
+    public int getStatusCode() {
+        return status.getCode();
+    }
+    
+    /**
+     * Get display name
+     */
+    public String getDisplayName() {
+        return status.getDisplayName();
+    }
+    
     private void validateStatus(Status status) {
         if (status == null) {
             throw new IllegalArgumentException("Transaction status cannot be null");
@@ -167,6 +261,6 @@ public class TransactionStatus {
     
     @Override
     public String toString() {
-        return status.getDisplayName();
+        return status.getDisplayName() + " (" + status.getCode() + ")";
     }
 }

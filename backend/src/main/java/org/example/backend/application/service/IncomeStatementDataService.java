@@ -179,7 +179,7 @@ public class IncomeStatementDataService {
             
             // Use category ID as key for now to avoid entity access
             // In a full DDD implementation, we'd have a CategoryAggregate
-            String categoryKey = "Category_" + categoryId;
+            String categoryKey = getCategoryNameById(categoryId);
             
             BigDecimal categoryTotal = categoryTransactions.stream()
                     .map(TransactionAggregate::getAmount)
@@ -189,6 +189,11 @@ public class IncomeStatementDataService {
         }
         
         return categoryTotals;
+    }
+
+    private String getCategoryNameById(Integer categoryId) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'getCategoryNameById'");
     }
 
     /**
