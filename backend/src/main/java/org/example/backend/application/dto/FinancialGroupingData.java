@@ -1,6 +1,7 @@
 // backend/src/main/java/org/example/backend/application/dto/FinancialGroupingData.java
 package org.example.backend.application.dto;
 
+import org.example.backend.application.dto.FinancialGroupingData.FinancialGroupingDataBuilder;
 import org.example.backend.domain.aggregate.transaction.TransactionAggregate;
 import org.example.backend.domain.valueobject.TenantId;
 import lombok.Builder;
@@ -47,6 +48,7 @@ public class FinancialGroupingData {
     }
     
     @Data
+    @Builder
     @AllArgsConstructor
     public static class CategoryGrouping {
         private String categoryName;
@@ -68,6 +70,11 @@ public class FinancialGroupingData {
     }
     
     @Data
+    @Builder
+    public FinancialGroupingDataBuilder averageAmount(BigDecimal averageAmount) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'averageAmount'");
+    }
     @AllArgsConstructor
     public static class DepartmentGrouping {
         private String departmentName;
@@ -82,6 +89,7 @@ public class FinancialGroupingData {
     }
     
     @Data
+    @Builder
     @AllArgsConstructor
     public static class FundGrouping {
         private String fundName;
@@ -96,6 +104,7 @@ public class FinancialGroupingData {
     }
     
     @Data
+    @Builder
     @AllArgsConstructor
     public static class TransactionTypeGrouping {
         private String typeName;
@@ -110,6 +119,7 @@ public class FinancialGroupingData {
     }
     
     @Data
+    @Builder
     @AllArgsConstructor
     public static class MonthlyGrouping {
         private String monthKey; // Format: yyyy-MM
@@ -126,5 +136,8 @@ public class FinancialGroupingData {
         public String getDisplayName() {
             return firstDayOfMonth.getMonth().name() + " " + firstDayOfMonth.getYear();
         }
+    }
+
+    public class MonthGrouping {
     }
 }
