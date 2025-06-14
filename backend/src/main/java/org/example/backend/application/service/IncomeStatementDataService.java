@@ -1,214 +1,222 @@
 // backend/src/main/java/org/example/backend/application/service/IncomeStatementDataService.java
 package org.example.backend.application.service;
 
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.example.backend.application.dto.IncomeStatementData;
 import org.example.backend.domain.aggregate.transaction.TransactionAggregateRepository;
 import org.example.backend.domain.aggregate.transaction.TransactionAggregate;
+import org.example.backend.domain.aggregate.company.CompanyAggregateRepository;
+import org.example.backend.domain.aggregate.company.CompanyAggregate;
 import org.example.backend.domain.valueobject.TenantId;
 import org.example.backend.domain.valueobject.TransactionStatus;
-import org.example.backend.model.Category;
-import org.example.backend.repository.CategoryRepository;
-import org.example.backend.repository.CompanyRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
- * Income Statement Data Service - Enhanced DDD Implementation
+ * Income Statement Data Service - DDD Compliant Implementation
  * 
  * Responsibilities:
- * 1. Generate income statement data using DDD aggregates
- * 2. Calculate revenue, expenses, and net income
+ * 1. Generate income statement data using DDD aggregates only
+ * 2. Calculate revenue, expenses, and net income through domain logic
  * 3. Provide detailed breakdown by category and period
- * 4. Support multiple period comparisons
+ * 4. Ensure all business rules are enforced through domain layer
  */
+@Slf4j
 @Service
+@RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class IncomeStatementDataService {
-    
-    @Autowired
-    private TransactionAggregateRepository transactionRepository;
-    
-    @Autowired
-    private CategoryRepository categoryRepository;
-    
-    @Autowired
-    private CompanyRepository companyRepository;
-    
+
+    private final TransactionAggregateRepository transactionRepository;
+    private final CompanyAggregateRepository companyRepository;
+
     /**
-     * Generate comprehensive income statement data
+     * Generate income statement using pure DDD approach
      */
-    public IncomeStatementData getIncomeStatementData(TenantId tenantId, LocalDate startDate, LocalDate endDate) {
-        // Get all transactions for the period using DDD repository
-        List<TransactionAggregate> allTransactions = transactionRepository
-            .findByTenantIdAndTransactionDateBetween(tenantId, startDate, endDate);
+    public IncomeStatementData getIncomeStatementDataByTenant(
+            TenantId tenantId, LocalDate startDate, LocalDate endDate) {
         
-        // Filter by status manually
-        allTransactions = allTransactions.stream()
-            .filter(t -> t.getTransactionStatus().getStatus() == TransactionStatus.Status.APPROVED)
-            .collect(Collectors.toList());
+        log.info("Generating income statement for tenant {} from {} to {}", 
+                 tenantId.getValue(), startDate, endDate);
         
-        // Get all categories for proper labeling
-        List<Category> categories = categoryRepository.findByCompanyAndParentCategoryIsNull(
-                companyRepository.findById(tenantId.getValue())
-                    .orElseThrow(() -> new IllegalArgumentException("Company not found")));
-        Map<Integer, String> categoryMap = categories.stream()
-            .collect(Collectors.toMap(c -> c.getCategoryId(), c -> c.getName()));
+        // DDD: Validate tenant exists using aggregate
+        CompanyAggregate company = companyRepository.findById(tenantId.getValue())
+                .orElseThrow(() -> new IllegalArgumentException("Company not found: " + tenantId.getValue()));
         
-        // Separate revenue and expenses
-        List<TransactionAggregate> revenueTransactions = allTransactions.stream()
-            .filter(this::isRevenue)
-            .collect(Collectors.toList());
-            
-        List<TransactionAggregate> expenseTransactions = allTransactions.stream()
-            .filter(this::isExpense)
-            .collect(Collectors.toList());
+        // DDD: Get transactions using aggregate repository
+        List<TransactionAggregate> approvedTransactions = getApprovedTransactionsForPeriod(
+                tenantId, startDate, endDate);
         
-        // Calculate totals
-        BigDecimal totalRevenue = revenueTransactions.stream()
-            .map(t -> t.getMoney().getAmount())
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
-            
-        BigDecimal totalExpenses = expenseTransactions.stream()
-            .map(t -> t.getMoney().getAmount().abs()) // Make expenses positive for display
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
-            
-        BigDecimal grossProfit = totalRevenue.subtract(totalExpenses);
+        if (approvedTransactions.isEmpty()) {
+            log.warn("No approved transactions found for tenant {} in period", tenantId.getValue());
+            return createEmptyIncomeStatement(company, startDate, endDate);
+        }
         
-        // Group revenue by category
-        Map<String, BigDecimal> revenueByCategory = revenueTransactions.stream()
-            .collect(Collectors.groupingBy(
-                t -> getCategoryName(t.getCategoryId(), categoryMap),
-                Collectors.mapping(
-                    t -> t.getMoney().getAmount(),
-                    Collectors.reducing(BigDecimal.ZERO, BigDecimal::add)
-                )
-            ));
+        // DDD: Use domain logic to separate revenue and expenses
+        List<TransactionAggregate> revenueTransactions = separateRevenueTransactions(approvedTransactions);
+        List<TransactionAggregate> expenseTransactions = separateExpenseTransactions(approvedTransactions);
         
-        // Group expenses by category
-        Map<String, BigDecimal> expensesByCategory = expenseTransactions.stream()
-            .collect(Collectors.groupingBy(
-                t -> getCategoryName(t.getCategoryId(), categoryMap),
-                Collectors.mapping(
-                    t -> t.getMoney().getAmount().abs(),
-                    Collectors.reducing(BigDecimal.ZERO, BigDecimal::add)
-                )
-            ));
+        // DDD: Calculate totals using domain calculation methods
+        BigDecimal totalRevenue = calculateTotalRevenue(revenueTransactions);
+        BigDecimal totalExpenses = calculateTotalExpenses(expenseTransactions);
+        BigDecimal netIncome = calculateNetIncome(totalRevenue, totalExpenses);
         
-        // Calculate operating expenses (excluding COGS if applicable)
-        BigDecimal operatingExpenses = expensesByCategory.entrySet().stream()
-            .filter(entry -> !entry.getKey().toLowerCase().contains("cost of goods"))
-            .map(Map.Entry::getValue)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        // DDD: Generate category breakdowns using domain logic
+        Map<String, BigDecimal> revenueByCategory = groupTransactionsByCategory(revenueTransactions);
+        Map<String, BigDecimal> expensesByCategory = groupTransactionsByCategory(expenseTransactions);
         
-        // Calculate operating income
-        BigDecimal operatingIncome = totalRevenue.subtract(operatingExpenses);
-        
-        // Other income/expenses (simplified for now)
-        BigDecimal otherIncome = revenueTransactions.stream()
-            .filter(this::isOtherIncome)
-            .map(t -> t.getMoney().getAmount())
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
-            
-        BigDecimal netIncome = grossProfit;
-        
-        // Calculate previous period for comparison
-        LocalDate prevStartDate = startDate.minusMonths(1);
-        LocalDate prevEndDate = endDate.minusMonths(1);
-        IncomeStatementData.PeriodComparison previousPeriod = calculatePreviousPeriod(
-            tenantId, prevStartDate, prevEndDate, categoryMap);
+        log.info("Income statement generated - Revenue: {}, Expenses: {}, Net Income: {}", 
+                 totalRevenue, totalExpenses, netIncome);
         
         return IncomeStatementData.builder()
-            .periodStartDate(startDate)
-            .periodEndDate(endDate)
-            .totalRevenue(totalRevenue)
-            .totalExpenses(totalExpenses)
-            .grossProfit(grossProfit)
-            .operatingExpenses(operatingExpenses)
-            .operatingIncome(operatingIncome)
-            .otherIncome(otherIncome)
-            .netIncome(netIncome)
-            .revenueByCategory(revenueByCategory)
-            .expensesByCategory(expensesByCategory)
-            .previousPeriod(previousPeriod)
-            .transactionCount(allTransactions.size())
-            .build();
+                .companyName(company.getCompanyName())
+                .periodStartDate(startDate)
+                .periodEndDate(endDate)
+                .totalRevenue(totalRevenue)
+                .totalExpenses(totalExpenses)
+                .netIncome(netIncome)
+                .revenueByCategory(revenueByCategory)
+                .expensesByCategory(expensesByCategory)
+                .transactionCount(approvedTransactions.size())
+                .build();
     }
-    
+
     /**
-     * Calculate previous period data for comparison
+     * Get approved transactions for period using DDD aggregate repository
      */
-    private IncomeStatementData.PeriodComparison calculatePreviousPeriod(
-            TenantId tenantId, LocalDate startDate, LocalDate endDate, Map<Integer, String> categoryMap) {
+    private List<TransactionAggregate> getApprovedTransactionsForPeriod(
+            TenantId tenantId, LocalDate startDate, LocalDate endDate) {
         
-        List<TransactionAggregate> prevTransactions = transactionRepository
-            .findByTenantIdAndTransactionDateBetween(tenantId, startDate, endDate);
+        return transactionRepository
+                .findByTenantIdAndTransactionDateBetween(tenantId, startDate, endDate)
+                .stream()
+                .filter(tx -> tx.getTransactionStatus().getStatus() == TransactionStatus.Status.APPROVED)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Separate revenue transactions using domain logic
+     */
+    private List<TransactionAggregate> separateRevenueTransactions(List<TransactionAggregate> transactions) {
+        return transactions.stream()
+                .filter(this::isRevenueTransaction)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Separate expense transactions using domain logic
+     */
+    private List<TransactionAggregate> separateExpenseTransactions(List<TransactionAggregate> transactions) {
+        return transactions.stream()
+                .filter(this::isExpenseTransaction)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Domain logic: Determine if transaction is revenue
+     */
+    private boolean isRevenueTransaction(TransactionAggregate transaction) {
+        // Domain rule: Revenue transactions have type INCOME or REVENUE
+        return transaction.getTransactionType() == TransactionAggregate.TransactionType.INCOME;
+    }
+
+    /**
+     * Domain logic: Determine if transaction is expense
+     */
+    private boolean isExpenseTransaction(TransactionAggregate transaction) {
+        // Domain rule: Expense transactions have type EXPENSE
+        return transaction.getTransactionType() == TransactionAggregate.TransactionType.EXPENSE;
+    }
+
+    /**
+     * Calculate total revenue using domain calculation
+     */
+    private BigDecimal calculateTotalRevenue(List<TransactionAggregate> revenueTransactions) {
+        return revenueTransactions.stream()
+                .map(TransactionAggregate::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /**
+     * Calculate total expenses using domain calculation
+     */
+    private BigDecimal calculateTotalExpenses(List<TransactionAggregate> expenseTransactions) {
+        return expenseTransactions.stream()
+                .map(TransactionAggregate::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /**
+     * Calculate net income using domain business rule
+     */
+    private BigDecimal calculateNetIncome(BigDecimal totalRevenue, BigDecimal totalExpenses) {
+        // Domain rule: Net Income = Revenue - Expenses
+        return totalRevenue.subtract(totalExpenses);
+    }
+
+    /**
+     * Group transactions by category using domain logic
+     * Note: This implementation avoids direct entity access
+     */
+    private Map<String, BigDecimal> groupTransactionsByCategory(List<TransactionAggregate> transactions) {
+        Map<String, BigDecimal> categoryTotals = new LinkedHashMap<>();
         
-        // Filter by status manually
-        prevTransactions = prevTransactions.stream()
-            .filter(t -> t.getTransactionStatus().getStatus() == TransactionStatus.Status.APPROVED)
-            .collect(Collectors.toList());
+        // Group transactions by category ID first
+        Map<Integer, List<TransactionAggregate>> transactionsByCategory = transactions.stream()
+                .filter(tx -> tx.getCategoryId() != null)
+                .collect(Collectors.groupingBy(TransactionAggregate::getCategoryId));
         
-        BigDecimal prevRevenue = prevTransactions.stream()
-            .filter(this::isRevenue)
-            .map(t -> t.getMoney().getAmount())
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        // Calculate totals for each category
+        for (Map.Entry<Integer, List<TransactionAggregate>> entry : transactionsByCategory.entrySet()) {
+            Integer categoryId = entry.getKey();
+            List<TransactionAggregate> categoryTransactions = entry.getValue();
             
-        BigDecimal prevExpenses = prevTransactions.stream()
-            .filter(this::isExpense)
-            .map(t -> t.getMoney().getAmount().abs())
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
+            // Use category ID as key for now to avoid entity access
+            // In a full DDD implementation, we'd have a CategoryAggregate
+            String categoryKey = "Category_" + categoryId;
             
-        BigDecimal prevNetIncome = prevRevenue.subtract(prevExpenses);
+            BigDecimal categoryTotal = categoryTransactions.stream()
+                    .map(TransactionAggregate::getAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            
+            categoryTotals.put(categoryKey, categoryTotal);
+        }
         
-        return IncomeStatementData.PeriodComparison.builder()
-            .startDate(startDate)
-            .endDate(endDate)
-            .totalRevenue(prevRevenue)
-            .totalExpenses(prevExpenses)
-            .netIncome(prevNetIncome)
-            .build();
+        return categoryTotals;
     }
-    
+
     /**
-     * Determine if transaction is revenue (positive amounts, income categories)
+     * Create empty income statement for periods with no data
      */
-    private boolean isRevenue(TransactionAggregate transaction) {
-        // Revenue transactions typically have positive amounts
-        // and are associated with income categories
-        return transaction.getMoney().getAmount().compareTo(BigDecimal.ZERO) > 0;
+    private IncomeStatementData createEmptyIncomeStatement(
+            CompanyAggregate company, LocalDate startDate, LocalDate endDate) {
+        
+        return IncomeStatementData.builder()
+                .companyName(company.getCompanyName())
+                .periodStartDate(startDate)
+                .periodEndDate(endDate)
+                .totalRevenue(BigDecimal.ZERO)
+                .totalExpenses(BigDecimal.ZERO)
+                .netIncome(BigDecimal.ZERO)
+                .revenueByCategory(new LinkedHashMap<>())
+                .expensesByCategory(new LinkedHashMap<>())
+                .transactionCount(0)
+                .build();
     }
-    
+
     /**
-     * Determine if transaction is expense (negative amounts, expense categories)
+     * Legacy method for backward compatibility - delegates to DDD implementation
+     * @deprecated Use getIncomeStatementDataByTenant instead
      */
-    private boolean isExpense(TransactionAggregate transaction) {
-        // Expense transactions typically have negative amounts
-        // and are associated with expense categories
-        return transaction.getMoney().getAmount().compareTo(BigDecimal.ZERO) < 0;
-    }
-    
-    /**
-     * Get category name with fallback
-     */
-    private String getCategoryName(Integer categoryId, Map<Integer, String> categoryMap) {
-        return categoryId != null ? 
-            categoryMap.getOrDefault(categoryId, "Category " + categoryId) : 
-            "Uncategorized";
-    }
-    
-    /**
-     * Determine if this is other income (non-operating revenue)
-     */
-    private boolean isOtherIncome(TransactionAggregate transaction) {
-        // Simplified logic - in real implementation, this would check 
-        // specific category types or account codes
-        return false;
+    @Deprecated
+    public IncomeStatementData getIncomeStatementData(TenantId tenantId, LocalDate startDate, LocalDate endDate) {
+        log.warn("Using deprecated getIncomeStatementData method. Consider migrating to getIncomeStatementDataByTenant.");
+        return getIncomeStatementDataByTenant(tenantId, startDate, endDate);
     }
 }

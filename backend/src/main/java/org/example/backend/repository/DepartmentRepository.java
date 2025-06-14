@@ -14,4 +14,8 @@ public interface DepartmentRepository extends JpaRepository<Department, Integer>
     List<Department> findByCompany(Company company);
     List<Department> findByParentDepartment(Department parentDepartment);
     List<Department> findByManager(User manager);
+    /**
+     * Find departments by company ID
+     */
+    List<Department> findByCompanyCompanyId(Integer companyId);
 }

@@ -2,6 +2,7 @@
 package org.example.backend.controller;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.example.backend.application.dto.BalanceSheetDetailedResponse;
 import org.example.backend.application.service.BalanceSheetDataService;
 import org.example.backend.application.service.BalanceSheetExportService;
@@ -13,10 +14,11 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 
 /**
- * Balance Sheet Controller
+ * Balance Sheet Controller - DDD Compliant
  * 
- * Provides REST endpoints for balance sheet reports
+ * Provides REST endpoints for balance sheet reports following DDD principles
  */
+@Slf4j
 @RestController
 @RequestMapping("/api/balance-sheet")
 @CrossOrigin(origins = "http://localhost:3000")
@@ -28,6 +30,7 @@ public class BalanceSheetController {
 
     /**
      * Get balance sheet data in JSON format
+     * DDD: Uses TenantId value object for proper domain modeling
      */
     @GetMapping("/json")
     public ResponseEntity<BalanceSheetDetailedResponse> getBalanceSheetJson(
@@ -35,79 +38,29 @@ public class BalanceSheetController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate) {
         
         try {
-            BalanceSheetDetailedResponse data = balanceSheetDataService.generateBalanceSheet(companyId, asOfDate);
+            log.info("Generating balance sheet for company {} as of {}", companyId, asOfDate);
+            
+            // DDD: Convert primitive to value object
+            TenantId tenantId = TenantId.of(companyId);
+            
+            // DDD: Use domain service for business logic
+            BalanceSheetDetailedResponse data = balanceSheetDataService.generateBalanceSheetByTenant(tenantId, asOfDate);
+            
+            log.info("Balance sheet generated successfully for tenant {}", tenantId.getValue());
             return ResponseEntity.ok(data);
+            
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid input for balance sheet generation: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
         } catch (Exception e) {
-            throw new RuntimeException("Failed to generate balance sheet: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * Get balance sheet data in text format
-     */
-    @GetMapping("/text")
-    public ResponseEntity<String> getBalanceSheetText(
-            @RequestParam Integer companyId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate) {
-        
-        try {
-            BalanceSheetDetailedResponse data = balanceSheetDataService.generateBalanceSheet(companyId, asOfDate);
-            
-            // Convert to text format
-            StringBuilder textReport = new StringBuilder();
-            textReport.append("BALANCE SHEET\n");
-            textReport.append("As of ").append(asOfDate).append("\n\n");
-            
-            textReport.append("ASSETS\n");
-            textReport.append("------\n");
-            data.getAssets().forEach((categoryName, accounts) -> {
-                textReport.append(categoryName).append(":\n");
-                accounts.forEach(asset -> {
-                    textReport.append(String.format("  %-30s %15s\n", 
-                        asset.getAccountName(), 
-                        asset.getCurrentMonth().toString()));
-                });
-            });
-            textReport.append(String.format("%-30s %15s\n\n", 
-                "Total Assets", data.getTotalAssets().toString()));
-            
-            textReport.append("LIABILITIES\n");
-            textReport.append("-----------\n");
-            data.getLiabilities().forEach((categoryName, accounts) -> {
-                textReport.append(categoryName).append(":\n");
-                accounts.forEach(liability -> {
-                    textReport.append(String.format("  %-30s %15s\n", 
-                        liability.getAccountName(), 
-                        liability.getCurrentMonth().toString()));
-                });
-            });
-            textReport.append(String.format("%-30s %15s\n\n", 
-                "Total Liabilities", data.getTotalLiabilities().toString()));
-            
-            textReport.append("EQUITY\n");
-            textReport.append("------\n");
-            data.getEquity().forEach((categoryName, accounts) -> {
-                textReport.append(categoryName).append(":\n");
-                accounts.forEach(equity -> {
-                    textReport.append(String.format("  %-30s %15s\n", 
-                        equity.getAccountName(), 
-                        equity.getCurrentMonth().toString()));
-                });
-            });
-            textReport.append(String.format("%-30s %15s\n\n", 
-                "Total Equity", data.getTotalEquity().toString()));
-            
-            textReport.append(String.format("Balance Check: %s\n", 
-                data.isBalanced() ? "BALANCED" : "NOT BALANCED"));
-            
-            return ResponseEntity.ok(textReport.toString());
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to generate balance sheet text: " + e.getMessage(), e);
+            log.error("Failed to generate balance sheet for company {}: {}", companyId, e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
         }
     }
 
     /**
      * Export balance sheet as Excel file
+     * DDD: Follows domain-driven approach for export functionality
      */
     @GetMapping("/export")
     public ResponseEntity<byte[]> exportBalanceSheet(
@@ -115,21 +68,81 @@ public class BalanceSheetController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate) {
 
         try {
+            log.info("Exporting balance sheet for company {} as of {}", companyId, asOfDate);
+            
+            // DDD: Convert to value object
             TenantId tenantId = TenantId.of(companyId);
             
-            // Generate Excel file
-            byte[] excelData = balanceSheetExportService.exportBalanceSheet(tenantId, asOfDate);
+            // Get the balance sheet data using DDD service
+            BalanceSheetDetailedResponse data = balanceSheetDataService.generateBalanceSheetByTenant(tenantId, asOfDate);
             
-            String filename = "Balance_Sheet_" + asOfDate + ".xlsx";
+            // Generate Excel using domain service
+            byte[] excelData = balanceSheetExportService.generateExcel(data);
+            
+            // Prepare response headers
+            String filename = String.format("BalanceSheet_%s_%s.xlsx", 
+                                           tenantId.getValue(), 
+                                           asOfDate.toString());
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
             headers.setContentDisposition(ContentDisposition.attachment().filename(filename).build());
+            headers.setContentLength(excelData.length);
+            
+            log.info("Balance sheet exported successfully for tenant {}, file size: {} bytes", 
+                     tenantId.getValue(), excelData.length);
             
             return new ResponseEntity<>(excelData, headers, HttpStatus.OK);
             
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid input for balance sheet export: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
         } catch (Exception e) {
-            throw new RuntimeException("Failed to export balance sheet: " + e.getMessage(), e);
+            log.error("Failed to export balance sheet for company {}: {}", companyId, e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * Health check endpoint for testing connectivity
+     */
+    @GetMapping("/health")
+    public ResponseEntity<String> healthCheck() {
+        return ResponseEntity.ok("Balance Sheet service is running");
+    }
+
+    /**
+     * Get balance sheet summary statistics
+     * DDD: Provides domain-specific summary information
+     */
+    @GetMapping("/summary")
+    public ResponseEntity<Object> getBalanceSheetSummary(
+            @RequestParam Integer companyId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate) {
+        
+        try {
+            TenantId tenantId = TenantId.of(companyId);
+            
+            // Get basic balance sheet data
+            BalanceSheetDetailedResponse data = balanceSheetDataService.generateBalanceSheetByTenant(tenantId, asOfDate);
+            
+            // Create summary object
+            var summary = new Object() {
+                public final String asOfDate = data.getAsOfDate().toString();
+                public final String totalAssets = data.getTotalAssets().toString();
+                public final String totalLiabilities = data.getTotalLiabilities().toString();
+                public final String totalEquity = data.getTotalEquity().toString();
+                public final boolean isBalanced = data.isBalanced();
+                public final int assetCategories = data.getAssets().size();
+                public final int liabilityCategories = data.getLiabilities().size();
+                public final int equityCategories = data.getEquity().size();
+            };
+            
+            return ResponseEntity.ok(summary);
+            
+        } catch (Exception e) {
+            log.error("Failed to generate balance sheet summary: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
         }
     }
 }

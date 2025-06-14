@@ -8,7 +8,7 @@ import java.math.BigDecimal;
 @Data
 @Builder
 public class IncomeExpenseReportRowDTO {
-    private String type;
+    private String type;    // "INCOME" or "EXPENSE"
     private String category;            // 分类（如 Service Income, Utilities）
     private String description;         // 描述（Item，如 Bank Transfer, Electricity Bill）
 
@@ -19,4 +19,5 @@ public class IncomeExpenseReportRowDTO {
     private BigDecimal budgetYtd;       // 年初至今预算金额（可拓展）
     private BigDecimal variance;        // 差异 = YTD - 预算
     private BigDecimal fullYearBudget;  // 年度预算总额（可拓展）
+    private BigDecimal variancePercentage;
 }

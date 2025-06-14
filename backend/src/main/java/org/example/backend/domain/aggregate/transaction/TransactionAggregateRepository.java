@@ -189,4 +189,104 @@ public interface TransactionAggregateRepository extends JpaRepository<Transactio
            "AND t.transactionStatus.status = :status")
     long countByTenantAndStatus(@Param("tenantId") TenantId tenantId, 
                               @Param("status") TransactionStatus.Status status);
+
+       
+       /**
+     * Find transactions by tenant, account and date range for balance calculations
+     * Note: Since we don't have debitAccountId/creditAccountId in current TransactionAggregate,
+     * we'll use categoryId as a proxy for account-based queries
+     */
+    @Query("SELECT t FROM TransactionAggregate t WHERE t.tenantId = :tenantId " +
+           "AND t.categoryId = :accountId " +
+           "AND t.transactionDate BETWEEN :startDate AND :endDate " +
+           "AND t.transactionStatus.status = 'APPROVED' " +
+           "ORDER BY t.transactionDate")
+    List<TransactionAggregate> findByTenantIdAndAccountIdAndDateRange(
+            @Param("tenantId") TenantId tenantId,
+            @Param("accountId") Integer accountId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate);
+
+    /**
+     * Find transactions by tenant and account up to a specific date
+     */
+    @Query("SELECT t FROM TransactionAggregate t WHERE t.tenantId = :tenantId " +
+           "AND t.categoryId = :accountId " +
+           "AND t.transactionDate <= :asOfDate " +
+           "AND t.transactionStatus.status = 'APPROVED' " +
+           "ORDER BY t.transactionDate")
+    List<TransactionAggregate> findByTenantIdAndAccountIdUpToDate(
+            @Param("tenantId") TenantId tenantId,
+            @Param("accountId") Integer accountId,
+            @Param("asOfDate") LocalDate asOfDate);
+
+    /**
+     * Find transactions by tenant, type and date range
+     */
+    @Query("SELECT t FROM TransactionAggregate t WHERE t.tenantId = :tenantId " +
+           "AND t.transactionType = :type " +
+           "AND t.transactionDate BETWEEN :startDate AND :endDate " +
+           "AND t.transactionStatus.status = 'APPROVED' " +
+           "ORDER BY t.transactionDate")
+    List<TransactionAggregate> findByTenantIdAndTransactionTypeAndDateRange(
+            @Param("tenantId") TenantId tenantId,
+            @Param("type") TransactionAggregate.TransactionType type,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate);
+
+    /**
+     * Find transactions by tenant and multiple categories for grouping analysis
+     */
+    @Query("SELECT t FROM TransactionAggregate t WHERE t.tenantId = :tenantId " +
+           "AND t.categoryId IN :categoryIds " +
+           "AND t.transactionDate BETWEEN :startDate AND :endDate " +
+           "AND t.transactionStatus.status = 'APPROVED' " +
+           "ORDER BY t.transactionDate")
+    List<TransactionAggregate> findByTenantIdAndCategoryIdsAndDateRange(
+            @Param("tenantId") TenantId tenantId,
+            @Param("categoryIds") List<Integer> categoryIds,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate);
+
+    /**
+     * Find transactions grouped by department for financial grouping
+     */
+    @Query("SELECT t FROM TransactionAggregate t WHERE t.tenantId = :tenantId " +
+           "AND t.departmentId IS NOT NULL " +
+           "AND t.transactionDate BETWEEN :startDate AND :endDate " +
+           "AND t.transactionStatus.status = 'APPROVED' " +
+           "ORDER BY t.departmentId, t.transactionDate")
+    List<TransactionAggregate> findByTenantIdAndDepartmentNotNullAndDateRange(
+            @Param("tenantId") TenantId tenantId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate);
+
+    /**
+     * Find transactions grouped by fund for financial grouping
+     */
+    @Query("SELECT t FROM TransactionAggregate t WHERE t.tenantId = :tenantId " +
+           "AND t.fundId IS NOT NULL " +
+           "AND t.transactionDate BETWEEN :startDate AND :endDate " +
+           "AND t.transactionStatus.status = 'APPROVED' " +
+           "ORDER BY t.fundId, t.transactionDate")
+    List<TransactionAggregate> findByTenantIdAndFundNotNullAndDateRange(
+            @Param("tenantId") TenantId tenantId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate);
+
+    /**
+     * Fixed version of findByDateRangeTypeAndStatus to handle null type parameter
+     */
+    @Query("SELECT t FROM TransactionAggregate t WHERE t.tenantId = :tenantId " +
+           "AND t.transactionDate BETWEEN :startDate AND :endDate " +
+           "AND (:type IS NULL OR t.transactionType = :type) " +
+           "AND t.transactionStatus.status = :status")
+    List<TransactionAggregate> findByTenantIdAndDateRangeAndTypeAndStatus(
+            @Param("tenantId") TenantId tenantId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("type") TransactionAggregate.TransactionType type,
+            @Param("status") TransactionStatus.Status status);
+
+                              
 }

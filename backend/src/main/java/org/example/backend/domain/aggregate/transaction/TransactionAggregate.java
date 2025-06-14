@@ -9,6 +9,8 @@ import org.example.backend.domain.event.TransactionApprovedEvent;
 import org.example.backend.domain.event.TransactionCancelledEvent;
 
 import jakarta.persistence.*;
+
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -472,7 +474,7 @@ public class TransactionAggregate {
     
     public enum TransactionType {
         INCOME("Income", "收入"),
-        EXPENSE("Expense", "支出");
+        EXPENSE("Expense", "支出"); // 添加这个枚举值
         
         private final String englishName;
         private final String chineseName;
@@ -493,5 +495,47 @@ public class TransactionAggregate {
         public String getDisplayName() {
             return englishName;
         }
+    }
+
+    /**
+     * Get amount as BigDecimal for business calculations
+     */
+    public BigDecimal getAmount() {
+        return money != null ? money.getAmount() : BigDecimal.ZERO;
+    }
+
+    /**
+     * Get currency code
+     */
+    public String getCurrencyCode() {
+        return money != null ? money.getCurrencyCode() : "CNY";
+    }
+
+    /**
+     * Check if this is a revenue transaction using domain logic
+     */
+    public boolean isRevenue() {
+        return transactionType == TransactionType.INCOME;
+    }
+
+    /**
+     * Check if this is an expense transaction using domain logic
+     */
+    public boolean isExpense() {
+        return transactionType == TransactionType.EXPENSE;
+    }
+
+    /**
+     * Get debit account ID (使用categoryId作为替代)
+     */
+    public Integer getDebitAccountId() {
+        return this.categoryId;
+    }
+
+    /**
+     * Get credit account ID (使用categoryId作为替代)  
+     */
+    public Integer getCreditAccountId() {
+        return this.categoryId;
     }
 }
