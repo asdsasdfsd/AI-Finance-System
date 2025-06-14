@@ -13,7 +13,6 @@ import org.example.backend.domain.valueobject.TransactionStatus;
 import org.example.backend.domain.event.DomainEventPublisher;
 import org.example.backend.exception.ResourceNotFoundException;
 import org.example.backend.exception.UnauthorizedException;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,7 +28,6 @@ import java.util.stream.Collectors;
  * domain aggregates, ensuring business rules and transaction boundaries
  */
 @Service
- 
 @Transactional
 public class TransactionApplicationService {
     
@@ -335,20 +333,43 @@ public class TransactionApplicationService {
         }
     }
     
+    /**
+     * Fixed mapToDTO method with null safety checks
+     */
     private TransactionDTO mapToDTO(TransactionAggregate transaction) {
+        // Handle null transaction status gracefully
+        TransactionStatus.Status status = null;
+        if (transaction.getTransactionStatus() != null) {
+            status = transaction.getTransactionStatus().getStatus();
+        } else {
+            // Fallback to DRAFT if status is null (should not happen in normal cases)
+            status = TransactionStatus.Status.DRAFT;
+            System.err.println("Warning: Transaction " + transaction.getTransactionId() + " has null transactionStatus, defaulting to DRAFT");
+        }
+        
+        // Handle null money gracefully
+        BigDecimal amount = BigDecimal.ZERO;
+        String currency = "CNY";
+        if (transaction.getMoney() != null) {
+            amount = transaction.getMoney().getAmount();
+            currency = transaction.getMoney().getCurrencyCode();
+        } else {
+            System.err.println("Warning: Transaction " + transaction.getTransactionId() + " has null money object");
+        }
+        
         return TransactionDTO.builder()
                 .transactionId(transaction.getTransactionId())
-                .amount(transaction.getMoney().getAmount())
-                .currency(transaction.getMoney().getCurrencyCode())
+                .amount(amount)
+                .currency(currency)
                 .transactionType(transaction.getTransactionType())
-                .status(transaction.getTransactionStatus().getStatus())
+                .status(status)
                 .transactionDate(transaction.getTransactionDate())
                 .description(transaction.getDescription())
                 .paymentMethod(transaction.getPaymentMethod())
                 .referenceNumber(transaction.getReferenceNumber())
-                .isRecurring(transaction.getIsRecurring())
-                .isTaxable(transaction.getIsTaxable())
-                .companyId(transaction.getTenantId().getValue())
+                .isRecurring(transaction.getIsRecurring() != null ? transaction.getIsRecurring() : false)
+                .isTaxable(transaction.getIsTaxable() != null ? transaction.getIsTaxable() : false)
+                .companyId(transaction.getTenantId() != null ? transaction.getTenantId().getValue() : null)
                 .userId(transaction.getUserId())
                 .departmentId(transaction.getDepartmentId())
                 .fundId(transaction.getFundId())
