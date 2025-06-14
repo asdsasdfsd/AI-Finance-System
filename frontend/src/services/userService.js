@@ -2,47 +2,71 @@
 import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:8085';
-const API_URL = `${API_BASE_URL}/api/users`; // 基础URL不带斜杠
+const API_URL = `${API_BASE_URL}/api/users`;
 
 const UserService = {
-  // 获取用户列表：GET /api/users
-  getAllUsers: async () => {
-    const response = await axios.get(API_URL);
+  // Get all users with optional company filter
+  getAllUsers: async (companyId = null) => {
+    const url = companyId ? `${API_URL}?companyId=${companyId}` : `${API_URL}?companyId=1`; // Default to companyId=1 for now
+    const response = await axios.get(url);
     return response.data;
   },
   
-  // 获取用户详情：GET /api/users/1
+  // Get all users without company filter (for system admin)
+  getAllUsersGlobal: async () => {
+    // This would need a different endpoint or special permission
+    const response = await axios.get(`${API_URL}/all`);
+    return response.data;
+  },
+  
+  // Get user by ID
   getUserById: async (id) => {
     const response = await axios.get(`${API_URL}/${id}`);
     return response.data;
   },
   
-  // 创建用户：POST /api/users
+  // Create user
   createUser: async (userData) => {
-    const response = await axios.post(API_URL, userData);
+    // Ensure roleNames field for backend compatibility
+    const requestData = {
+      ...userData,
+      roleNames: userData.roles || []
+    };
+    const response = await axios.post(API_URL, requestData);
     return response.data;
   },
   
-  // 更新用户：PUT /api/users/1
+  // Update user
   updateUser: async (id, userData) => {
-    const response = await axios.put(`${API_URL}/${id}`, userData);
+    // Ensure roleNames field for backend compatibility
+    const requestData = {
+      ...userData,
+      roleNames: userData.roles || []
+    };
+    const response = await axios.put(`${API_URL}/${id}`, requestData);
     return response.data;
   },
   
-  // 删除用户：DELETE /api/users/1
+  // Delete user
   deleteUser: async (id) => {
     await axios.delete(`${API_URL}/${id}`);
   },
   
-  // 分配角色：POST /api/users/1/roles/admin
+  // Assign role
   assignRole: async (userId, roleName) => {
     const response = await axios.post(`${API_URL}/${userId}/roles/${roleName}`);
     return response.data;
   },
   
-  // 移除角色：DELETE /api/users/1/roles/admin
+  // Remove role
   removeRole: async (userId, roleName) => {
     const response = await axios.delete(`${API_URL}/${userId}/roles/${roleName}`);
+    return response.data;
+  },
+  
+  // Get users by company
+  getUsersByCompany: async (companyId) => {
+    const response = await axios.get(`${API_URL}?companyId=${companyId}`);
     return response.data;
   }
 };
