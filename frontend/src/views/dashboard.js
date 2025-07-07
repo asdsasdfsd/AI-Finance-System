@@ -34,6 +34,8 @@ import DepartmentManagement from './Dashboard/DepartmentManagement';
 import FundManagement from './Dashboard/FundManagement';
 import AssetManagement from './Dashboard/AssetManagement';
 import TransactionManagement from './Dashboard/TransactionManagement';
+import AIHelper from './Dashboard/AIHelper';  // 新增：AI 助手界面
+
 
 // Import new unified financial reports components
 import FinancialReportsUnified from './Dashboard/FinancialReportsUnified';
@@ -99,6 +101,9 @@ const Dashboard = () => {
         return <FinancialReportsUnified />;
       case '11': // Report Management
         return <ReportManagement />;
+      case '12':
+        return <AIHelper />;
+
         
       default:
         return <DashboardHome />;
@@ -169,6 +174,11 @@ const Dashboard = () => {
           label: 'Report Management'
         }
       ]
+    },
+    {
+      key: '12',
+      icon: <PlayCircleOutlined />,
+      label: 'AI Assistant'
     },
     {
       key: '3',
