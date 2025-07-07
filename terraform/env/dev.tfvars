@@ -1,0 +1,15 @@
+aws_region           = "ap-southeast-1"
+docker_username      = "yourdockerhub"
+backend_image_tag    = "latest"
+frontend_image_tag   = "latest"
+instance_type        = "t3.micro"
+key_name             = "your-ec2-keypair"
+subnet_id            = "subnet-xxxxx"
+subnet_ids           = ["subnet-xxxxx", "subnet-yyyyy"]
+ec2_sg_id            = "sg-xxxxxxxx"
+rds_sg_id            = "sg-yyyyyyyy"
+
+db_name              = "appdb"
+db_user              = "admin"
+db_password          = "StrongPass123"
+db_instance_class    = "db.t3.micro"
