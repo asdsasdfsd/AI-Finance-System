@@ -34,6 +34,60 @@ public class JwtUtil {
     }
 
     /**
+     * Extract company ID from token
+     * 
+     * @param token JWT token
+     * @return Company ID
+     */
+    public Integer extractCompanyId(String token) {
+        return extractClaim(token, claims -> {
+            Object companyId = claims.get("companyId");
+            if (companyId instanceof Integer) {
+                return (Integer) companyId;
+            } else if (companyId instanceof String) {
+                try {
+                    return Integer.parseInt((String) companyId);
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+            }
+            return null;
+        });
+    }
+
+    /**
+     * Extract user ID from token
+     * 
+     * @param token JWT token
+     * @return User ID
+     */
+    public Integer extractUserId(String token) {
+        return extractClaim(token, claims -> {
+            Object userId = claims.get("userId");
+            if (userId instanceof Integer) {
+                return (Integer) userId;
+            } else if (userId instanceof String) {
+                try {
+                    return Integer.parseInt((String) userId);
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+            }
+            return null;
+        });
+    }
+
+    /**
+     * Extract user full name from token
+     * 
+     * @param token JWT token
+     * @return Full name
+     */
+    public String extractFullName(String token) {
+        return extractClaim(token, claims -> (String) claims.get("fullName"));
+    }
+
+    /**
      * Extract expiration date from token
      * 
      * @param token JWT token
@@ -76,13 +130,34 @@ public class JwtUtil {
     }
 
     /**
-     * Generate token for user
+     * Generate token for user with company and user information
+     * 
+     * @param userDetails User details
+     * @param companyId Company ID
+     * @param userId User ID
+     * @param fullName User full name
+     * @return JWT token
+     */
+    public String generateToken(UserDetails userDetails, Integer companyId, Integer userId, String fullName) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("companyId", companyId);
+        claims.put("userId", userId);
+        claims.put("fullName", fullName);
+        return createToken(claims, userDetails.getUsername());
+    }
+
+    /**
+     * Generate token for user (backward compatibility)
      * 
      * @param userDetails User details
      * @return JWT token
      */
     public String generateToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
+        // Use default values for backward compatibility
+        claims.put("companyId", 1);
+        claims.put("userId", 1);
+        claims.put("fullName", userDetails.getUsername());
         return createToken(claims, userDetails.getUsername());
     }
 
@@ -122,5 +197,22 @@ public class JwtUtil {
      */
     public long getExpirationTime() {
         return expiration;
+    }
+
+    /**
+     * Validate token and check if it belongs to the specified company
+     * 
+     * @param token JWT token
+     * @param userDetails User details
+     * @param expectedCompanyId Expected company ID
+     * @return true if valid and belongs to company, false otherwise
+     */
+    public Boolean validateTokenAndCompany(String token, UserDetails userDetails, Integer expectedCompanyId) {
+        if (!validateToken(token, userDetails)) {
+            return false;
+        }
+        
+        Integer tokenCompanyId = extractCompanyId(token);
+        return tokenCompanyId != null && tokenCompanyId.equals(expectedCompanyId);
     }
 }
