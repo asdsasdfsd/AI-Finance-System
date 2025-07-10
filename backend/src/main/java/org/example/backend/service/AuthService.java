@@ -76,20 +76,18 @@ public class AuthService {
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
         );
 
-        // 生成 JWT token
-        final String token = jwtUtil.generateToken(userDetails);
+        // 获取用户信息构建响应 - 使用DDD应用服务
+        UserDTO user = userApplicationService.getUserByUsername(request.getUsername());
+
+        // 生成 JWT token - 修改这里：传入公司ID和用户ID
+        final String token = jwtUtil.generateToken(userDetails, user.getTenantId(), user.getUserId(), user.getFullName());
 
         // 更新用户登录时间 - 使用DDD应用服务
         try {
-            userApplicationService.recordSuccessfulLogin(
-                userApplicationService.getUserByUsername(request.getUsername()).getUserId()
-            );
+            userApplicationService.recordSuccessfulLogin(user.getUserId());
         } catch (Exception e) {
             System.err.println("Failed to update last login time: " + e.getMessage());
         }
-
-        // 获取用户信息构建响应 - 使用DDD应用服务
-        UserDTO user = userApplicationService.getUserByUsername(request.getUsername());
 
         // 构造认证响应
         return buildAuthResponse(token, user, userDetails);
@@ -177,9 +175,11 @@ public class AuthService {
         Map<String, Boolean> provisioningFlags = new HashMap<>();
         UserDTO user = ssoService.processSsoLogin(code, state, provisioningFlags);
         
-        // Generate JWT token
+        // 获取UserDetails
         final UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
-        final String token = jwtUtil.generateToken(userDetails);
+        
+        // 生成 JWT token - 修改这里：传入公司ID和用户ID
+        final String token = jwtUtil.generateToken(userDetails, user.getTenantId(), user.getUserId(), user.getFullName());
         
         // Update last login timestamp - 使用DDD应用服务
         userApplicationService.recordSuccessfulLogin(user.getUserId());

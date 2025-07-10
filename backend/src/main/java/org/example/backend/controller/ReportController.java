@@ -8,6 +8,7 @@ import org.example.backend.application.service.ReportApplicationService;
 import org.example.backend.domain.valueobject.ReportType;
 import org.example.backend.domain.valueobject.ReportStatus;
 import org.example.backend.infrastructure.report.ReportFileManager;
+import org.example.backend.util.JwtContextUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -21,6 +22,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+
 
 /**
  * Report Controller
@@ -36,6 +38,9 @@ public class ReportController {
     
     @Autowired
     private ReportFileManager fileManager;
+
+    @Autowired
+    private JwtContextUtil jwtContextUtil;
     
     /**
      * Health check endpoint for frontend connectivity testing
@@ -345,13 +350,13 @@ public class ReportController {
     
     // Helper methods for extracting user context
     private Integer getCurrentTenantId() {
-        // TODO: Extract from Spring Security context or JWT token
-        return 1; // Temporary hardcoded value
+        // extract companyId from JWT token
+        return jwtContextUtil.getCurrentCompanyId();
     }
-    
+
     private Integer getCurrentUserId() {
-        // TODO: Extract from Spring Security context or JWT token
-        return 1; // Temporary hardcoded value
+        // extract userId from JWT token
+        return jwtContextUtil.getCurrentUserId();
     }
     
     /**

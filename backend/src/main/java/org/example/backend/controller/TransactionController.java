@@ -8,7 +8,7 @@ import org.example.backend.application.dto.ApproveTransactionCommand;
 import org.example.backend.application.dto.TransactionDTO;
 import org.example.backend.domain.aggregate.transaction.TransactionAggregate;
 import org.example.backend.domain.valueobject.TransactionStatus;
-
+import org.example.backend.util.JwtContextUtil;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.context.annotation.Profile;
@@ -32,9 +32,13 @@ import java.util.Map;
 public class TransactionController {
     
     private final TransactionApplicationService transactionApplicationService;
+
+    private final JwtContextUtil jwtContextUtil;
     
-    public TransactionController(TransactionApplicationService transactionApplicationService) {
+    public TransactionController(TransactionApplicationService transactionApplicationService,
+                           JwtContextUtil jwtContextUtil) {
         this.transactionApplicationService = transactionApplicationService;
+        this.jwtContextUtil = jwtContextUtil;
     }
     
     // ========== Create Operations ==========
@@ -306,7 +310,13 @@ public class TransactionController {
     }
     
     private Integer getCompanyId(Map<String, Object> request) {
-        // Try different field names for backward compatibility
+        // 首先尝试从JWT获取companyId
+        Integer jwtCompanyId = jwtContextUtil.getCurrentCompanyId();
+        if (jwtCompanyId != null) {
+            return jwtCompanyId;
+        }
+        
+        // 备用：从请求中获取（向后兼容）
         Object companyId = request.get("companyId");
         if (companyId == null) {
             companyId = request.get("company_id");
@@ -320,14 +330,20 @@ public class TransactionController {
         }
         
         if (companyId == null) {
-            throw new IllegalArgumentException("Company ID is required");
+            throw new IllegalArgumentException("Company ID is required and cannot be extracted from JWT");
         }
         
         return (Integer) companyId;
     }
-    
+
     private Integer getUserId(Map<String, Object> request) {
-        // Try different field names for backward compatibility
+        // 首先尝试从JWT获取userId
+        Integer jwtUserId = jwtContextUtil.getCurrentUserId();
+        if (jwtUserId != null) {
+            return jwtUserId;
+        }
+        
+        // 备用：从请求中获取（向后兼容）
         Object userId = request.get("userId");
         if (userId == null) {
             userId = request.get("user_id");
@@ -341,7 +357,7 @@ public class TransactionController {
         }
         
         if (userId == null) {
-            throw new IllegalArgumentException("User ID is required");
+            throw new IllegalArgumentException("User ID is required and cannot be extracted from JWT");
         }
         
         return (Integer) userId;

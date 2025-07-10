@@ -11,77 +11,128 @@ const getAuthHeader = () => {
     : {};
 };
 
-// Get company ID from current user or use hardcoded value for development
+// Get company ID from current user (JWT will be used by backend to extract company ID)
 const getCompanyId = () => {
   const user = AuthService.getCurrentUser();
-  // TODO: Replace with JWT extraction in production
-  // For now, use hardcoded value as requested
-  return user?.companyId || 1;
+  return user?.companyId || user?.user?.companyId || null;
+};
+
+// Get user ID from current user
+const getUserId = () => {
+  const user = AuthService.getCurrentUser();
+  return user?.userId || user?.user?.userId || null;
 };
 
 const TransactionService = {
-  // Fixed: Pass companyId as query parameter
+  // Get all transactions (backend will use JWT to determine company)
   getAll: () => {
-    const companyId = getCompanyId();
-    return axios.get(`${API_BASE_URL}?companyId=${companyId}`, getAuthHeader());
+    return axios.get(API_BASE_URL, getAuthHeader());
   },
 
+  // Get transaction by ID (backend will validate company access via JWT)
   getById: (id) => {
-    const companyId = getCompanyId();
-    return axios.get(`${API_BASE_URL}/${id}?companyId=${companyId}`, getAuthHeader());
+    return axios.get(`${API_BASE_URL}/${id}`, getAuthHeader());
   },
 
-  getByCompanyAndType: (companyId, type) =>
-    axios.get(`${API_BASE_URL}/company/${companyId}/type/${type}`, getAuthHeader()),
-
-  getByUserAndType: (userId, type) => {
-    const companyId = getCompanyId();
-    return axios.get(`${API_BASE_URL}/user/${userId}/type/${type}?companyId=${companyId}`, getAuthHeader());
+  // Get transactions by type (backend will use JWT for company context)
+  getByType: (type) => {
+    return axios.get(`${API_BASE_URL}/type/${type}`, getAuthHeader());
   },
 
-  getByDepartmentAndType: (departmentId, type) =>
-    axios.get(`${API_BASE_URL}/department/${departmentId}/type/${type}`, getAuthHeader()),
-
-  getByDateRange: (companyId, startDate, endDate) =>
-    axios.get(`${API_BASE_URL}/company/${companyId}/date-range`, {
+  // Get transactions by date range (backend will use JWT for company context)
+  getByDateRange: (startDate, endDate) => {
+    return axios.get(`${API_BASE_URL}/date-range`, {
       ...getAuthHeader(),
       params: { startDate, endDate }
-    }),
+    });
+  },
 
-  getSumByCompanyAndType: (companyId, type) =>
-    axios.get(`${API_BASE_URL}/company/${companyId}/type/${type}/sum`, getAuthHeader()),
+  // Get transaction sum by type (backend will use JWT for company context)
+  getSumByType: (type) => {
+    return axios.get(`${API_BASE_URL}/sum/type/${type}`, getAuthHeader());
+  },
 
+  // Create new transaction
   createTransaction: (data) => {
-    // Ensure companyId and userId are included
-    const enrichedData = {
-      ...data,
-      companyId: data.companyId || getCompanyId(),
-      userId: data.userId || 1 // Hardcoded for development
+    // Remove explicit companyId and userId as backend will extract from JWT
+    const transactionData = {
+      amount: data.amount,
+      description: data.description,
+      transactionDate: data.transactionDate,
+      category: data.category,
+      paymentMethod: data.paymentMethod,
+      reference: data.reference,
+      notes: data.notes
     };
-    return axios.post(API_BASE_URL, enrichedData, getAuthHeader());
+    
+    return axios.post(API_BASE_URL, transactionData, getAuthHeader());
   },
 
+  // Update existing transaction
   updateTransaction: (id, data) => {
-    // Ensure companyId and userId are included
-    const enrichedData = {
-      ...data,
-      companyId: data.companyId || getCompanyId(),
-      userId: data.userId || 1 // Hardcoded for development
+    // Remove explicit companyId and userId as backend will extract from JWT
+    const transactionData = {
+      amount: data.amount,
+      description: data.description,
+      transactionDate: data.transactionDate,
+      category: data.category,
+      paymentMethod: data.paymentMethod,
+      reference: data.reference,
+      notes: data.notes
     };
-    return axios.put(`${API_BASE_URL}/${id}`, enrichedData, getAuthHeader());
+    
+    return axios.put(`${API_BASE_URL}/${id}`, transactionData, getAuthHeader());
   },
 
+  // Delete transaction (backend will validate company access via JWT)
   deleteTransaction: (id) => {
-    const companyId = getCompanyId();
-    return axios.delete(`${API_BASE_URL}/${id}?companyId=${companyId}&userId=1`, getAuthHeader());
+    return axios.delete(`${API_BASE_URL}/${id}`, getAuthHeader());
   },
 
-  // Additional convenience methods for better API usage
-  getByCompany: (companyId) =>
-    axios.get(`${API_BASE_URL}/company/${companyId}`, getAuthHeader()),
+  // Legacy methods for backward compatibility (will be deprecated)
+  getByCompanyAndType: (companyId, type) => {
+    console.warn('getByCompanyAndType is deprecated. Use getByType instead.');
+    return TransactionService.getByType(type);
+  },
 
-  getByCompanySorted: (companyId) =>
-    axios.get(`${API_BASE_URL}/company/${companyId}/sorted`, getAuthHeader()),
+  getByUserAndType: (userId, type) => {
+    console.warn('getByUserAndType is deprecated. Use getByType instead.');
+    return TransactionService.getByType(type);
+  },
+
+  getByDepartmentAndType: (departmentId, type) => {
+    console.warn('getByDepartmentAndType is deprecated. Backend will handle department filtering.');
+    return TransactionService.getByType(type);
+  },
+
+  getSumByCompanyAndType: (companyId, type) => {
+    console.warn('getSumByCompanyAndType is deprecated. Use getSumByType instead.');
+    return TransactionService.getSumByType(type);
+  },
+
+  getByCompany: (companyId) => {
+    console.warn('getByCompany is deprecated. Use getAll instead.');
+    return TransactionService.getAll();
+  },
+
+  getByCompanySorted: (companyId) => {
+    console.warn('getByCompanySorted is deprecated. Use getAll instead.');
+    return TransactionService.getAll();
+  },
+
+  // Utility methods for frontend components
+  getCurrentUserCompanyId: () => {
+    return getCompanyId();
+  },
+
+  getCurrentUserId: () => {
+    return getUserId();
+  },
+
+  // Validate if user is authenticated
+  isAuthenticated: () => {
+    return AuthService.isAuthenticated();
+  }
 };
 
 export default TransactionService;
