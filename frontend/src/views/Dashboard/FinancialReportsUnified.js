@@ -128,17 +128,30 @@ export default function FinancialReportsUnified() {
     }
   };
 
-  const handlePreview = async () => {
-    if (connectionStatus === 'disconnected') {
-      message.error('Backend is not connected. Please check the server.');
-      return;
+  const handlePreview = async (e) => {
+    // 阻止默认行为，防止表单提交导致页面刷新
+    if (e && e.preventDefault) {
+      e.preventDefault();
     }
-
-    setPreviewLoading(true);
+    
+    console.log('=== handlePreview开始 ===');
+    
     try {
-      const currentConfig = reportTypes.find(rt => rt.value === previewReportType);
+      if (connectionStatus === 'disconnected') {
+        message.error('Backend is not connected. Please check the server.');
+        return;
+      }
+
+      setPreviewLoading(true);
       
-      if (!currentConfig?.previewApi) {
+      const currentConfig = reportTypes.find(rt => rt.value === previewReportType);
+      console.log('当前报告配置:', currentConfig);
+      
+      if (!currentConfig) {
+        throw new Error('Invalid report type selected');
+      }
+      
+      if (!currentConfig.previewApi) {
         throw new Error('Preview not available for this report type');
       }
 
@@ -147,28 +160,66 @@ export default function FinancialReportsUnified() {
       };
 
       if (currentConfig.useAsOfDate) {
+        if (!asOfDate) {
+          throw new Error('As of date is required');
+        }
         params.asOfDate = asOfDate.format('YYYY-MM-DD');
       } else {
+        if (!startDate || !endDate) {
+          throw new Error('Start date and end date are required');
+        }
         params.startDate = startDate.format('YYYY-MM-DD');
         params.endDate = endDate.format('YYYY-MM-DD');
       }
 
-      console.log('Requesting preview with params:', params);
+      console.log('请求参数:', params);
+      console.log('API端点:', currentConfig.previewApi);
+      
       const response = await apiClient.get(currentConfig.previewApi, { params });
       
-      console.log('Preview response:', response.data);
+      console.log('API响应:', response);
+      console.log('响应数据:', response.data);
+      
       setReportData(response.data);
       message.success(`${currentConfig.label} preview loaded successfully`);
+      
     } catch (error) {
-      console.error('Error fetching report data:', error);
-      const errorMessage = error.response?.data?.message || 
-                          error.response?.data?.error || 
-                          error.message || 
-                          'Unknown error occurred';
+      console.error('handlePreview错误:', error);
+      
+      // 详细的错误信息
+      let errorMessage = 'Unknown error occurred';
+      
+      if (error.response) {
+        // 服务器响应错误
+        console.log('错误响应状态:', error.response.status);
+        console.log('错误响应数据:', error.response.data);
+        
+        errorMessage = error.response.data?.message || 
+                      error.response.data?.error || 
+                      `Server error: ${error.response.status}`;
+                      
+        if (error.response.status === 404) {
+          errorMessage = 'API endpoint not found. Please check if the backend service supports this report type.';
+        } else if (error.response.status === 401) {
+          errorMessage = 'Authentication failed. Please login again.';
+        } else if (error.response.status === 500) {
+          errorMessage = 'Internal server error. Please check the backend logs.';
+        }
+      } else if (error.request) {
+        // 网络错误
+        console.log('网络错误:', error.request);
+        errorMessage = 'Network error. Please check if the backend server is running.';
+      } else {
+        // 客户端错误
+        errorMessage = error.message || 'Client error occurred';
+      }
+      
       message.error(`Failed to load report preview: ${errorMessage}`);
       setReportData(null);
+      
     } finally {
       setPreviewLoading(false);
+      console.log('=== handlePreview结束 ===');
     }
   };
 

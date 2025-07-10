@@ -1,3 +1,4 @@
+// backend/src/main/java/org/example/backend/config/SecurityConfig.java
 package org.example.backend.config;
 
 import org.example.backend.security.JwtAuthenticationFilter;
@@ -13,7 +14,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter; // 添加这个导入
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -37,46 +38,43 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .anyRequest().permitAll()   // 允许所有请求不鉴权
+                        // Public endpoints that don't require authentication
+                        .requestMatchers("/api/auth/**", "/api/sso/**", "/api/public/**").permitAll()
+                        .requestMatchers("/api/health/**", "/api/health", "/health").permitAll() // 新增健康检查
+                        .requestMatchers("/error", "/actuator/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        // All other API endpoints require authentication
+                        .requestMatchers("/api/**").authenticated()
+                        // Default behavior for non-API endpoints
+                        .anyRequest().permitAll()
                 )
-                /*
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**", "/api/sso/**").permitAll()
-                        .anyRequest().authenticated()
-                )*/
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class); // 现在这行应该能正常工作
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+
         return http.build();
     }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // 允许的源
-        configuration.setAllowedOrigins(Arrays.asList("http://localhost:3000"));
-        // 允许的方法
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        // 允许的头部
+        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
-        // 允许发送凭证
         configuration.setAllowCredentials(true);
-        // 预检请求缓存时间
-        configuration.setMaxAge(3600L);
-        
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
-    }
-    
-    @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-        return config.getAuthenticationManager();
     }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+        return config.getAuthenticationManager();
     }
 }

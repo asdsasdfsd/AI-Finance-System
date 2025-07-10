@@ -13,6 +13,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.context.annotation.Profile;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.example.backend.util.JwtUtil;
+import jakarta.servlet.http.HttpServletRequest;
 
 import java.time.LocalDate;
 import java.math.BigDecimal;
@@ -32,13 +34,15 @@ import java.util.Map;
 public class TransactionController {
     
     private final TransactionApplicationService transactionApplicationService;
-
     private final JwtContextUtil jwtContextUtil;
-    
+    private final JwtUtil jwtUtil; // 新增
+
     public TransactionController(TransactionApplicationService transactionApplicationService,
-                           JwtContextUtil jwtContextUtil) {
+                        JwtContextUtil jwtContextUtil,
+                        JwtUtil jwtUtil) { // 新增参数
         this.transactionApplicationService = transactionApplicationService;
         this.jwtContextUtil = jwtContextUtil;
+        this.jwtUtil = jwtUtil; // 新增
     }
     
     // ========== Create Operations ==========
@@ -142,16 +146,68 @@ public class TransactionController {
     // ========== Query Operations (Backward Compatible) ==========
     
     /**
-     * Get all transactions (backward compatible)
+     * Get all transactions (JWT-aware version)
      */
     @GetMapping
-    public ResponseEntity<List<TransactionDTO>> getAllTransactions(@RequestParam(required = false) Integer companyId) {
-        if (companyId == null) {
-            throw new IllegalArgumentException("Company ID is required");
+    public ResponseEntity<List<TransactionDTO>> getAllTransactions(
+            @RequestParam(required = false) Integer companyId,
+            HttpServletRequest request) {
+        
+        System.out.println("=== TransactionController.getAllTransactions 开始 ===");
+        
+        Integer targetCompanyId = null;
+        
+        // Method 1: Try to extract from JWT token in Authorization header
+        String authHeader = request.getHeader("Authorization");
+        System.out.println("Authorization头: " + authHeader);
+        
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7);
+            System.out.println("提取的JWT token: " + token.substring(0, Math.min(50, token.length())) + "...");
+            
+            try {
+                Integer jwtCompanyId = jwtUtil.extractCompanyId(token);
+                System.out.println("从JWT提取的公司ID: " + jwtCompanyId);
+                targetCompanyId = jwtCompanyId;
+            } catch (Exception e) {
+                System.err.println("JWT解析失败: " + e.getMessage());
+                e.printStackTrace();
+            }
         }
         
-        List<TransactionDTO> transactions = transactionApplicationService.getTransactionsByCompany(companyId);
-        return ResponseEntity.ok(transactions);
+        // Method 2: Use JwtContextUtil as fallback
+        if (targetCompanyId == null) {
+            try {
+                targetCompanyId = jwtContextUtil.getCurrentCompanyId();
+                System.out.println("从JwtContextUtil获取的公司ID: " + targetCompanyId);
+            } catch (Exception e) {
+                System.err.println("JwtContextUtil获取公司ID失败: " + e.getMessage());
+            }
+        }
+        
+        // Method 3: Use query parameter as fallback
+        if (targetCompanyId == null) {
+            targetCompanyId = companyId;
+            System.out.println("使用查询参数公司ID: " + targetCompanyId);
+        }
+        
+        // Method 4: Hardcoded fallback for development (临时方案)
+        if (targetCompanyId == null) {
+            System.out.println("警告: 无法获取公司ID，使用默认值1");
+            targetCompanyId = 1;
+        }
+        
+        System.out.println("最终使用的公司ID: " + targetCompanyId);
+        
+        try {
+            List<TransactionDTO> transactions = transactionApplicationService.getTransactionsByCompany(targetCompanyId);
+            System.out.println("成功获取到 " + transactions.size() + " 条交易记录");
+            return ResponseEntity.ok(transactions);
+        } catch (Exception e) {
+            System.err.println("获取交易记录失败: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Failed to retrieve transactions: " + e.getMessage());
+        }
     }
     
     /**
