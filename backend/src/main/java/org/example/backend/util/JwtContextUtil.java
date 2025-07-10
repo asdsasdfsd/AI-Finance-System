@@ -41,13 +41,18 @@ public class JwtContextUtil {
         String token = getCurrentJwtToken();
         if (token != null) {
             try {
-                return jwtUtil.extractCompanyId(token);
+                Integer companyId = jwtUtil.extractCompanyId(token);
+                if (companyId != null) {
+                    return companyId;
+                }
             } catch (Exception e) {
                 System.err.println("Error extracting company ID from token: " + e.getMessage());
             }
         }
-        // Fallback to hardcoded value for development/transition period
-        return 1;
+        
+        // Log warning if no company ID found
+        System.err.println("Warning: Could not extract company ID from JWT token. Token: " + (token != null ? "present" : "null"));
+        return null;
     }
 
     /**
@@ -59,13 +64,18 @@ public class JwtContextUtil {
         String token = getCurrentJwtToken();
         if (token != null) {
             try {
-                return jwtUtil.extractUserId(token);
+                Integer userId = jwtUtil.extractUserId(token);
+                if (userId != null) {
+                    return userId;
+                }
             } catch (Exception e) {
                 System.err.println("Error extracting user ID from token: " + e.getMessage());
             }
         }
-        // Fallback to hardcoded value for development/transition period
-        return 1;
+        
+        // Log warning if no user ID found
+        System.err.println("Warning: Could not extract user ID from JWT token. Token: " + (token != null ? "present" : "null"));
+        return null;
     }
 
     /**
@@ -82,24 +92,38 @@ public class JwtContextUtil {
                 System.err.println("Error extracting full name from token: " + e.getMessage());
             }
         }
-        return getCurrentUsername(); // Fallback to username
+        return null;
     }
 
     /**
-     * Get the JWT token from the current HTTP request
+     * Get current JWT token from various sources
      * 
-     * @return JWT token or null if not found
+     * @return JWT token string or null if not found
      */
-    private String getCurrentJwtToken() {
-        ServletRequestAttributes requestAttributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-        if (requestAttributes != null) {
-            HttpServletRequest request = requestAttributes.getRequest();
-            String authorizationHeader = request.getHeader("Authorization");
-            
-            if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
-                return authorizationHeader.substring(7);
+    public String getCurrentJwtToken() {
+        // Method 1: Get token from Security Context (preferred)
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getCredentials() instanceof String) {
+            String token = (String) authentication.getCredentials();
+            if (token != null && !token.isEmpty()) {
+                return token;
             }
         }
+
+        // Method 2: Get token from HTTP request header (fallback)
+        try {
+            ServletRequestAttributes requestAttributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (requestAttributes != null) {
+                HttpServletRequest request = requestAttributes.getRequest();
+                String authHeader = request.getHeader("Authorization");
+                if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                    return authHeader.substring(7);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error extracting token from request: " + e.getMessage());
+        }
+
         return null;
     }
 
@@ -156,8 +180,8 @@ public class JwtContextUtil {
             this.fullName = fullName;
         }
 
-        public static UserContextBuilder builder() {
-            return new UserContextBuilder();
+        public static Builder builder() {
+            return new Builder();
         }
 
         // Getters
@@ -166,38 +190,29 @@ public class JwtContextUtil {
         public Integer getCompanyId() { return companyId; }
         public String getFullName() { return fullName; }
 
-        @Override
-        public String toString() {
-            return "UserContext{" +
-                    "username='" + username + '\'' +
-                    ", userId=" + userId +
-                    ", companyId=" + companyId +
-                    ", fullName='" + fullName + '\'' +
-                    '}';
-        }
-
-        public static class UserContextBuilder {
+        // Builder pattern
+        public static class Builder {
             private String username;
             private Integer userId;
             private Integer companyId;
             private String fullName;
 
-            public UserContextBuilder username(String username) {
+            public Builder username(String username) {
                 this.username = username;
                 return this;
             }
 
-            public UserContextBuilder userId(Integer userId) {
+            public Builder userId(Integer userId) {
                 this.userId = userId;
                 return this;
             }
 
-            public UserContextBuilder companyId(Integer companyId) {
+            public Builder companyId(Integer companyId) {
                 this.companyId = companyId;
                 return this;
             }
 
-            public UserContextBuilder fullName(String fullName) {
+            public Builder fullName(String fullName) {
                 this.fullName = fullName;
                 return this;
             }

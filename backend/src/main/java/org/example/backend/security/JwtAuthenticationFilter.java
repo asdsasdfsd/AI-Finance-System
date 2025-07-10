@@ -38,18 +38,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        // 获取请求URI
+        // Get request URI
         String requestURI = request.getRequestURI();
         
-        // 临时：对于开发测试，跳过所有API请求的JWT验证
-        if (requestURI.startsWith("/api/")) {
-            logger.debug("Skipping JWT validation for development: {}", requestURI);
-            filterChain.doFilter(request, response);
-            return;
-        }
-
-        // Skip JWT filter for SSO callback endpoints and login endpoints
+        // Skip JWT filter for public endpoints only
         if (isPublicEndpoint(requestURI)) {
+            logger.debug("Skipping JWT validation for public endpoint: {}", requestURI);
             filterChain.doFilter(request, response);
             return;
         }
@@ -65,6 +59,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             jwt = authorizationHeader.substring(7);
             try {
                 username = jwtUtil.extractUsername(jwt);
+                logger.debug("Extracted username from JWT: {}", username);
             } catch (ExpiredJwtException e) {
                 logger.info("JWT token has expired: {}", e.getMessage());
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -74,24 +69,35 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             } catch (MalformedJwtException e) {
                 logger.error("Invalid JWT token: {}", e.getMessage());
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.getWriter().write("{\"status\":\"error\",\"error\":{\"code\":\"AUTH-SEC-003\",\"message\":\"Invalid token format.\"}}");
                 return;
             } catch (UnsupportedJwtException e) {
                 logger.error("JWT token is unsupported: {}", e.getMessage());
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.getWriter().write("{\"status\":\"error\",\"error\":{\"code\":\"AUTH-SEC-004\",\"message\":\"Unsupported token type.\"}}");
                 return;
             } catch (SignatureException e) {
                 logger.error("Invalid JWT signature: {}", e.getMessage());
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.getWriter().write("{\"status\":\"error\",\"error\":{\"code\":\"AUTH-SEC-005\",\"message\":\"Invalid token signature.\"}}");
                 return;
             } catch (IllegalArgumentException e) {
                 logger.error("JWT claims string is empty: {}", e.getMessage());
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.getWriter().write("{\"status\":\"error\",\"error\":{\"code\":\"AUTH-SEC-006\",\"message\":\"Invalid token claims.\"}}");
                 return;
             } catch (Exception e) {
                 logger.error("JWT token error: {}", e.getMessage());
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.getWriter().write("{\"status\":\"error\",\"error\":{\"code\":\"AUTH-SEC-001\",\"message\":\"Token validation failed.\"}}");
                 return;
             }
+        } else {
+            // No Authorization header found for protected endpoint
+            logger.warn("Missing Authorization header for protected endpoint: {}", requestURI);
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.getWriter().write("{\"status\":\"error\",\"error\":{\"code\":\"AUTH-SEC-007\",\"message\":\"Authorization header required.\"}}");
+            return;
         }
 
         // If we found a valid token and there's no authentication yet
@@ -101,15 +107,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 // Validate the token
                 if (jwtUtil.validateToken(jwt, userDetails)) {
+                    // Create authentication token with JWT as credentials for later access
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                            userDetails, null, userDetails.getAuthorities());
+                            userDetails, jwt, userDetails.getAuthorities());
                     
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
+                    logger.debug("Successfully authenticated user: {}", username);
+                } else {
+                    logger.warn("Token validation failed for user: {}", username);
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.getWriter().write("{\"status\":\"error\",\"error\":{\"code\":\"AUTH-SEC-008\",\"message\":\"Token validation failed.\"}}");
+                    return;
                 }
             } catch (Exception e) {
-                logger.error("Authentication error: {}", e.getMessage());
-                // Don't set authentication in case of errors
+                logger.error("Authentication error for user {}: {}", username, e.getMessage());
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.getWriter().write("{\"status\":\"error\",\"error\":{\"code\":\"AUTH-SEC-009\",\"message\":\"Authentication failed.\"}}");
+                return;
             }
         }
         
@@ -124,9 +139,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      */
     private boolean isPublicEndpoint(String requestURI) {
         return requestURI.contains("/api/auth/") || 
-               requestURI.contains("/api/public/") || 
-               requestURI.contains("/api/sso/") || 
-               requestURI.equals("/") ||
-               requestURI.contains("/error");
+            requestURI.contains("/api/public/") || 
+            requestURI.contains("/api/sso/") || 
+            requestURI.contains("/api/health") ||     // 新增
+            requestURI.equals("/api/health") ||       // 新增
+            requestURI.equals("/health") ||           // 新增
+            requestURI.equals("/") ||
+            requestURI.contains("/error") ||
+            requestURI.contains("/actuator") ||
+            requestURI.contains("/swagger") ||
+            requestURI.contains("/v3/api-docs");
     }
 }
