@@ -58,11 +58,10 @@ public class OpenAIServiceImpl implements AIService {
 
         // 示例解析，可根据需要提取raw中的字段
         return AIClassificationResult.builder()
-                .suggestedCategory("TRAVEL_EXPENSE")
+                .category("TRAVEL_EXPENSE")
                 .confidence(0.91)
                 .reason("Based on similarity to other travel descriptions.")
                 .alternativeCategories(List.of("FOOD_EXPENSE", "LODGING_EXPENSE"))
-                .needsManualReview(false)
                 .build();
     }
 
@@ -85,10 +84,9 @@ public class OpenAIServiceImpl implements AIService {
         String raw = callOpenAI(prompt);
 
         return AIAnomalyDetectionResult.builder()
-                .isAnomalous(true)
+                .anomalous(true)
                 .anomalyScore(0.88)
                 .anomalyType("Unusual time")
-                .description("Transaction at an unusual time of day.")
                 .recommendations(List.of("Flag for review"))
                 .build();
     }
