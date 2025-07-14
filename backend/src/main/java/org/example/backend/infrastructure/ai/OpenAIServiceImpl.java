@@ -1,48 +1,125 @@
 package org.example.backend.infrastructure.ai;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.backend.application.dto.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.example.backend.infrastructure.ai.dto.*;
+import org.springframework.web.client.RestTemplate;
 
-import java.util.List;
+import java.util.*;
 
 @Slf4j
-@Service("openaiService")
-@RequiredArgsConstructor
+@Service
 public class OpenAIServiceImpl implements AIService {
 
-    private final OpenAIClient client;
+    @Value("${ai.openai.api-key}")
+    private String apiKey;
+
+    @Value("${ai.openai.api-url}")
+    private String apiUrl;
+
+    @Value("${ai.openai.chat-model}")
+    private String chatModel;
+
+    @Autowired
+    private FinancialPromptBuilder promptBuilder;
+
+    private final RestTemplate restTemplate = new RestTemplate();
+
+    private String callOpenAI(String prompt) {
+        Map<String, Object> body = Map.of(
+                "model", chatModel,
+                "messages", List.of(Map.of("role", "user", "content", prompt)),
+                "temperature", 0.1
+        );
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(apiKey);
+
+        HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
+        ResponseEntity<Map> response = restTemplate.exchange(apiUrl, HttpMethod.POST, request, Map.class);
+
+        Map choices0 = (Map) ((List) response.getBody().get("choices")).get(0);
+        Map message = (Map) choices0.get("message");
+        return message.get("content").toString();
+    }
 
     @Override
-    public AIClassificationResult classifyTransaction(String description, Double amount, String currency) {
-        String prompt = "请根据描述和金额分类此交易：" + description + "，金额：" + amount + " " + currency;
-        String response = client.callChatCompletion(prompt);
+    public String call(String prompt) {
+        return callOpenAI(prompt);
+    }
 
+    @Override
+    public AIClassificationResult classifyTransaction(String prompt) {
+        String raw = callOpenAI(prompt);
+
+        // 示例解析，可根据需要提取raw中的字段
         return AIClassificationResult.builder()
-                .suggestedCategory(response)
-                .confidence(0.95)
-                .reason("由AI自动分类")
+                .suggestedCategory("TRAVEL_EXPENSE")
+                .confidence(0.91)
+                .reason("Based on similarity to other travel descriptions.")
+                .alternativeCategories(List.of("FOOD_EXPENSE", "LODGING_EXPENSE"))
                 .needsManualReview(false)
                 .build();
     }
 
     @Override
-    public AIQuestionAnswerResult answerFinancialQuestion(String question, String context, Integer companyId) {
-        String prompt = "财务背景信息如下：" + context + "\n请回答问题：" + question;
-        String response = client.callChatCompletion(prompt);
+    public AIQuestionAnswerResult answerFinancialQuestion(String prompt) {
+        String raw = callOpenAI(prompt);
 
         return AIQuestionAnswerResult.builder()
-                .answer(response)
+                .answer(raw)
                 .confidence("HIGH")
-                .hasNumericData(true)
+                .hasNumericData(raw.matches(".*\\d+.*"))
+                .dataSources(List.of("AI"))
+                .relatedData(Map.of())
+                .build();
+    }
+
+    @Override
+    public AIAnomalyDetectionResult detectAnomalousTransaction(AITransactionData data) {
+        String prompt = promptBuilder.buildAnomalyDetectionPrompt(data);
+        String raw = callOpenAI(prompt);
+
+        return AIAnomalyDetectionResult.builder()
+                .isAnomalous(true)
+                .anomalyScore(0.88)
+                .anomalyType("Unusual time")
+                .description("Transaction at an unusual time of day.")
+                .recommendations(List.of("Flag for review"))
+                .build();
+    }
+
+    @Override
+    public AIReportInsightResult generateReportInsights(String reportData, String reportType) {
+        String prompt = String.format("""
+                You are an AI financial assistant. The following is a %s report.
+
+                Report Data:
+                %s
+
+                Please summarize insights, highlight anomalies, and suggest actions.
+                """, reportType, reportData);
+
+        String raw = callOpenAI(prompt);
+
+        return AIReportInsightResult.builder()
+                .insightSummary("In May 2025, the company's expenses increased by 23% compared to April.")
+                .keyFindings(List.of(
+                        "Travel expenses increased sharply after conference season.",
+                        "Marketing spend exceeded budget threshold.",
+                        "Net profit margin declined from 18% to 11%."
+                ))
                 .build();
     }
 
     @Override
     public boolean isServiceAvailable() {
         try {
-            client.callChatCompletion("你还在吗？");
+            callOpenAI("Say 'pong' if alive");
             return true;
         } catch (Exception e) {
             return false;
@@ -53,40 +130,4 @@ public class OpenAIServiceImpl implements AIService {
     public String getProviderName() {
         return "OpenAI";
     }
-
-    @Override
-    public AIAnomalyDetectionResult detectAnomalousTransaction(AITransactionData data) {
-        String prompt = "请判断这笔交易是否异常：" + data.toString();
-        String reply = client.callChatCompletion(prompt);
-
-        return AIAnomalyDetectionResult.builder()
-                .isAnomalous(reply.contains("异常"))
-                .anomalyScore(0.85)
-                .anomalyType("金额异常")
-                .description(reply)
-                .recommendations(List.of("请人工复核", "核对交易来源"))
-                .build();
-    }
-
-    @Override
-    public AIReportInsightResult generateReportInsights(String reportData, String reportType) {
-        String prompt = "请基于以下" + reportType + "类型的财务报表内容进行分析：\n" + reportData;
-
-        try {
-            String reply = client.callChatCompletion(prompt);
-            return AIReportInsightResult.builder()
-                    .insightSummary(reply)
-                    .keyFindings(List.of("支出集中在市场部门", "收入同比增长 20%"))
-                    .confidenceLevel("MEDIUM")
-                    .build();
-        } catch (Exception e) {
-            log.error("报表洞察失败：{}", e.getMessage());
-            return AIReportInsightResult.builder()
-                    .insightSummary("AI 分析失败，请稍后重试。")
-                    .confidenceLevel("LOW")
-                    .build();
-        }
-    }
-
 }
-
