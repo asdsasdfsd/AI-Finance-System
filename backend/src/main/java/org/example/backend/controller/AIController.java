@@ -1,121 +1,63 @@
-// backend/src/main/java/org/example/backend/controller/AIController.java
 package org.example.backend.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.example.backend.application.dto.*;
 import org.example.backend.application.service.AIApplicationService;
-import org.example.backend.dto.QuestionRequest;
-import org.example.backend.dto.ReportRequest;
-import org.example.backend.infrastructure.ai.dto.AITransactionData;
-import org.example.backend.infrastructure.ai.dto.AIClassificationResult;
-import org.example.backend.infrastructure.ai.dto.AIQuestionAnswerResult;
-import org.example.backend.infrastructure.ai.dto.AIAnomalyDetectionResult;
-import org.example.backend.infrastructure.ai.dto.AIReportInsightResult;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
-/**
- * AI Controller
- * 
- * REST API endpoints for AI-powered financial features
- * Provides intelligent transaction classification, anomaly detection,
- * financial Q&A, and report insights
- */
 @RestController
 @RequestMapping("/api/ai")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:3000")
 public class AIController {
 
     private final AIApplicationService aiApplicationService;
 
     /**
-     * 🧠 Intelligent transaction classification
-     * 
-     * @param data Transaction data to classify
-     * @return AI classification result
+     * 增强交易（分类+异常检测）
      */
-    @PostMapping("/classify")
-    public ResponseEntity<AIClassificationResult> classifyTransaction(@RequestBody AITransactionData data) {
-        try {
-            AIClassificationResult result = aiApplicationService
-                    .enhanceTransactionCreation(data.toCreateTransactionCommand())
-                    .getAiClassification();
-            return ResponseEntity.ok(result);
-        } catch (Exception e) {
-            // Return error response if classification fails
-            return ResponseEntity.badRequest().build();
-        }
+    @PostMapping("/enhance-transaction")
+    public EnhancedTransactionDTO enhanceTransaction(@RequestBody CreateTransactionCommand command) {
+        return aiApplicationService.enhanceTransactionCreation(command);
     }
 
     /**
-     * 💬 Financial intelligent Q&A
-     * 
-     * @param request Question request containing the financial question
-     * @return AI answer result
+     * 财务智能问答
      */
-    @PostMapping("/ask")
-    public ResponseEntity<AIQuestionAnswerResult> askQuestion(@RequestBody QuestionRequest request) {
-        try {
-            AIQuestionAnswerResult result = aiApplicationService
-                    .askFinancialQuestion(request.toCommand());
-            return ResponseEntity.ok(result);
-        } catch (Exception e) {
-            // Return error response if Q&A fails
-            return ResponseEntity.badRequest().build();
-        }
+    @PostMapping("/ask-financial-question")
+    public FinancialQuestionAnswerDTO askFinancialQuestion(@RequestBody FinancialQuestionCommand command) {
+        return aiApplicationService.askFinancialQuestion(command);
     }
 
     /**
-     * ⚠️ Anomalous transaction detection
-     * 
-     * @param data Transaction data to analyze for anomalies
-     * @return AI anomaly detection result
+     * 获取分类建议（静态模拟）
      */
-    @PostMapping("/detect")
-    public ResponseEntity<AIAnomalyDetectionResult> detectAnomaly(@RequestBody AITransactionData data) {
-        try {
-            List<AIAnomalyDetectionResult> results = aiApplicationService
-                    .detectAnomalousTransaction(data);
-            
-            if (results.isEmpty()) {
-                return ResponseEntity.noContent().build();
-            }
-            
-            // Return first result (simplified approach)
-            return ResponseEntity.ok(results.get(0));
-        } catch (Exception e) {
-            // Return error response if detection fails
-            return ResponseEntity.badRequest().build();
-        }
+    @PostMapping("/category-suggestions")
+    public List<CategorySuggestionDTO> getCategorySuggestions(@RequestBody CategorySuggestionCommand command) {
+        return aiApplicationService.getTransactionCategorySuggestions(command);
     }
 
     /**
-     * 📈 Report AI insights (optional feature)
-     * 
-     * @param request Report request containing data and type
-     * @return AI report insight result
+     * 批量异常交易检测
      */
-    @PostMapping("/report")
-    public ResponseEntity<AIReportInsightResult> reportInsight(@RequestBody ReportRequest request) {
-        try {
-            AIReportInsightResult result = aiApplicationService
-                    .generateReportInsights(request.getReportData(), request.getReportType());
-            return ResponseEntity.ok(result);
-        } catch (Exception e) {
-            // Return error response if insights generation fails
-            return ResponseEntity.badRequest().build();
-        }
+    @GetMapping("/detect-anomalies")
+    public List<AnomalousTransactionDTO> detectAnomalousTransactions(
+            @RequestParam Integer companyId,
+            @RequestParam String startDate,
+            @RequestParam String endDate) {
+        DateRange dateRange = new DateRange(LocalDate.parse(startDate), LocalDate.parse(endDate));
+        return aiApplicationService.detectAnomalousTransactions(companyId, dateRange);
     }
 
     /**
-     * Health check endpoint for AI services
-     * 
-     * @return Simple health status
+     * 智能生成财务报表洞察
      */
-    @GetMapping("/health")
-    public ResponseEntity<String> healthCheck() {
-        return ResponseEntity.ok("AI services are running");
+    @GetMapping("/report-insights")
+    public String generateReportInsights(
+            @RequestParam String reportData,
+            @RequestParam String reportType) {
+        return aiApplicationService.generateReportInsights(reportData, reportType);
     }
 }

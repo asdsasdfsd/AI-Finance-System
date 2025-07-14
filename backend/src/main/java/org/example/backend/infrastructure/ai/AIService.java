@@ -1,6 +1,6 @@
 package org.example.backend.infrastructure.ai;
 
-import org.example.backend.infrastructure.ai.dto.*;
+import org.example.backend.application.dto.*;
 
 public interface AIService {
 
@@ -38,8 +38,12 @@ public interface AIService {
     AIReportInsightResult generateReportInsights(String reportData, String reportType);
 
     /**
-     * 服务健康检查
-     * @return true 表示服务可用
+     * 通用 Prompt 调用
+     */
+    String call(String prompt);
+
+    /**
+     * 健康检查
      */
     boolean isServiceAvailable();
 

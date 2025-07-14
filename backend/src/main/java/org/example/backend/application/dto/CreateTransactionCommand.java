@@ -1,5 +1,3 @@
-// backend/src/main/java/org/example/backend/application/dto/CreateTransactionCommand.java
-// 3. 修复 CreateTransactionCommand.java
 package org.example.backend.application.dto;
 
 import lombok.Builder;
@@ -24,11 +22,15 @@ public class CreateTransactionCommand {
     private String referenceNumber;
     private Boolean isRecurring;
     private Boolean isTaxable;
-    
+
     // External references
     private Integer companyId;
     private Integer userId;
     private Integer departmentId;
     private Integer fundId;
     private Integer categoryId;
+
+    // AI 需要的字段
+    private String transactionType; // INCOME / EXPENSE
+    private String categoryCode;  
 }
