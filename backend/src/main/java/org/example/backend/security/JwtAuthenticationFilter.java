@@ -38,65 +38,69 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        // Get request URI
         String requestURI = request.getRequestURI();
         
-        // Skip JWT filter for public endpoints only
+        // Skip JWT filter for public endpoints
         if (isPublicEndpoint(requestURI)) {
             logger.debug("Skipping JWT validation for public endpoint: {}", requestURI);
             filterChain.doFilter(request, response);
             return;
         }
+        
+        // For development mode, allow bypassing authentication for test endpoints
+        if (isDevelopmentMode() && requestURI.startsWith("/api/debug/")) {
+            logger.debug("Skipping JWT validation for debug endpoint in dev mode: {}", requestURI);
+            filterChain.doFilter(request, response);
+            return;
+        }
 
-        // Extract Authorization header
-        final String authorizationHeader = request.getHeader("Authorization");
-
+        final String requestTokenHeader = request.getHeader("Authorization");
+        
         String username = null;
         String jwt = null;
 
-        // Check if the Authorization header exists and has the correct format
-        if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
-            jwt = authorizationHeader.substring(7);
+        // Check if Authorization header exists and is properly formatted
+        if (requestTokenHeader != null && requestTokenHeader.startsWith("Bearer ")) {
+            jwt = requestTokenHeader.substring(7);
+            
             try {
                 username = jwtUtil.extractUsername(jwt);
                 logger.debug("Extracted username from JWT: {}", username);
             } catch (ExpiredJwtException e) {
-                logger.info("JWT token has expired: {}", e.getMessage());
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.setHeader("X-JWT-Expired", "true");
-                response.getWriter().write("{\"status\":\"error\",\"error\":{\"code\":\"AUTH-SEC-002\",\"message\":\"Session has expired. Please login again.\"}}");
+                logger.warn("JWT token has expired: {}", e.getMessage());
+                writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, 
+                    "AUTH-SEC-001", "JWT token has expired. Please login again.");
                 return;
             } catch (MalformedJwtException e) {
                 logger.error("Invalid JWT token: {}", e.getMessage());
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.getWriter().write("{\"status\":\"error\",\"error\":{\"code\":\"AUTH-SEC-003\",\"message\":\"Invalid token format.\"}}");
+                writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, 
+                    "AUTH-SEC-002", "Invalid JWT token format.");
                 return;
             } catch (UnsupportedJwtException e) {
                 logger.error("JWT token is unsupported: {}", e.getMessage());
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.getWriter().write("{\"status\":\"error\",\"error\":{\"code\":\"AUTH-SEC-004\",\"message\":\"Unsupported token type.\"}}");
+                writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, 
+                    "AUTH-SEC-003", "Unsupported JWT token.");
                 return;
             } catch (SignatureException e) {
                 logger.error("Invalid JWT signature: {}", e.getMessage());
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.getWriter().write("{\"status\":\"error\",\"error\":{\"code\":\"AUTH-SEC-005\",\"message\":\"Invalid token signature.\"}}");
+                writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, 
+                    "AUTH-SEC-004", "Invalid JWT signature.");
                 return;
             } catch (IllegalArgumentException e) {
                 logger.error("JWT claims string is empty: {}", e.getMessage());
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.getWriter().write("{\"status\":\"error\",\"error\":{\"code\":\"AUTH-SEC-006\",\"message\":\"Invalid token claims.\"}}");
+                writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, 
+                    "AUTH-SEC-005", "Empty JWT claims.");
                 return;
             } catch (Exception e) {
                 logger.error("JWT token error: {}", e.getMessage());
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.getWriter().write("{\"status\":\"error\",\"error\":{\"code\":\"AUTH-SEC-001\",\"message\":\"Token validation failed.\"}}");
+                writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, 
+                    "AUTH-SEC-006", "JWT token processing error.");
                 return;
             }
         } else {
-            // No Authorization header found for protected endpoint
-            logger.warn("Missing Authorization header for protected endpoint: {}", requestURI);
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write("{\"status\":\"error\",\"error\":{\"code\":\"AUTH-SEC-007\",\"message\":\"Authorization header required.\"}}");
+            logger.warn("No Authorization header found or invalid format for URI: {}", requestURI);
+            writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, 
+                "AUTH-SEC-007", "Authorization header required.");
             return;
         }
 
@@ -107,23 +111,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 // Validate the token
                 if (jwtUtil.validateToken(jwt, userDetails)) {
-                    // Create authentication token with JWT as credentials for later access
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                            userDetails, jwt, userDetails.getAuthorities());
+                            userDetails, null, userDetails.getAuthorities());
                     
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
+                    
                     logger.debug("Successfully authenticated user: {}", username);
                 } else {
-                    logger.warn("Token validation failed for user: {}", username);
-                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                    response.getWriter().write("{\"status\":\"error\",\"error\":{\"code\":\"AUTH-SEC-008\",\"message\":\"Token validation failed.\"}}");
+                    logger.warn("JWT token validation failed for user: {}", username);
+                    writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, 
+                        "AUTH-SEC-008", "JWT token validation failed.");
                     return;
                 }
             } catch (Exception e) {
                 logger.error("Authentication error for user {}: {}", username, e.getMessage());
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.getWriter().write("{\"status\":\"error\",\"error\":{\"code\":\"AUTH-SEC-009\",\"message\":\"Authentication failed.\"}}");
+                writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, 
+                    "AUTH-SEC-009", "User authentication failed.");
                 return;
             }
         }
@@ -139,15 +143,45 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      */
     private boolean isPublicEndpoint(String requestURI) {
         return requestURI.contains("/api/auth/") || 
-            requestURI.contains("/api/public/") || 
-            requestURI.contains("/api/sso/") || 
-            requestURI.contains("/api/health") ||     // 新增
-            requestURI.equals("/api/health") ||       // 新增
-            requestURI.equals("/health") ||           // 新增
-            requestURI.equals("/") ||
-            requestURI.contains("/error") ||
-            requestURI.contains("/actuator") ||
-            requestURI.contains("/swagger") ||
-            requestURI.contains("/v3/api-docs");
+               requestURI.contains("/api/public/") || 
+               requestURI.contains("/api/sso/") ||
+               requestURI.equals("/api/test/hello") ||  // Allow health check
+               requestURI.contains("/h2-console") ||
+               requestURI.contains("/actuator/health") ||
+               requestURI.equals("/") ||
+               requestURI.contains("/error");
+    }
+    
+    /**
+     * Check if application is running in development mode
+     * 
+     * @return true if in development mode
+     */
+    private boolean isDevelopmentMode() {
+        String activeProfiles = System.getProperty("spring.profiles.active", "");
+        return activeProfiles.contains("dev") || activeProfiles.contains("development");
+    }
+    
+    /**
+     * Write error response in JSON format
+     * 
+     * @param response HTTP response
+     * @param status HTTP status code
+     * @param errorCode Application error code
+     * @param message Error message
+     * @throws IOException if writing fails
+     */
+    private void writeErrorResponse(HttpServletResponse response, int status, String errorCode, String message) 
+            throws IOException {
+        response.setStatus(status);
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
+        
+        String jsonResponse = String.format(
+            "{\"status\":\"error\",\"error\":{\"code\":\"%s\",\"message\":\"%s\"}}",
+            errorCode, message
+        );
+        
+        response.getWriter().write(jsonResponse);
     }
 }
