@@ -2,6 +2,14 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Table, DatePicker, InputNumber, Button, message, Card, Row, Col, Space } from 'antd';
 import dayjs from 'dayjs';
+import AuthService from '../../services/authService';
+
+const getAuthHeader = () => {
+  const user = AuthService.getCurrentUser();
+  return user && user.token
+    ? { headers: { Authorization: `Bearer ${user.token}` } }
+    : {};
+};
 
 const IncomeExpenseReport = () => {
   const [companyId, setCompanyId] = useState(1);
@@ -13,6 +21,7 @@ const IncomeExpenseReport = () => {
     setLoading(true);
     try {
       const res = await axios.get('/api/financial-report/json', {
+        ...getAuthHeader(),
         params: {
           companyId,
           asOfDate: asOfDate.format('YYYY-MM-DD')
@@ -29,6 +38,7 @@ const IncomeExpenseReport = () => {
   const handleExport = async () => {
     try {
       const res = await axios.get('/api/financial-report/export', {
+        ...getAuthHeader(),
         params: {
           companyId,
           asOfDate: asOfDate.format('YYYY-MM-DD')
