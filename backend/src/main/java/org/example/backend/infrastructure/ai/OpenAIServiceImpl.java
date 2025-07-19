@@ -16,13 +16,13 @@ import java.util.Map;
 @Service
 public class OpenAIServiceImpl implements AIService {
 
-    @Value("${ai.openai.api-key}")
+    @Value("${openai.api.key:dummy_key}")
     private String apiKey;
 
-    @Value("${ai.openai.api-url}")
+    @Value("${ai.openai.api-url:https://api.openai.com/v1/chat/completions}")
     private String apiUrl;
 
-    @Value("${ai.openai.chat-model}")
+    @Value("${ai.openai.chat-model:gpt-3.5-turbo}")
     private String chatModel;
 
     @Autowired
