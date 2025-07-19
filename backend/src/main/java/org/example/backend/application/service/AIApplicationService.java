@@ -1,3 +1,4 @@
+// backend/src/main/java/org/example/backend/application/service/AIApplicationService.java
 package org.example.backend.application.service;
 
 import lombok.RequiredArgsConstructor;
@@ -9,6 +10,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -19,110 +21,205 @@ public class AIApplicationService {
     private final FinancialPromptBuilder promptBuilder;
 
     /**
-     * 增强交易创建流程
+     * Enhanced transaction creation flow
      */
     public EnhancedTransactionDTO enhanceTransactionCreation(CreateTransactionCommand command) {
-    AITransactionData aiData = AITransactionData.builder()
-            .description(command.getDescription())
-            .amount(command.getAmount().doubleValue())
-            .currency(command.getCurrency())
-            .transactionType("EXPENSE")
-            .companyId(command.getCompanyId())
-            .transactionDate(command.getTransactionDate())
-            .category("GENERAL")
-            .build();
+        try {
+            // Call AI service with correct parameters
+            AIClassificationResult classificationResult = aiService.classifyTransaction(
+                command.getDescription(),
+                command.getAmount().doubleValue(),
+                command.getCurrency()
+            );
 
-    // String classifyPrompt = promptBuilder.buildClassificationPrompt(aiData);
-    // AIClassificationResult classificationResult = aiService.classifyTransaction(classifyPrompt);
-    // AIAnomalyDetectionResult anomalyResult = aiService.detectAnomalousTransaction(aiData);
+            // Build transaction data for anomaly detection
+            AITransactionData aiData = AITransactionData.builder()
+                    .description(command.getDescription())
+                    .amount(command.getAmount().doubleValue())
+                    .currency(command.getCurrency())
+                    .transactionType("EXPENSE")
+                    .companyId(command.getCompanyId())
+                    .transactionDate(command.getTransactionDate())
+                    .category(classificationResult.getCategory())
+                    .build();
 
-    // ✅ 使用 mock 结果代替真实 OpenAI 调用
-    AIClassificationResult classificationResult = AIClassificationResult.builder()
-            .category("FOOD_EXPENSE")
-            .confidence(0.88)
-            .reason("包含关键词 'lunch'")
-            .alternativeCategories(List.of("TRAVEL_EXPENSE", "OFFICE_SUPPLIES"))
-            .requireReview(false)
-            .build();
+            AIAnomalyDetectionResult anomalyResult = aiService.detectAnomalousTransaction(aiData);
 
-    AIAnomalyDetectionResult anomalyResult = AIAnomalyDetectionResult.builder()
-            .anomalous(false)
-            .anomalyScore(0.12)
-            .anomalyType("none")
-            .recommendations(List.of("No action needed"))
-            .build();
+            return EnhancedTransactionDTO.builder()
+                    .originalTransaction(null) // Can be populated with actual transaction object
+                    .aiClassification(classificationResult)
+                    .anomalyDetection(anomalyResult)
+                    .aiEnhanced(true)
+                    .enhancementTimestamp(LocalDateTime.now().toString())
+                    .build();
+        } catch (Exception e) {
+            // Fallback to mock data if AI service fails
+            AIClassificationResult fallbackClassification = AIClassificationResult.builder()
+                    .category("GENERAL_EXPENSE")
+                    .confidence(0.5)
+                    .reason("AI service unavailable, using default classification")
+                    .alternativeCategories(List.of("EXPENSE"))
+                    .requireReview(true)
+                    .build();
 
-    return EnhancedTransactionDTO.builder()
-            .originalTransaction(null) // 可补充真实交易对象
-            .aiClassification(classificationResult)
-            .anomalyDetection(anomalyResult)
-            .aiEnhanced(true)
-            .enhancementTimestamp(LocalDateTime.now().toString())
-            .build();
-}
+            AIAnomalyDetectionResult fallbackAnomaly = AIAnomalyDetectionResult.builder()
+                    .anomalous(false)
+                    .anomalyScore(0.0)
+                    .anomalyType("unknown")
+                    .recommendations(List.of("Manual review recommended"))
+                    .build();
+
+            return EnhancedTransactionDTO.builder()
+                    .originalTransaction(null)
+                    .aiClassification(fallbackClassification)
+                    .anomalyDetection(fallbackAnomaly)
+                    .aiEnhanced(false)
+                    .enhancementTimestamp(LocalDateTime.now().toString())
+                    .build();
+        }
+    }
 
     /**
-     * 财务问答
+     * Financial Q&A functionality
      */
     public FinancialQuestionAnswerDTO askFinancialQuestion(FinancialQuestionCommand questionCommand) {
-        String context = aiDataService.buildFinancialContext(
-                questionCommand.getCompanyId(),
-                questionCommand.getStartDate() != null ? questionCommand.getStartDate() : LocalDate.now().minusMonths(1),
-                questionCommand.getEndDate() != null ? questionCommand.getEndDate() : LocalDate.now()
-        );
+        try {
+            String context = aiDataService.buildFinancialContext(
+                    questionCommand.getCompanyId(),
+                    questionCommand.getStartDate() != null ? 
+                        questionCommand.getStartDate() : LocalDate.now().minusMonths(1),
+                    questionCommand.getEndDate() != null ? 
+                        questionCommand.getEndDate() : LocalDate.now()
+            );
 
-        String prompt = promptBuilder.buildQuestionPrompt(questionCommand.getQuestion(), context);
-        AIQuestionAnswerResult answerResult = aiService.answerFinancialQuestion(prompt);
+            // Call AI service with correct parameters (question, context, companyId)
+            AIQuestionAnswerResult answerResult = aiService.answerFinancialQuestion(
+                questionCommand.getQuestion(),
+                context,
+                questionCommand.getCompanyId()
+            );
 
-        return FinancialQuestionAnswerDTO.builder()
-                .answer(answerResult.getAnswer())
-                .confidence(answerResult.getConfidence())
-                .hasNumericData(answerResult.isHasNumericData())
-                .dataSources(answerResult.getDataSources())
-                .relatedData(answerResult.getRelatedData())
-                .build();
+            return FinancialQuestionAnswerDTO.builder()
+                    .answer(answerResult.getAnswer())
+                    .confidence(answerResult.getConfidence())
+                    .hasNumericData(answerResult.isHasNumericData())
+                    .dataSources(answerResult.getDataSources())
+                    .relatedData(answerResult.getRelatedData())
+                    .build();
+        } catch (Exception e) {
+            // Fallback response if AI service fails
+            return FinancialQuestionAnswerDTO.builder()
+                    .answer("I'm sorry, I'm unable to process your question at the moment. Please try again later.")
+                    .confidence("LOW")
+                    .hasNumericData(false)
+                    .dataSources(List.of("Error"))
+                    .relatedData(Map.of())
+                    .build();
+        }
     }
 
     /**
-     * 获取交易分类建议
+     * Get transaction category suggestions
      */
     public List<CategorySuggestionDTO> getTransactionCategorySuggestions(CategorySuggestionCommand suggestionCommand) {
-        // 静态建议模拟
-        return List.of(
-                CategorySuggestionDTO.builder().categoryCode("TRAVEL_EXPENSE").categoryName("Travel").chineseName("差旅").confidence(0.92).reason("描述包含'差旅'关键词").build(),
-                CategorySuggestionDTO.builder().categoryCode("FOOD_EXPENSE").categoryName("Food").chineseName("餐饮").confidence(0.81).reason("可能与员工餐费相关").build()
-        );
+        try {
+            // Use AI service for real suggestions
+            AIClassificationResult classification = aiService.classifyTransaction(
+                suggestionCommand.getDescription(),
+                suggestionCommand.getAmount(),
+                suggestionCommand.getCurrency()
+            );
+
+            // Convert AI result to suggestions format
+            return List.of(
+                    CategorySuggestionDTO.builder()
+                            .categoryCode(classification.getCategory())
+                            .categoryName(classification.getCategory().replace("_", " "))
+                            .chineseName(getCategoryChineseName(classification.getCategory()))
+                            .confidence(classification.getConfidence())
+                            .reason(classification.getReason())
+                            .build()
+            );
+        } catch (Exception e) {
+            // Static fallback suggestions
+            return List.of(
+                    CategorySuggestionDTO.builder()
+                            .categoryCode("TRAVEL_EXPENSE")
+                            .categoryName("Travel")
+                            .chineseName("差旅")
+                            .confidence(0.92)
+                            .reason("描述包含'差旅'关键词")
+                            .build(),
+                    CategorySuggestionDTO.builder()
+                            .categoryCode("FOOD_EXPENSE")
+                            .categoryName("Food")
+                            .chineseName("餐饮")
+                            .confidence(0.81)
+                            .reason("可能与员工餐费相关")
+                            .build()
+            );
+        }
     }
 
     /**
-     * 检测异常交易
+     * Detect anomalous transactions
      */
     public List<AnomalousTransactionDTO> detectAnomalousTransactions(Integer companyId, DateRange dateRange) {
-        List<AITransactionData> transactions = aiDataService.getTransactionsInRange(companyId, dateRange);
+        try {
+            List<AITransactionData> transactions = aiDataService.getTransactionsInRange(companyId, dateRange);
 
-        return transactions.stream()
-                .map(txn -> {
-                    AIAnomalyDetectionResult result = aiService.detectAnomalousTransaction(txn);
-                    if (result.isAnomalous()) {
-                        return AnomalousTransactionDTO.builder()
-                                .description(txn.getDescription())
-                                .amount(txn.getAmount())
-                                .transactionDate(txn.getTransactionDate())
-                                .category(txn.getCategory())
-                                .anomalyScore(result.getAnomalyScore())
-                                .anomalyType(result.getAnomalyType())
-                                .recommendations(result.getRecommendations())
-                                .build();
-                    } else return null;
-                })
-                .filter(x -> x != null)
-                .toList();
+            return transactions.stream()
+                    .map(txn -> {
+                        try {
+                            AIAnomalyDetectionResult result = aiService.detectAnomalousTransaction(txn);
+                            if (result.isAnomalous()) {
+                                return AnomalousTransactionDTO.builder()
+                                        .description(txn.getDescription())
+                                        .amount(txn.getAmount())
+                                        .transactionDate(txn.getTransactionDate())
+                                        .category(txn.getCategory())
+                                        .anomalyScore(result.getAnomalyScore())
+                                        .anomalyType(result.getAnomalyType())
+                                        .recommendations(result.getRecommendations())
+                                        .build();
+                            }
+                        } catch (Exception e) {
+                            // Log error but continue processing other transactions
+                            System.err.println("Error processing transaction: " + e.getMessage());
+                        }
+                        return null;
+                    })
+                    .filter(x -> x != null)
+                    .toList();
+        } catch (Exception e) {
+            // Return empty list if service fails
+            return List.of();
+        }
     }
 
     /**
-     * 生成报表洞察
+     * Generate report insights
      */
     public String generateReportInsights(String reportData, String reportType) {
-        return aiService.generateReportInsights(reportData, reportType).getInsightSummary();
+        try {
+            return aiService.generateReportInsights(reportData, reportType).getInsightSummary();
+        } catch (Exception e) {
+            return "Unable to generate insights at this time. Please try again later.";
+        }
+    }
+
+    /**
+     * Helper method to get Chinese category names
+     */
+    private String getCategoryChineseName(String categoryCode) {
+        return switch (categoryCode) {
+            case "TRAVEL_EXPENSE" -> "差旅";
+            case "FOOD_EXPENSE" -> "餐饮";
+            case "OFFICE_SUPPLIES" -> "办公用品";
+            case "MARKETING_EXPENSE" -> "市场营销";
+            case "UTILITIES" -> "水电费";
+            case "RENT" -> "租金";
+            default -> "其他";
+        };
     }
 }
