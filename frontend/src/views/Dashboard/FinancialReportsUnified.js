@@ -425,30 +425,6 @@ const FinancialReportsUnified = () => {
     );
   };
 
-  const renderIncomeExpensePreview = () => {
-    if (!reportData || !Array.isArray(reportData)) return null;
-
-    const columns = [
-      { title: 'Type', dataIndex: 'type', key: 'type' },
-      { title: 'Category', dataIndex: 'category', key: 'category' },
-      { title: 'Description', dataIndex: 'description', key: 'description' },
-      { title: 'Current Month', dataIndex: 'currentMonth', key: 'currentMonth',
-        render: (value) => `$${Number(value || 0).toLocaleString()}` },
-      { title: 'Year to Date', dataIndex: 'yearToDate', key: 'yearToDate',
-        render: (value) => `$${Number(value || 0).toLocaleString()}` }
-    ];
-
-    return (
-      <Table 
-        dataSource={reportData} 
-        columns={columns} 
-        pagination={{ pageSize: 10 }}
-        size="small"
-        rowKey={(record, index) => `${record.type}_${record.category}_${index}`}
-      />
-    );
-  };
-
   const renderFinancialGroupingPreview = () => {
     if (!reportData) return null;
 
@@ -486,8 +462,361 @@ const FinancialReportsUnified = () => {
     );
   };
 
+// frontend/src/views/Dashboard/FinancialReportsUnified.js
+
+  // Replace the renderIncomeStatementPreview function with this implementation:
   const renderIncomeStatementPreview = () => {
-    return <div>Income Statement preview will be implemented when backend is ready</div>;
+    if (!reportData) return null;
+
+    // Create sections for display
+    const sections = [
+      {
+        title: 'I. Operating Revenue',
+        items: reportData.revenues || [],
+        total: reportData.totalRevenue,
+        isRevenue: true
+      },
+      {
+        title: 'II. Operating Expenses', 
+        items: reportData.operatingExpenses || [],
+        total: reportData.totalOperatingExpenses,
+        isRevenue: false
+      },
+      {
+        title: 'III. Administrative Expenses',
+        items: reportData.administrativeExpenses || [],
+        total: reportData.totalAdministrativeExpenses,
+        isRevenue: false
+      },
+      {
+        title: 'IV. Financial Expenses',
+        items: reportData.financialExpenses || [],
+        total: reportData.totalFinancialExpenses,
+        isRevenue: false
+      }
+    ];
+
+    // Add other income section if exists
+    if (reportData.otherIncomes && reportData.otherIncomes.length > 0) {
+      sections.push({
+        title: 'V. Other Income',
+        items: reportData.otherIncomes,
+        total: reportData.totalOtherIncomes,
+        isRevenue: true
+      });
+    }
+
+    // Add other expenses section if exists
+    if (reportData.otherExpenses && reportData.otherExpenses.length > 0) {
+      sections.push({
+        title: 'VI. Other Expenses',
+        items: reportData.otherExpenses,
+        total: reportData.totalOtherExpenses,
+        isRevenue: false
+      });
+    }
+
+    return (
+      <div style={{ padding: '20px' }}>
+        {/* Company Header */}
+        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+          <Title level={3}>{reportData.companyName}</Title>
+          <Title level={4}>Income Statement</Title>
+          <Text>{reportData.periodDescription}</Text>
+        </div>
+
+        {/* Revenue and Expense Sections */}
+        {sections.map((section, index) => (
+          <div key={index} style={{ marginBottom: '25px' }}>
+            <Title level={5} style={{ 
+              backgroundColor: '#f5f5f5', 
+              padding: '10px',
+              margin: '0 0 10px 0',
+              fontWeight: 'bold'
+            }}>
+              {section.title}
+            </Title>
+            
+            {/* Section Items */}
+            {section.items.map((item, itemIndex) => (
+              <Row key={itemIndex} style={{ padding: '5px 20px' }}>
+                <Col span={16}>
+                  <Text>{item.name || item.category}</Text>
+                </Col>
+                <Col span={8} style={{ textAlign: 'right' }}>
+                  <Text>${Number(item.amount || 0).toLocaleString()}</Text>
+                </Col>
+              </Row>
+            ))}
+            
+            {/* Section Total */}
+            <Row style={{ 
+              padding: '5px 20px', 
+              borderTop: '1px solid #d9d9d9',
+              fontWeight: 'bold',
+              backgroundColor: '#fafafa'
+            }}>
+              <Col span={16}>
+                <Text strong>Subtotal</Text>
+              </Col>
+              <Col span={8} style={{ textAlign: 'right' }}>
+                <Text strong>${Number(section.total || 0).toLocaleString()}</Text>
+              </Col>
+            </Row>
+          </div>
+        ))}
+
+        {/* Summary Section */}
+        <div style={{ 
+          marginTop: '30px', 
+          borderTop: '2px solid #000',
+          paddingTop: '15px'
+        }}>
+          <Title level={5}>Summary</Title>
+          
+          <Row style={{ padding: '5px 0' }}>
+            <Col span={16}>
+              <Text strong>Total Revenue</Text>
+            </Col>
+            <Col span={8} style={{ textAlign: 'right' }}>
+              <Text strong>${Number(reportData.totalRevenue || 0).toLocaleString()}</Text>
+            </Col>
+          </Row>
+          
+          <Row style={{ padding: '5px 0' }}>
+            <Col span={16}>
+              <Text strong>Total Expenses</Text>
+            </Col>
+            <Col span={8} style={{ textAlign: 'right' }}>
+              <Text strong>${Number(reportData.totalExpenses || 0).toLocaleString()}</Text>
+            </Col>
+          </Row>
+          
+          <Row style={{ 
+            padding: '10px 0',
+            borderTop: '1px solid #000',
+            fontSize: '16px'
+          }}>
+            <Col span={16}>
+              <Text strong style={{ fontSize: '16px' }}>Net Income</Text>
+            </Col>
+            <Col span={8} style={{ textAlign: 'right' }}>
+              <Text strong style={{ 
+                fontSize: '16px',
+                color: reportData.netIncome >= 0 ? '#52c41a' : '#ff4d4f'
+              }}>
+                ${Number(reportData.netIncome || 0).toLocaleString()}
+              </Text>
+            </Col>
+          </Row>
+
+          {/* Additional Metrics */}
+          {reportData.grossProfitMargin !== undefined && (
+            <Row style={{ padding: '5px 0', marginTop: '10px' }}>
+              <Col span={16}>
+                <Text>Gross Profit Margin</Text>
+              </Col>
+              <Col span={8} style={{ textAlign: 'right' }}>
+                <Text>{Number(reportData.grossProfitMargin || 0).toFixed(1)}%</Text>
+              </Col>
+            </Row>
+          )}
+          
+          {reportData.netProfitMargin !== undefined && (
+            <Row style={{ padding: '5px 0' }}>
+              <Col span={16}>
+                <Text>Net Profit Margin</Text>
+              </Col>
+              <Col span={8} style={{ textAlign: 'right' }}>
+                <Text>{Number(reportData.netProfitMargin || 0).toFixed(1)}%</Text>
+              </Col>
+            </Row>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Replace the renderIncomeExpensePreview function with this implementation:
+  const renderIncomeExpensePreview = () => {
+    if (!reportData) return null;
+    
+    // Handle the correct data structure - reportData is an object with incomeRows and expenseRows
+    const { incomeRows = [], expenseRows = [] } = reportData;
+
+    const columns = [
+      { 
+        title: 'Category', 
+        dataIndex: 'category', 
+        key: 'category',
+        width: '20%'
+      },
+      { 
+        title: 'Description', 
+        dataIndex: 'description', 
+        key: 'description',
+        width: '25%'
+      },
+      { 
+        title: 'Current Month', 
+        dataIndex: 'currentMonth', 
+        key: 'currentMonth',
+        width: '15%',
+        align: 'right',
+        render: (value) => `$${Number(value || 0).toLocaleString()}`
+      },
+      { 
+        title: 'Year to Date', 
+        dataIndex: 'yearToDate', 
+        key: 'yearToDate',
+        width: '15%',
+        align: 'right',
+        render: (value) => `$${Number(value || 0).toLocaleString()}`
+      }
+    ];
+
+    return (
+      <div style={{ padding: '20px' }}>
+        {/* Company Header */}
+        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+          <Title level={3}>{reportData.companyName}</Title>
+          <Title level={4}>Income vs Expense Report</Title>
+          <Text>As of {reportData.asOfDate}</Text>
+        </div>
+
+        <Tabs defaultActiveKey="income">
+          <TabPane tab="Income" key="income">
+            <div style={{ marginBottom: '20px' }}>
+              <Title level={5} style={{ color: '#52c41a' }}>Income Details</Title>
+              <Table 
+                dataSource={incomeRows} 
+                columns={columns} 
+                pagination={false}
+                size="small"
+                rowKey={(record, index) => `income_${index}`}
+                summary={() => (
+                  <Table.Summary>
+                    <Table.Summary.Row style={{ backgroundColor: '#f6ffed' }}>
+                      <Table.Summary.Cell colSpan={2}>
+                        <Text strong>Total Income</Text>
+                      </Table.Summary.Cell>
+                      <Table.Summary.Cell>
+                        <Text strong style={{ color: '#52c41a' }}>
+                          ${Number(reportData.totalIncomeMonth || 0).toLocaleString()}
+                        </Text>
+                      </Table.Summary.Cell>
+                      <Table.Summary.Cell>
+                        <Text strong style={{ color: '#52c41a' }}>
+                          ${Number(reportData.totalIncomeYTD || 0).toLocaleString()}
+                        </Text>
+                      </Table.Summary.Cell>
+                    </Table.Summary.Row>
+                  </Table.Summary>
+                )}
+              />
+            </div>
+          </TabPane>
+
+          <TabPane tab="Expenses" key="expenses">
+            <div style={{ marginBottom: '20px' }}>
+              <Title level={5} style={{ color: '#ff4d4f' }}>Expense Details</Title>
+              <Table 
+                dataSource={expenseRows} 
+                columns={columns} 
+                pagination={false}
+                size="small"
+                rowKey={(record, index) => `expense_${index}`}
+                summary={() => (
+                  <Table.Summary>
+                    <Table.Summary.Row style={{ backgroundColor: '#fff2f0' }}>
+                      <Table.Summary.Cell colSpan={2}>
+                        <Text strong>Total Expenses</Text>
+                      </Table.Summary.Cell>
+                      <Table.Summary.Cell>
+                        <Text strong style={{ color: '#ff4d4f' }}>
+                          ${Number(reportData.totalExpenseMonth || 0).toLocaleString()}
+                        </Text>
+                      </Table.Summary.Cell>
+                      <Table.Summary.Cell>
+                        <Text strong style={{ color: '#ff4d4f' }}>
+                          ${Number(reportData.totalExpenseYTD || 0).toLocaleString()}
+                        </Text>
+                      </Table.Summary.Cell>
+                    </Table.Summary.Row>
+                  </Table.Summary>
+                )}
+              />
+            </div>
+          </TabPane>
+
+          <TabPane tab="Summary" key="summary">
+            <div style={{ padding: '20px' }}>
+              <Title level={5}>Financial Summary</Title>
+              
+              <Row gutter={[16, 16]}>
+                <Col xs={24} md={12}>
+                  <Card size="small" title="Current Month">
+                    <div style={{ marginBottom: '10px' }}>
+                      <Text>Total Income: </Text>
+                      <Text strong style={{ color: '#52c41a' }}>
+                        ${Number(reportData.totalIncomeMonth || 0).toLocaleString()}
+                      </Text>
+                    </div>
+                    <div style={{ marginBottom: '10px' }}>
+                      <Text>Total Expenses: </Text>
+                      <Text strong style={{ color: '#ff4d4f' }}>
+                        ${Number(reportData.totalExpenseMonth || 0).toLocaleString()}
+                      </Text>
+                    </div>
+                    <div style={{ 
+                      paddingTop: '10px', 
+                      borderTop: '1px solid #d9d9d9' 
+                    }}>
+                      <Text>Net Income: </Text>
+                      <Text strong style={{ 
+                        color: reportData.netIncomeMonth >= 0 ? '#52c41a' : '#ff4d4f',
+                        fontSize: '16px'
+                      }}>
+                        ${Number(reportData.netIncomeMonth || 0).toLocaleString()}
+                      </Text>
+                    </div>
+                  </Card>
+                </Col>
+                
+                <Col xs={24} md={12}>
+                  <Card size="small" title="Year to Date">
+                    <div style={{ marginBottom: '10px' }}>
+                      <Text>Total Income: </Text>
+                      <Text strong style={{ color: '#52c41a' }}>
+                        ${Number(reportData.totalIncomeYTD || 0).toLocaleString()}
+                      </Text>
+                    </div>
+                    <div style={{ marginBottom: '10px' }}>
+                      <Text>Total Expenses: </Text>
+                      <Text strong style={{ color: '#ff4d4f' }}>
+                        ${Number(reportData.totalExpenseYTD || 0).toLocaleString()}
+                      </Text>
+                    </div>
+                    <div style={{ 
+                      paddingTop: '10px', 
+                      borderTop: '1px solid #d9d9d9' 
+                    }}>
+                      <Text>Net Income: </Text>
+                      <Text strong style={{ 
+                        color: reportData.netIncomeYTD >= 0 ? '#52c41a' : '#ff4d4f',
+                        fontSize: '16px'
+                      }}>
+                        ${Number(reportData.netIncomeYTD || 0).toLocaleString()}
+                      </Text>
+                    </div>
+                  </Card>
+                </Col>
+              </Row>
+            </div>
+          </TabPane>
+        </Tabs>
+      </div>
+    );
   };
 
   return (
