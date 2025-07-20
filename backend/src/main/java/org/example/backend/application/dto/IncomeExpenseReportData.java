@@ -10,6 +10,7 @@ import java.util.List;
 
 /**
  * Income Expense Report Data DTO
+ * FIXED: Added missing getter methods for export functionality
  */
 @Data
 @Builder
@@ -24,4 +25,17 @@ public class IncomeExpenseReportData {
     private BigDecimal totalIncomeMonth;
     private BigDecimal totalExpenseMonth;
     private BigDecimal netIncomeMonth;
+    
+    // FIXED: Add compatibility methods for export service
+    public BigDecimal getTotalIncome() {
+        return totalIncomeYTD;
+    }
+    
+    public BigDecimal getTotalExpenses() {
+        return totalExpenseYTD;
+    }
+    
+    public BigDecimal getNetIncome() {
+        return netIncomeYTD;
+    }
 }

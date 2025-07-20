@@ -1,43 +1,102 @@
 // frontend/src/views/Dashboard/FinancialReportsUnified.js
 import React, { useState, useEffect } from 'react';
-import { 
-  Card, Row, Col, Button, Select, DatePicker, Space, Spin, Typography, message, 
-  Alert, Tag, Table, Divider, Descriptions, Tooltip
+import {
+  Card, Select, Button, Space, message, Typography, DatePicker,
+  Row, Col, Spin, Alert, Table, Tabs
 } from 'antd';
-import { 
-  FileTextOutlined, DownloadOutlined, EyeOutlined, DollarCircleOutlined, 
-  PieChartOutlined, FundOutlined, BarChartOutlined, CheckCircleOutlined,
-  ExclamationCircleOutlined, LoadingOutlined, ReloadOutlined, InfoCircleOutlined
+import {
+  FundProjectionScreenOutlined, DownloadOutlined, ReloadOutlined,
+  BarChartOutlined, DollarCircleOutlined, PieChartOutlined, FundOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { API_CONFIG, createApiClient } from '../../config/apiConfig';
+import AuthService from '../../services/authService';
 
 const { Option } = Select;
-const { Text, Title } = Typography;
+const { Title, Text } = Typography;
+const { TabPane } = Tabs;
 
-export default function FinancialReportsUnified() {
-  // State management
-  const [companyId] = useState(1);
-  const [previewReportType, setPreviewReportType] = useState('BALANCE_SHEET');
-  const [asOfDate, setAsOfDate] = useState(dayjs('2024-03-31'));
-  const [startDate, setStartDate] = useState(dayjs('2024-01-01'));
-  const [endDate, setEndDate] = useState(dayjs('2024-03-31'));
+// API Configuration
+const API_CONFIG = {
+  BASE_URL: 'http://localhost:8085',
+  ENDPOINTS: {
+    BALANCE_SHEET: '/api/balance-sheet',
+    INCOME_STATEMENT: '/api/income-statement',
+    INCOME_EXPENSE: '/api/income-expense',
+    FINANCIAL_GROUPING: '/api/financial-grouping'
+  }
+};
+
+// FIXED: Helper function to get auth headers for fetch requests
+const getAuthHeaders = () => {
+  const authData = AuthService.getCurrentUser();
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+  
+  if (authData && authData.token) {
+    headers['Authorization'] = `Bearer ${authData.token}`;
+    console.log('✅ [Auth] Adding Authorization header:', authData.token.substring(0, 20) + '...');
+  } else {
+    console.error('❌ [Auth] No token found in auth data:', authData);
+  }
+  
+  return headers;
+};
+
+// FIXED: Helper function to make authenticated fetch requests
+const makeAuthenticatedRequest = async (url, options = {}) => {
+  const headers = getAuthHeaders();
+  
+  const config = {
+    method: 'GET',
+    headers,
+    ...options
+  };
+  
+  console.log(`🔄 [API] Making request to: ${url}`);
+  console.log('🔧 [API] Request config:', {
+    method: config.method,
+    headers: Object.keys(config.headers),
+    hasAuth: !!config.headers.Authorization
+  });
+  
+  const response = await fetch(url, config);
+  
+  console.log(`📡 [API] Response: ${response.status} ${response.statusText}`);
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('❌ [API] Error response:', errorText);
+    throw new Error(`HTTP ${response.status}: ${errorText}`);
+  }
+  
+  return response;
+};
+
+/**
+ * Enhanced Financial Reports Component with FIXED authentication
+ */
+const FinancialReportsUnified = () => {
+  const [reportType, setReportType] = useState('BALANCE_SHEET');
   const [reportData, setReportData] = useState(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState('unknown');
+  const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [error, setError] = useState(null);
   const [testingConnection, setTestingConnection] = useState(false);
+  
+  // Common states
+  const [companyId, setCompanyId] = useState(1);
+  const [asOfDate, setAsOfDate] = useState(dayjs());
+  const [startDate, setStartDate] = useState(dayjs().subtract(3, 'month'));
+  const [endDate, setEndDate] = useState(dayjs());
 
-  const apiClient = createApiClient();
-
-
-
-  // Report type configurations
-  const reportTypes = [
+  // Report configurations
+  const reportConfigs = [
     {
       value: 'BALANCE_SHEET',
       label: 'Balance Sheet',
-      icon: <FileTextOutlined />,
-      description: 'Assets, Liabilities, and Equity at a point in time',
+      icon: <BarChartOutlined />,
+      description: 'Assets, Liabilities, and Equity at a specific date',
       useAsOfDate: true,
       canPreview: true,
       previewApi: `${API_CONFIG.ENDPOINTS.BALANCE_SHEET}/json`,
@@ -63,8 +122,8 @@ export default function FinancialReportsUnified() {
       description: 'Detailed Income and Expense Analysis',
       useAsOfDate: true,
       canPreview: true,
-      previewApi: '/api/income-expense/json',
-      exportApi: '/api/income-expense/export',
+      previewApi: `${API_CONFIG.ENDPOINTS.INCOME_EXPENSE}/json`,
+      exportApi: `${API_CONFIG.ENDPOINTS.INCOME_EXPENSE}/export`,
       suggestedDate: '2024-03-31'
     },
     {
@@ -81,7 +140,7 @@ export default function FinancialReportsUnified() {
     }
   ];
 
-  // Test backend connection
+  // FIXED: Test backend connection with auth
   useEffect(() => {
     testBackendConnection();
   }, []);
@@ -89,965 +148,463 @@ export default function FinancialReportsUnified() {
   const testBackendConnection = async () => {
     setTestingConnection(true);
     try {
-      await apiClient.get('/api/health', { timeout: 5000 });
-      setConnectionStatus('connected');
+      // Test basic connection first
+      const response = await makeAuthenticatedRequest(`${API_CONFIG.BASE_URL}/api/health/ping`);
+      
+      if (response.ok) {
+        console.log('✅ [Connection] Backend connection successful');
+        
+        // Test auth by trying to access a protected endpoint
+        try {
+          await makeAuthenticatedRequest(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.BALANCE_SHEET}/json?companyId=1&asOfDate=2024-03-31`);
+          console.log('✅ [Auth] Authentication test successful');
+        } catch (authError) {
+          console.warn('⚠️ [Auth] Authentication test failed:', authError.message);
+          if (authError.message.includes('401')) {
+            message.warning('Authentication issue detected. You may need to login again.');
+          }
+        }
+      } else {
+        console.warn('⚠️ [Connection] Backend responded with non-OK status:', response.status);
+      }
     } catch (error) {
-      console.error('Backend connection failed:', error);
-      setConnectionStatus('disconnected');
+      console.error('❌ [Connection] Backend connection failed:', error);
+      message.warning('Backend connection test failed. Some features may not work properly.');
     } finally {
       setTestingConnection(false);
     }
   };
 
-  const getConnectionStatusTag = () => {
-    if (testingConnection) {
-      return <Tag icon={<LoadingOutlined />} color="processing">Testing Connection...</Tag>;
-    }
-    
-    switch (connectionStatus) {
-      case 'connected':
-        return <Tag icon={<CheckCircleOutlined />} color="success">Backend Connected</Tag>;
-      case 'disconnected':
-        return <Tag icon={<ExclamationCircleOutlined />} color="error">Backend Disconnected</Tag>;
-      default:
-        return <Tag color="default">Connection Status Unknown</Tag>;
-    }
-  };
+  const currentReportConfig = reportConfigs.find(config => config.value === reportType);
 
-  const handleReportTypeChange = (value) => {
-    setPreviewReportType(value);
-    const config = reportTypes.find(rt => rt.value === value);
-    
-    if (config) {
-      if (config.useAsOfDate && config.suggestedDate) {
-        setAsOfDate(dayjs(config.suggestedDate));
-      } else if (!config.useAsOfDate && config.suggestedStartDate && config.suggestedEndDate) {
-        setStartDate(dayjs(config.suggestedStartDate));
-        setEndDate(dayjs(config.suggestedEndDate));
-      }
-    }
-  };
-
-  const handlePreview = async (e) => {
-    // 阻止默认行为，防止表单提交导致页面刷新
-    if (e && e.preventDefault) {
-      e.preventDefault();
-    }
-    
-    console.log('=== handlePreview开始 ===');
+  const loadReportData = async () => {
+    setLoading(true);
+    setError(null);
     
     try {
-      if (connectionStatus === 'disconnected') {
-        message.error('Backend is not connected. Please check the server.');
-        return;
-      }
-
-      setPreviewLoading(true);
-      
-      const currentConfig = reportTypes.find(rt => rt.value === previewReportType);
-      console.log('当前报告配置:', currentConfig);
-      
-      if (!currentConfig) {
-        throw new Error('Invalid report type selected');
+      // FIXED: Check authentication before making request
+      const authData = AuthService.getCurrentUser();
+      if (!authData || !authData.token) {
+        throw new Error('Authentication required. Please login first.');
       }
       
-      if (!currentConfig.previewApi) {
-        throw new Error('Preview not available for this report type');
-      }
-
-      const params = {
-        companyId: companyId,
-      };
-
-      if (currentConfig.useAsOfDate) {
-        if (!asOfDate) {
-          throw new Error('As of date is required');
-        }
-        params.asOfDate = asOfDate.format('YYYY-MM-DD');
+      const config = currentReportConfig;
+      let url = `${API_CONFIG.BASE_URL}${config.previewApi}`;
+      let params = new URLSearchParams();
+      
+      // Add common parameters
+      params.append('companyId', companyId.toString());
+      
+      // Add date parameters based on report type
+      if (config.useAsOfDate) {
+        params.append('asOfDate', asOfDate.format('YYYY-MM-DD'));
       } else {
-        if (!startDate || !endDate) {
-          throw new Error('Start date and end date are required');
-        }
-        params.startDate = startDate.format('YYYY-MM-DD');
-        params.endDate = endDate.format('YYYY-MM-DD');
+        params.append('startDate', startDate.format('YYYY-MM-DD'));
+        params.append('endDate', endDate.format('YYYY-MM-DD'));
       }
-
-      console.log('请求参数:', params);
-      console.log('API端点:', currentConfig.previewApi);
       
-      const response = await apiClient.get(currentConfig.previewApi, { params });
+      const fullUrl = `${url}?${params.toString()}`;
+      console.log(`🔄 [Report] Loading ${reportType} data from: ${fullUrl}`);
       
-      console.log('API响应:', response);
-      console.log('响应数据:', response.data);
+      // FIXED: Use authenticated request
+      const response = await makeAuthenticatedRequest(fullUrl);
+      const data = await response.json();
       
-      setReportData(response.data);
-      message.success(`${currentConfig.label} preview loaded successfully`);
+      console.log('✅ [Report] Data loaded successfully:', data);
+      setReportData(data);
       
     } catch (error) {
-      console.error('handlePreview错误:', error);
-      
-      // 详细的错误信息
-      let errorMessage = 'Unknown error occurred';
-      
-      if (error.response) {
-        // 服务器响应错误
-        console.log('错误响应状态:', error.response.status);
-        console.log('错误响应数据:', error.response.data);
-        
-        errorMessage = error.response.data?.message || 
-                      error.response.data?.error || 
-                      `Server error: ${error.response.status}`;
-                      
-        if (error.response.status === 404) {
-          errorMessage = 'API endpoint not found. Please check if the backend service supports this report type.';
-        } else if (error.response.status === 401) {
-          errorMessage = 'Authentication failed. Please login again.';
-        } else if (error.response.status === 500) {
-          errorMessage = 'Internal server error. Please check the backend logs.';
-        }
-      } else if (error.request) {
-        // 网络错误
-        console.log('网络错误:', error.request);
-        errorMessage = 'Network error. Please check if the backend server is running.';
-      } else {
-        // 客户端错误
-        errorMessage = error.message || 'Client error occurred';
-      }
-      
-      message.error(`Failed to load report preview: ${errorMessage}`);
-      setReportData(null);
-      
+      console.error('❌ [Report] Error loading data:', error);
+      setError(error.message);
+      message.error(`Failed to load ${currentReportConfig.label}: ${error.message}`);
     } finally {
-      setPreviewLoading(false);
-      console.log('=== handlePreview结束 ===');
+      setLoading(false);
     }
   };
 
+  // FIXED: Enhanced export functionality with proper authentication
   const handleExport = async () => {
-    if (connectionStatus === 'disconnected') {
-      message.error('Backend is not connected. Please check the server.');
-      return;
-    }
-
+    setExporting(true);
+    
     try {
-      const currentConfig = reportTypes.find(rt => rt.value === previewReportType);
-      
-      if (!currentConfig?.exportApi) {
-        throw new Error('Export not available for this report type');
+      // FIXED: Check authentication before making request
+      const authData = AuthService.getCurrentUser();
+      if (!authData || !authData.token) {
+        throw new Error('Authentication required. Please login first.');
       }
-
-      const params = {
-        companyId: companyId,
-      };
-
-      if (currentConfig.useAsOfDate) {
-        params.asOfDate = asOfDate.format('YYYY-MM-DD');
+      
+      const config = currentReportConfig;
+      let url = `${API_CONFIG.BASE_URL}${config.exportApi}`;
+      let params = new URLSearchParams();
+      
+      // Add common parameters
+      params.append('companyId', companyId.toString());
+      
+      // Add date parameters based on report type
+      if (config.useAsOfDate) {
+        params.append('asOfDate', asOfDate.format('YYYY-MM-DD'));
       } else {
-        params.startDate = startDate.format('YYYY-MM-DD');
-        params.endDate = endDate.format('YYYY-MM-DD');
+        params.append('startDate', startDate.format('YYYY-MM-DD'));
+        params.append('endDate', endDate.format('YYYY-MM-DD'));
       }
-
-      const response = await apiClient.get(currentConfig.exportApi, { 
-        params,
-        responseType: 'blob'
+      
+      const fullUrl = `${url}?${params.toString()}`;
+      console.log(`📥 [Export] Exporting ${reportType} from: ${fullUrl}`);
+      
+      // FIXED: Use authenticated request with proper headers
+      const response = await makeAuthenticatedRequest(fullUrl, {
+        headers: {
+          ...getAuthHeaders(),
+          'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        }
       });
       
-      const blob = new Blob([response.data], { 
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
-      });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
+      // Check if response is actually Excel content
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('spreadsheetml')) {
+        throw new Error('Server did not return Excel file. Check server logs.');
+      }
       
-      const dateStr = currentConfig.useAsOfDate 
+      const blob = await response.blob();
+      
+      if (blob.size === 0) {
+        throw new Error('Received empty file from server');
+      }
+      
+      // Generate filename
+      const dateStr = config.useAsOfDate 
         ? asOfDate.format('YYYY-MM-DD')
         : `${startDate.format('YYYY-MM-DD')}_to_${endDate.format('YYYY-MM-DD')}`;
+      const filename = `${config.label.replace(/\s+/g, '_')}_${dateStr}.xlsx`;
       
-      link.setAttribute('download', `${currentConfig.label.replace(/ /g, '_')}_${dateStr}.xlsx`);
+      // Download file
+      const url_obj = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url_obj;
+      link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
       link.remove();
-      window.URL.revokeObjectURL(url);
+      window.URL.revokeObjectURL(url_obj);
       
-      message.success('Report exported successfully');
+      console.log(`✅ [Export] ${reportType} exported successfully: ${filename} (${blob.size} bytes)`);
+      message.success(`${config.label} exported successfully!`);
+      
     } catch (error) {
-      console.error('Error exporting report:', error);
-      message.error(`Failed to export report: ${error.message}`);
+      console.error('❌ [Export] Export failed:', error);
+      message.error(`Export failed: ${error.message}`);
+      
+      // FIXED: Handle auth errors specifically
+      if (error.message.includes('401') || error.message.includes('Authorization')) {
+        message.error('Authentication failed. Please login again.');
+        // Optionally redirect to login
+        // window.location.href = '/login';
+      }
+    } finally {
+      setExporting(false);
     }
   };
 
-  const renderParameterSelection = () => {
-    const currentConfig = reportTypes.find(rt => rt.value === previewReportType);
-    
-    return (
-      <div>
-        <Alert
-          message="Test Data Available"
-          description={
-            <div>
-              📊 <strong>Available test data period:</strong> 2024-01-01 to 2024-03-31 for Company ID: 1
-              <br />
-              💡 <strong>Recommended dates:</strong> Balance Sheet (2024-03-31), Income Statement (2024-01-01 to 2024-03-31)
-            </div>
-          }
-          type="info"
-          style={{ marginBottom: 16 }}
-          showIcon
-        />
-        
-        <Row gutter={[16, 16]} align="middle">
-          <Col xs={24} sm={8}>
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <Text strong>Report Type</Text>
-              <Select
-                value={previewReportType}
-                onChange={handleReportTypeChange}
-                style={{ width: '100%' }}
-                size="large"
-              >
-                {reportTypes.map(type => (
-                  <Option key={type.value} value={type.value}>
-                    <Space>
-                      {type.icon}
-                      {type.label}
-                    </Space>
-                  </Option>
-                ))}
-              </Select>
-              <Text type="secondary" style={{ fontSize: '12px' }}>
-                {currentConfig?.description}
-              </Text>
-            </Space>
-          </Col>
-          
-          <Col xs={24} sm={currentConfig?.useAsOfDate ? 8 : 16}>
-            {currentConfig?.useAsOfDate ? (
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <Text strong>
-                  As of Date 
-                  <Tooltip title="Select a date to view financial position. Recommended: 2024-03-31">
-                    <InfoCircleOutlined style={{ marginLeft: 4, color: '#1890ff' }} />
-                  </Tooltip>
-                </Text>
-                <DatePicker
-                  value={asOfDate}
-                  onChange={setAsOfDate}
-                  format="YYYY-MM-DD"
-                  style={{ width: '100%' }}
-                  size="large"
-                />
-                <Text type="secondary" style={{ fontSize: '12px' }}>
-                  Suggested: {currentConfig.suggestedDate}
-                </Text>
-              </Space>
-            ) : (
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Space direction="vertical" style={{ width: '100%' }}>
-                    <Text strong>Start Date</Text>
-                    <DatePicker
-                      value={startDate}
-                      onChange={setStartDate}
-                      format="YYYY-MM-DD"
-                      style={{ width: '100%' }}
-                      size="large"
-                    />
-                    <Text type="secondary" style={{ fontSize: '12px' }}>
-                      Suggested: {currentConfig?.suggestedStartDate}
-                    </Text>
-                  </Space>
-                </Col>
-                <Col span={12}>
-                  <Space direction="vertical" style={{ width: '100%' }}>
-                    <Text strong>End Date</Text>
-                    <DatePicker
-                      value={endDate}
-                      onChange={setEndDate}
-                      format="YYYY-MM-DD"
-                      style={{ width: '100%' }}
-                      size="large"
-                    />
-                    <Text type="secondary" style={{ fontSize: '12px' }}>
-                      Suggested: {currentConfig?.suggestedEndDate}
-                    </Text>
-                  </Space>
-                </Col>
-              </Row>
-            )}
-          </Col>
-          
-          <Col xs={24} sm={8}>
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <Text strong>Actions</Text>
-              <Space>
-                <Button 
-                  type="primary" 
-                  icon={<EyeOutlined />}
-                  onClick={handlePreview}
-                  loading={previewLoading}
-                  size="large"
-                >
-                  Preview
-                </Button>
-                <Button 
-                  icon={<DownloadOutlined />}
-                  onClick={handleExport}
-                  size="large"
-                >
-                  Export
-                </Button>
-              </Space>
-            </Space>
-          </Col>
-        </Row>
-      </div>
-    );
-  };
+  // Auto-load report when dependencies change
+  useEffect(() => {
+    if (reportType && companyId) {
+      loadReportData();
+    }
+  }, [reportType, companyId, asOfDate, startDate, endDate]);
 
-  const renderReportContent = () => {
-    if (previewLoading) {
+  const renderReportPreview = () => {
+    if (loading) {
       return (
         <div style={{ textAlign: 'center', padding: '50px' }}>
           <Spin size="large" />
-          <div style={{ marginTop: 16 }}>
-            <Text>Loading report preview...</Text>
-          </div>
+          <div style={{ marginTop: 16 }}>Loading report data...</div>
         </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <Alert 
+          message="Error Loading Report" 
+          description={error}
+          type="error" 
+          showIcon
+          action={
+            <Button size="small" danger onClick={loadReportData}>
+              Retry
+            </Button>
+          }
+        />
       );
     }
 
     if (!reportData) {
       return (
-        <div style={{ textAlign: 'center', padding: '50px' }}>
-          <Text>Select parameters and click "Preview" to view report data</Text>
-        </div>
+        <Alert 
+          message="No Data" 
+          description="No report data available. Click 'Load Report' to fetch data."
+          type="info" 
+          showIcon
+        />
       );
     }
 
-    switch (previewReportType) {
+    // Render different previews based on report type
+    switch (reportType) {
       case 'BALANCE_SHEET':
-        return renderBalanceSheet();
-      case 'INCOME_STATEMENT':
-        return renderIncomeStatement();
+        return renderBalanceSheetPreview();
       case 'INCOME_EXPENSE':
-        return renderIncomeExpenseReport();
+        return renderIncomeExpensePreview();
       case 'FINANCIAL_GROUPING':
-        return renderFinancialGroupingReport();
+        return renderFinancialGroupingPreview();
+      case 'INCOME_STATEMENT':
+        return renderIncomeStatementPreview();
       default:
-        return <div>Report content will be displayed here</div>;
+        return <div>Preview not available for this report type</div>;
     }
   };
 
-  // Balance Sheet Renderer
-  const renderBalanceSheet = () => {
-    if (!reportData) return null;
-
-    const renderSection = (sectionName, sectionData, sectionTotal) => {
-      if (!sectionData || typeof sectionData !== 'object') {
-        return (
-          <Card title={sectionName} style={{ marginBottom: 16 }}>
-            <Text type="secondary">No data available</Text>
-          </Card>
-        );
-      }
-
-      const columns = [
-        {
-          title: 'Account Name',
-          dataIndex: 'accountName',
-          key: 'accountName',
-          width: 300,
-        },
-        {
-          title: 'Current Month',
-          dataIndex: 'currentMonth',
-          key: 'currentMonth',
-          align: 'right',
-          render: (value) => `CNY ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
-        },
-        {
-          title: 'Previous Month',
-          dataIndex: 'previousMonth',
-          key: 'previousMonth',
-          align: 'right',
-          render: (value) => `CNY ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
-        },
-        {
-          title: 'Last Year End',
-          dataIndex: 'lastYearEnd',
-          key: 'lastYearEnd',
-          align: 'right',
-          render: (value) => `CNY ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
-        }
-      ];
-
-      let dataSource = [];
-      Object.entries(sectionData).forEach(([categoryName, accounts]) => {
-        if (Array.isArray(accounts)) {
-          accounts.forEach((account, index) => {
-            dataSource.push({
-              key: `${categoryName}-${index}`,
-              accountName: account.accountName || 'Unknown Account',
-              currentMonth: account.currentMonth || 0,
-              previousMonth: account.previousMonth || 0,
-              lastYearEnd: account.lastYearEnd || 0,
-            });
-          });
-        }
-      });
-
-      return (
-        <Card 
-          title={
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>{sectionName}</span>
-              <span style={{ fontWeight: 'bold', color: '#1890ff' }}>
-                Total: CNY {Number(sectionTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-              </span>
-            </div>
-          }
-          style={{ marginBottom: 16 }}
-        >
-          <Table
-            columns={columns}
-            dataSource={dataSource}
-            pagination={false}
-            size="small"
-            bordered
-          />
-        </Card>
-      );
-    };
-
-    return (
-      <div>
-        <Descriptions 
-          title="Balance Sheet Overview" 
-          bordered 
-          column={2}
-          style={{ marginBottom: 24 }}
-        >
-          <Descriptions.Item label="Company">Tech Innovation Ltd</Descriptions.Item>
-          <Descriptions.Item label="As of Date">{reportData.asOfDate}</Descriptions.Item>
-          <Descriptions.Item label="Currency">CNY</Descriptions.Item>
-          <Descriptions.Item label="Balance Status">
-            <Tag color={reportData.isBalanced ? 'green' : 'red'}>
-              {reportData.isBalanced ? 'Balanced' : 'Not Balanced'}
-            </Tag>
-          </Descriptions.Item>
-        </Descriptions>
-
-        {renderSection('Assets', reportData.assets, reportData.totalAssets)}
-        {renderSection('Liabilities', reportData.liabilities, reportData.totalLiabilities)}
-        {renderSection('Equity', reportData.equity, reportData.totalEquity)}
-
-        <Card title="Balance Sheet Summary" style={{ marginTop: 16 }}>
-          <Row gutter={24}>
-            <Col span={8}>
-              <div style={{ textAlign: 'center', padding: 16 }}>
-                <Title level={4} style={{ color: '#52c41a' }}>Total Assets</Title>
-                <Title level={3}>CNY {Number(reportData.totalAssets || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</Title>
-              </div>
-            </Col>
-            <Col span={8}>
-              <div style={{ textAlign: 'center', padding: 16 }}>
-                <Title level={4} style={{ color: '#ff4d4f' }}>Total Liabilities</Title>
-                <Title level={3}>CNY {Number(reportData.totalLiabilities || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</Title>
-              </div>
-            </Col>
-            <Col span={8}>
-              <div style={{ textAlign: 'center', padding: 16 }}>
-                <Title level={4} style={{ color: '#1890ff' }}>Total Equity</Title>
-                <Title level={3}>CNY {Number(reportData.totalEquity || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</Title>
-              </div>
-            </Col>
-          </Row>
-        </Card>
-      </div>
-    );
-  };
-
-  // Income Statement Renderer
-  const renderIncomeStatement = () => {
+  const renderBalanceSheetPreview = () => {
     if (!reportData) return null;
 
     const columns = [
-      {
-        title: 'Category',
-        dataIndex: 'category',
-        key: 'category',
-        width: 200,
-      },
-      {
-        title: 'Amount',
-        dataIndex: 'amount',
-        key: 'amount',
-        align: 'right',
-        render: (value) => `CNY ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
-      }
+      { title: 'Account', dataIndex: 'accountName', key: 'accountName' },
+      { title: 'Current Month', dataIndex: 'currentMonth', key: 'currentMonth', 
+        render: (value) => `$${Number(value || 0).toLocaleString()}` },
+      { title: 'Previous Month', dataIndex: 'previousMonth', key: 'previousMonth',
+        render: (value) => `$${Number(value || 0).toLocaleString()}` },
+      { title: 'Last Year End', dataIndex: 'lastYearEnd', key: 'lastYearEnd',
+        render: (value) => `$${Number(value || 0).toLocaleString()}` }
     ];
 
-    const revenueData = reportData.revenueByCategory ? 
-      Object.entries(reportData.revenueByCategory).map(([category, amount], index) => ({
-        key: `revenue-${index}`,
-        category: category,
-        amount
-      })) : [];
-
-    const expenseData = reportData.expensesByCategory ? 
-      Object.entries(reportData.expensesByCategory).map(([category, amount], index) => ({
-        key: `expense-${index}`,
-        category: category,
-        amount
-      })) : [];
-
     return (
-      <div>
-        <Descriptions 
-          title="Income Statement Overview" 
-          bordered 
-          column={2}
-          style={{ marginBottom: 24 }}
-        >
-          <Descriptions.Item label="Company">Tech Innovation Ltd</Descriptions.Item>
-          <Descriptions.Item label="Period">{reportData.periodStartDate || reportData.startDate} to {reportData.periodEndDate || reportData.endDate}</Descriptions.Item>
-          <Descriptions.Item label="Currency">CNY</Descriptions.Item>
-          <Descriptions.Item label="Generated At">{reportData.generatedAt}</Descriptions.Item>
-          <Descriptions.Item label="Transaction Count">{reportData.transactionCount || 0}</Descriptions.Item>
-        </Descriptions>
-
-        <Card title="Revenue" style={{ marginBottom: 16 }}>
-          <Table
-            columns={columns}
-            dataSource={revenueData}
-            pagination={false}
-            size="small"
-            bordered
-            summary={() => (
-              <Table.Summary.Row>
-                <Table.Summary.Cell><strong>Total Revenue</strong></Table.Summary.Cell>
-                <Table.Summary.Cell align="right">
-                  <strong style={{ color: '#52c41a' }}>
-                    CNY {Number(reportData.totalRevenue || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                  </strong>
-                </Table.Summary.Cell>
-              </Table.Summary.Row>
-            )}
-          />
-        </Card>
-
-        <Card title="Expenses" style={{ marginBottom: 16 }}>
-          <Table
-            columns={columns}
-            dataSource={expenseData}
-            pagination={false}
-            size="small"
-            bordered
-            summary={() => (
-              <Table.Summary.Row>
-                <Table.Summary.Cell><strong>Total Expenses</strong></Table.Summary.Cell>
-                <Table.Summary.Cell align="right">
-                  <strong style={{ color: '#ff4d4f' }}>
-                    CNY {Number(reportData.totalExpenses || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                  </strong>
-                </Table.Summary.Cell>
-              </Table.Summary.Row>
-            )}
-          />
-        </Card>
-
-        <Card title="Net Income Summary">
-          <div style={{ textAlign: 'center', padding: 20 }}>
-            <Title level={3} style={{ 
-              color: (reportData.netIncome || 0) >= 0 ? '#52c41a' : '#ff4d4f' 
-            }}>
-              Net Income: CNY {Number(reportData.netIncome || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </Title>
-          </div>
-        </Card>
-      </div>
+      <Tabs defaultActiveKey="assets">
+        <TabPane tab="Assets" key="assets">
+          {reportData.assets && Object.entries(reportData.assets).map(([category, accounts]) => (
+            <div key={category} style={{ marginBottom: 24 }}>
+              <Title level={4}>{category}</Title>
+              <Table 
+                dataSource={accounts} 
+                columns={columns} 
+                pagination={false}
+                size="small"
+                rowKey="accountName"
+              />
+            </div>
+          ))}
+        </TabPane>
+        <TabPane tab="Liabilities" key="liabilities">
+          {reportData.liabilities && Object.entries(reportData.liabilities).map(([category, accounts]) => (
+            <div key={category} style={{ marginBottom: 24 }}>
+              <Title level={4}>{category}</Title>
+              <Table 
+                dataSource={accounts} 
+                columns={columns} 
+                pagination={false}
+                size="small"
+                rowKey="accountName"
+              />
+            </div>
+          ))}
+        </TabPane>
+        <TabPane tab="Equity" key="equity">
+          {reportData.equity && Object.entries(reportData.equity).map(([category, accounts]) => (
+            <div key={category} style={{ marginBottom: 24 }}>
+              <Title level={4}>{category}</Title>
+              <Table 
+                dataSource={accounts} 
+                columns={columns} 
+                pagination={false}
+                size="small"
+                rowKey="accountName"
+              />
+            </div>
+          ))}
+        </TabPane>
+      </Tabs>
     );
   };
 
-  // Income vs Expense Report Renderer
-  const renderIncomeExpenseReport = () => {
-    if (!reportData) {
-      return (
-        <div style={{ textAlign: 'center', padding: '50px' }}>
-          <Text>No income expense data available</Text>
-        </div>
-      );
-    }
+  const renderIncomeExpensePreview = () => {
+    if (!reportData || !Array.isArray(reportData)) return null;
 
-    // Check if we have the expected data structure
-    if (reportData.incomeRows || reportData.expenseRows) {
-      // Structured format with rows
-      const incomeColumns = [
-        { title: 'Category', dataIndex: 'category', key: 'category' },
-        { title: 'Description', dataIndex: 'description', key: 'description' },
-        { 
-          title: 'Current Month', 
-          dataIndex: 'currentMonth', 
-          key: 'currentMonth',
-          align: 'right',
-          render: (value) => `CNY ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}` 
-        },
-        { 
-          title: 'Year to Date', 
-          dataIndex: 'yearToDate', 
-          key: 'yearToDate',
-          align: 'right',
-          render: (value) => `CNY ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}` 
-        },
-        { 
-          title: 'Variance', 
-          dataIndex: 'variance', 
-          key: 'variance',
-          align: 'right',
-          render: (value) => value ? `CNY ${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : 'N/A'
-        }
-      ];
+    const columns = [
+      { title: 'Type', dataIndex: 'type', key: 'type' },
+      { title: 'Category', dataIndex: 'category', key: 'category' },
+      { title: 'Description', dataIndex: 'description', key: 'description' },
+      { title: 'Current Month', dataIndex: 'currentMonth', key: 'currentMonth',
+        render: (value) => `$${Number(value || 0).toLocaleString()}` },
+      { title: 'Year to Date', dataIndex: 'yearToDate', key: 'yearToDate',
+        render: (value) => `$${Number(value || 0).toLocaleString()}` }
+    ];
 
-      return (
-        <div>
-          <Descriptions 
-            title="Income vs Expense Report Overview" 
-            bordered 
-            column={2}
-            style={{ marginBottom: 24 }}
-          >
-            <Descriptions.Item label="Company">Tech Innovation Ltd</Descriptions.Item>
-            <Descriptions.Item label="As of Date">{reportData.asOfDate}</Descriptions.Item>
-            <Descriptions.Item label="Currency">CNY</Descriptions.Item>
-            <Descriptions.Item label="Generated At">{reportData.generatedAt}</Descriptions.Item>
-          </Descriptions>
-
-          {reportData.incomeRows && reportData.incomeRows.length > 0 && (
-            <Card title="Income Analysis" style={{ marginBottom: 16 }}>
-              <Table 
-                columns={incomeColumns}
-                dataSource={reportData.incomeRows.map((row, index) => ({ ...row, key: `income-${index}` }))}
-                pagination={false}
-                size="small"
-                bordered
-              />
-            </Card>
-          )}
-          
-          {reportData.expenseRows && reportData.expenseRows.length > 0 && (
-            <Card title="Expense Analysis">
-              <Table 
-                columns={incomeColumns}
-                dataSource={reportData.expenseRows.map((row, index) => ({ ...row, key: `expense-${index}` }))}
-                pagination={false}
-                size="small"
-                bordered
-              />
-            </Card>
-          )}
-
-          {reportData.totalIncome !== undefined && reportData.totalExpense !== undefined && (
-            <Card title="Summary" style={{ marginTop: 16 }}>
-              <Row gutter={24}>
-                <Col span={8}>
-                  <div style={{ textAlign: 'center', padding: 16 }}>
-                    <Title level={4} style={{ color: '#52c41a' }}>Total Income</Title>
-                    <Title level={3}>CNY {Number(reportData.totalIncome || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</Title>
-                  </div>
-                </Col>
-                <Col span={8}>
-                  <div style={{ textAlign: 'center', padding: 16 }}>
-                    <Title level={4} style={{ color: '#ff4d4f' }}>Total Expense</Title>
-                    <Title level={3}>CNY {Number(reportData.totalExpense || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</Title>
-                  </div>
-                </Col>
-                <Col span={8}>
-                  <div style={{ textAlign: 'center', padding: 16 }}>
-                    <Title level={4} style={{ color: (reportData.totalIncome - reportData.totalExpense) >= 0 ? '#52c41a' : '#ff4d4f' }}>Net Result</Title>
-                    <Title level={3}>CNY {Number((reportData.totalIncome || 0) - (reportData.totalExpense || 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })}</Title>
-                  </div>
-                </Col>
-              </Row>
-            </Card>
-          )}
-        </div>
-      );
-    } else {
-      // Raw data display for debugging
-      return (
-        <div>
-          <Title level={4}>Income vs Expense Report Preview</Title>
-          <Alert 
-            message="Data Structure Analysis" 
-            description="Displaying available data. The backend API structure may need adjustment for optimal presentation."
-            type="info" 
-            style={{ marginBottom: 16 }}
-          />
-          <Card title="Raw Report Data">
-            <pre style={{ 
-              background: '#f5f5f5', 
-              padding: '16px', 
-              overflow: 'auto', 
-              borderRadius: 4,
-              fontSize: '12px',
-              lineHeight: '1.4'
-            }}>
-              {JSON.stringify(reportData, null, 2)}
-            </pre>
-          </Card>
-        </div>
-      );
-    }
+    return (
+      <Table 
+        dataSource={reportData} 
+        columns={columns} 
+        pagination={{ pageSize: 10 }}
+        size="small"
+        rowKey={(record, index) => `${record.type}_${record.category}_${index}`}
+      />
+    );
   };
 
-  // Financial Grouping Report Renderer
-  const renderFinancialGroupingReport = () => {
-    if (!reportData) {
-      return (
-        <div style={{ textAlign: 'center', padding: '50px' }}>
-          <Text>No financial grouping data available</Text>
-        </div>
-      );
-    }
+  const renderFinancialGroupingPreview = () => {
+    if (!reportData) return null;
 
-    // Check if we have the expected data structure for financial grouping
-    // Based on FinancialGroupingData structure from backend
-    if (reportData.byCategory || reportData.byDepartment || reportData.byMonth || reportData.byFund) {
-      const groupingColumns = [
-        { title: 'Name', dataIndex: 'name', key: 'name' },
-        { 
-          title: 'Total Amount', 
-          dataIndex: 'totalAmount', 
-          key: 'totalAmount',
-          align: 'right',
-          render: (value) => `CNY ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}` 
-        },
-        { title: 'Transaction Count', dataIndex: 'transactionCount', key: 'transactionCount', align: 'center' },
-        { 
-          title: 'Average Amount', 
-          dataIndex: 'averageAmount', 
-          key: 'averageAmount',
-          align: 'right',
-          render: (value) => `CNY ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}` 
-        }
-      ];
-
-      return (
-        <div>
-          <Descriptions 
-            title="Financial Grouping Report Overview" 
-            bordered 
-            column={2}
-            style={{ marginBottom: 24 }}
-          >
-            <Descriptions.Item label="Company">Tech Innovation Ltd</Descriptions.Item>
-            <Descriptions.Item label="Period">{reportData.startDate} to {reportData.endDate}</Descriptions.Item>
-            <Descriptions.Item label="Currency">CNY</Descriptions.Item>
-            <Descriptions.Item label="Generated At">{reportData.generatedAt}</Descriptions.Item>
-            <Descriptions.Item label="Period Description">{reportData.periodDescription}</Descriptions.Item>
-            <Descriptions.Item label="Total Transactions">{reportData.totalTransactionCount || 0}</Descriptions.Item>
-          </Descriptions>
-
-          {reportData.byCategory && Object.keys(reportData.byCategory).length > 0 && (
-            <Card title="Grouping by Category" style={{ marginBottom: 16 }}>
-              <Table 
-                columns={groupingColumns}
-                dataSource={Object.entries(reportData.byCategory).map(([name, data], index) => ({
-                  key: `category-${index}`,
-                  name: name,
-                  totalAmount: data.totalAmount,
-                  transactionCount: data.transactionCount,
-                  averageAmount: data.averageAmount
-                }))}
-                pagination={false}
-                size="small"
-                bordered
-              />
-            </Card>
+    return (
+      <Tabs defaultActiveKey="category">
+        <TabPane tab="By Category" key="category">
+          {reportData.categoryGrouping && (
+            <Table 
+              dataSource={Object.entries(reportData.categoryGrouping).map(([key, value]) => ({ key, value }))}
+              columns={[
+                { title: 'Category', dataIndex: 'key', key: 'key' },
+                { title: 'Amount', dataIndex: 'value', key: 'value', 
+                  render: (value) => `$${Number(value || 0).toLocaleString()}` }
+              ]}
+              pagination={false}
+              size="small"
+            />
           )}
-
-          {reportData.byDepartment && Object.keys(reportData.byDepartment).length > 0 && (
-            <Card title="Grouping by Department" style={{ marginBottom: 16 }}>
-              <Table 
-                columns={groupingColumns}
-                dataSource={Object.entries(reportData.byDepartment).map(([name, data], index) => ({
-                  key: `department-${index}`,
-                  name,
-                  totalAmount: data.totalAmount,
-                  transactionCount: data.transactionCount,
-                  averageAmount: data.averageAmount
-                }))}
-                pagination={false}
-                size="small"
-                bordered
-              />
-            </Card>
+        </TabPane>
+        <TabPane tab="By Department" key="department">
+          {reportData.departmentGrouping && (
+            <Table 
+              dataSource={Object.entries(reportData.departmentGrouping).map(([key, value]) => ({ key, value }))}
+              columns={[
+                { title: 'Department', dataIndex: 'key', key: 'key' },
+                { title: 'Amount', dataIndex: 'value', key: 'value', 
+                  render: (value) => `$${Number(value || 0).toLocaleString()}` }
+              ]}
+              pagination={false}
+              size="small"
+            />
           )}
+        </TabPane>
+      </Tabs>
+    );
+  };
 
-          {reportData.byFund && Object.keys(reportData.byFund).length > 0 && (
-            <Card title="Grouping by Fund" style={{ marginBottom: 16 }}>
-              <Table 
-                columns={groupingColumns}
-                dataSource={Object.entries(reportData.byFund).map(([name, data], index) => ({
-                  key: `fund-${index}`,
-                  name,
-                  totalAmount: data.totalAmount,
-                  transactionCount: data.transactionCount,
-                  averageAmount: data.averageAmount
-                }))}
-                pagination={false}
-                size="small"
-                bordered
-              />
-            </Card>
-          )}
-
-          {reportData.byMonth && Object.keys(reportData.byMonth).length > 0 && (
-            <Card title="Grouping by Month" style={{ marginBottom: 16 }}>
-              <Table 
-                columns={[
-                  { title: 'Month', dataIndex: 'name', key: 'name' },
-                  { 
-                    title: 'Total Amount', 
-                    dataIndex: 'totalAmount', 
-                    key: 'totalAmount',
-                    align: 'right',
-                    render: (value) => `CNY ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}` 
-                  },
-                  { title: 'Transaction Count', dataIndex: 'transactionCount', key: 'transactionCount', align: 'center' },
-                  { 
-                    title: 'Average Amount', 
-                    dataIndex: 'averageAmount', 
-                    key: 'averageAmount',
-                    align: 'right',
-                    render: (value) => `CNY ${Number(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}` 
-                  }
-                ]}
-                dataSource={Object.entries(reportData.byMonth).map(([name, data], index) => ({
-                  key: `month-${index}`,
-                  name: data.displayName || name,
-                  totalAmount: data.totalAmount,
-                  transactionCount: data.transactionCount,
-                  averageAmount: data.averageAmount
-                }))}
-                pagination={false}
-                size="small"
-                bordered
-              />
-            </Card>
-          )}
-
-          {reportData.grandTotal && (
-            <Card title="Summary Statistics" style={{ marginTop: 16 }}>
-              <Row gutter={24}>
-                <Col span={6}>
-                  <div style={{ textAlign: 'center', padding: 16 }}>
-                    <Title level={4}>Total Transactions</Title>
-                    <Title level={3}>{reportData.totalTransactionCount || 0}</Title>
-                  </div>
-                </Col>
-                <Col span={6}>
-                  <div style={{ textAlign: 'center', padding: 16 }}>
-                    <Title level={4}>Grand Total</Title>
-                    <Title level={3}>CNY {Number(reportData.grandTotal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</Title>
-                  </div>
-                </Col>
-                <Col span={6}>
-                  <div style={{ textAlign: 'center', padding: 16 }}>
-                    <Title level={4}>Categories</Title>
-                    <Title level={3}>{reportData.byCategory ? Object.keys(reportData.byCategory).length : 0}</Title>
-                  </div>
-                </Col>
-                <Col span={6}>
-                  <div style={{ textAlign: 'center', padding: 16 }}>
-                    <Title level={4}>Departments</Title>
-                    <Title level={3}>{reportData.byDepartment ? Object.keys(reportData.byDepartment).length : 0}</Title>
-                  </div>
-                </Col>
-              </Row>
-            </Card>
-          )}
-        </div>
-      );
-    } else {
-      // Raw data display for debugging
-      return (
-        <div>
-          <Title level={4}>Financial Grouping Report Preview</Title>
-          <Alert 
-            message="Checking Data Structure" 
-            description={`Data keys found: ${Object.keys(reportData).join(', ')}`}
-            type="info" 
-            style={{ marginBottom: 16 }}
-          />
-          <Card title="Raw Report Data">
-            <pre style={{ 
-              background: '#f5f5f5', 
-              padding: '16px', 
-              overflow: 'auto', 
-              borderRadius: 4,
-              fontSize: '12px',
-              lineHeight: '1.4'
-            }}>
-              {JSON.stringify(reportData, null, 2)}
-            </pre>
-          </Card>
-        </div>
-      );
-    }
+  const renderIncomeStatementPreview = () => {
+    return <div>Income Statement preview will be implemented when backend is ready</div>;
   };
 
   return (
     <div style={{ padding: '24px' }}>
-      {/* Backend Connection Status */}
-      <Alert
-        message={
-          <Row justify="space-between" align="middle">
-            <Col>
-              <Space>
-                <Text strong>Backend Connection Status:</Text>
-                {getConnectionStatusTag()}
-              </Space>
-            </Col>
-            <Col>
-              <Button 
-                size="small" 
-                icon={<ReloadOutlined />}
-                onClick={testBackendConnection}
-                loading={testingConnection}
-              >
-                Test Connection
-              </Button>
-            </Col>
-          </Row>
-        }
-        type={connectionStatus === 'connected' ? 'success' : connectionStatus === 'disconnected' ? 'error' : 'info'}
-        style={{ marginBottom: 24 }}
-        showIcon
-      />
-
       <Card>
         <Title level={2}>
-          <Space>
-            <BarChartOutlined />
-            Financial Reports Preview & Export
-          </Space>
+          <FundProjectionScreenOutlined /> Financial Reports
         </Title>
         
-        {/* Parameter Selection */}
+        {testingConnection && (
+          <Alert 
+            message="Testing backend connection..." 
+            type="info" 
+            style={{ marginBottom: 16 }}
+          />
+        )}
+
+        <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+          <Col xs={24} sm={12} md={8}>
+            <label>Report Type:</label>
+            <Select 
+              value={reportType} 
+              onChange={setReportType}
+              style={{ width: '100%' }}
+              placeholder="Select report type"
+            >
+              {reportConfigs.map(config => (
+                <Option key={config.value} value={config.value}>
+                  {config.icon} {config.label}
+                </Option>
+              ))}
+            </Select>
+            {currentReportConfig && (
+              <Text type="secondary" style={{ fontSize: '12px' }}>
+                {currentReportConfig.description}
+              </Text>
+            )}
+          </Col>
+
+          <Col xs={24} sm={12} md={4}>
+            <label>Company ID:</label>
+            <Select 
+              value={companyId} 
+              onChange={setCompanyId}
+              style={{ width: '100%' }}
+            >
+              <Option value={1}>Company 1</Option>
+              <Option value={2}>Company 2</Option>
+              <Option value={3}>Company 3</Option>
+            </Select>
+          </Col>
+
+          {currentReportConfig?.useAsOfDate ? (
+            <Col xs={24} sm={12} md={6}>
+              <label>As of Date:</label>
+              <DatePicker 
+                value={asOfDate}
+                onChange={setAsOfDate}
+                style={{ width: '100%' }}
+                format="YYYY-MM-DD"
+              />
+            </Col>
+          ) : (
+            <>
+              <Col xs={24} sm={12} md={6}>
+                <label>Start Date:</label>
+                <DatePicker 
+                  value={startDate}
+                  onChange={setStartDate}
+                  style={{ width: '100%' }}
+                  format="YYYY-MM-DD"
+                />
+              </Col>
+              <Col xs={24} sm={12} md={6}>
+                <label>End Date:</label>
+                <DatePicker 
+                  value={endDate}
+                  onChange={setEndDate}
+                  style={{ width: '100%' }}
+                  format="YYYY-MM-DD"
+                />
+              </Col>
+            </>
+          )}
+        </Row>
+
+        <Space style={{ marginBottom: 16 }}>
+          <Button 
+            type="primary" 
+            icon={<ReloadOutlined />}
+            onClick={loadReportData}
+            loading={loading}
+          >
+            Load Report
+          </Button>
+          
+          <Button 
+            type="default"
+            icon={<DownloadOutlined />}
+            onClick={handleExport}
+            loading={exporting}
+            disabled={!currentReportConfig}
+          >
+            {exporting ? 'Exporting...' : 'Export to Excel'}
+          </Button>
+        </Space>
+
         <Card 
-          title="Report Parameters" 
-          style={{ marginBottom: '24px' }}
+          title={`${currentReportConfig?.label || 'Report'} Preview`}
           size="small"
+          style={{ minHeight: '400px' }}
         >
-          {renderParameterSelection()}
-        </Card>
-        
-        {/* Report Content */}
-        <Card title="Report Preview">
-          {renderReportContent()}
+          {renderReportPreview()}
         </Card>
       </Card>
     </div>
   );
-}
+};
+
+export default FinancialReportsUnified;

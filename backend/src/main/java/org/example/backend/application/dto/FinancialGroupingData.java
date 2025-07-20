@@ -16,6 +16,7 @@ import java.util.Map;
 
 /**
  * Financial Grouping Data DTO - Fixed Lombok Issues
+ * FIXED: Added missing getter methods for export functionality
  * 
  * Contains structured data for financial grouping report generation
  */
@@ -34,6 +35,62 @@ public class FinancialGroupingData {
     private Map<String, TransactionTypeGrouping> byTransactionType;
     private Map<String, MonthGrouping> byMonth;
     
+    // FIXED: Add compatibility methods for export service
+    public Map<String, BigDecimal> getCategoryGrouping() {
+        if (byCategory == null) {
+            return Map.of();
+        }
+        return byCategory.entrySet().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                    Map.Entry::getKey,
+                    entry -> entry.getValue().getTotalAmount()
+                ));
+    }
+    
+    public Map<String, BigDecimal> getDepartmentGrouping() {
+        if (byDepartment == null) {
+            return Map.of();
+        }
+        return byDepartment.entrySet().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                    Map.Entry::getKey,
+                    entry -> entry.getValue().getTotalAmount()
+                ));
+    }
+    
+    public Map<String, BigDecimal> getFundGrouping() {
+        if (byFund == null) {
+            return Map.of();
+        }
+        return byFund.entrySet().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                    Map.Entry::getKey,
+                    entry -> entry.getValue().getTotalAmount()
+                ));
+    }
+    
+    public Map<String, BigDecimal> getTransactionTypeGrouping() {
+        if (byTransactionType == null) {
+            return Map.of();
+        }
+        return byTransactionType.entrySet().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                    Map.Entry::getKey,
+                    entry -> entry.getValue().getTotalAmount()
+                ));
+    }
+    
+    public Map<String, BigDecimal> getMonthlyGrouping() {
+        if (byMonth == null) {
+            return Map.of();
+        }
+        return byMonth.entrySet().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                    Map.Entry::getKey,
+                    entry -> entry.getValue().getTotalAmount()
+                ));
+    }
+    
     public String getPeriodDescription() {
         if (periodDescription != null) {
             return periodDescription;
@@ -42,11 +99,7 @@ public class FinancialGroupingData {
     }
     
     public BigDecimal getGrandTotal() {
-        if (byCategory == null) {
-            return BigDecimal.ZERO;
-        }
-        return byCategory.values().stream()
-            .map(CategoryGrouping::getTotalAmount)
+        return getCategoryGrouping().values().stream()
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
     
@@ -77,7 +130,7 @@ public class FinancialGroupingData {
             if (averageAmount != null) {
                 return averageAmount;
             }
-            return transactionCount > 0 ? 
+            return transactionCount > 0 ?
                 totalAmount.divide(BigDecimal.valueOf(transactionCount), 2, RoundingMode.HALF_UP) :
                 BigDecimal.ZERO;
         }
@@ -127,6 +180,8 @@ public class FinancialGroupingData {
         private BigDecimal totalAmount;
         private int transactionCount;
         private BigDecimal averageAmount;
+        private BigDecimal budgetAllocation;
+        private BigDecimal variance;
         private List<TransactionAggregate> transactions;
         
         public BigDecimal getAverageAmount() {
@@ -136,6 +191,13 @@ public class FinancialGroupingData {
             return transactionCount > 0 ? 
                 totalAmount.divide(BigDecimal.valueOf(transactionCount), 2, RoundingMode.HALF_UP) :
                 BigDecimal.ZERO;
+        }
+        
+        public BigDecimal getVariance() {
+            if (variance != null) {
+                return variance;
+            }
+            return totalAmount.subtract(budgetAllocation != null ? budgetAllocation : BigDecimal.ZERO);
         }
     }
     
@@ -148,16 +210,23 @@ public class FinancialGroupingData {
     @NoArgsConstructor
     public static class TransactionTypeGrouping {
         private String typeName;
+        private String transactionType; // Alternative field name for compatibility
         private BigDecimal totalAmount;
         private int transactionCount;
+        private BigDecimal minAmount;
+        private BigDecimal maxAmount;
         private BigDecimal averageAmount;
         private List<TransactionAggregate> transactions;
+        
+        public String getTypeName() {
+            return typeName != null ? typeName : transactionType;
+        }
         
         public BigDecimal getAverageAmount() {
             if (averageAmount != null) {
                 return averageAmount;
             }
-            return transactionCount > 0 ? 
+            return transactionCount > 0 ?
                 totalAmount.divide(BigDecimal.valueOf(transactionCount), 2, RoundingMode.HALF_UP) :
                 BigDecimal.ZERO;
         }
@@ -171,12 +240,36 @@ public class FinancialGroupingData {
     @AllArgsConstructor
     @NoArgsConstructor
     public static class MonthGrouping {
+        private String monthName;
         private String monthKey; // Format: yyyy-MM
         private BigDecimal totalAmount;
+        private BigDecimal incomeAmount;
+        private BigDecimal expenseAmount;
         private int transactionCount;
+        private BigDecimal growthRate;
         private BigDecimal averageAmount;
         private LocalDate firstDayOfMonth;
         private List<TransactionAggregate> transactions;
+        
+        public BigDecimal getNetAmount() {
+            BigDecimal income = incomeAmount != null ? incomeAmount : BigDecimal.ZERO;
+            BigDecimal expense = expenseAmount != null ? expenseAmount : BigDecimal.ZERO;
+            return income.subtract(expense);
+        }
+        
+        public String getDisplayName() {
+            if (monthName != null) {
+                return monthName;
+            }
+            if (firstDayOfMonth != null) {
+                return firstDayOfMonth.getMonth().name() + " " + firstDayOfMonth.getYear();
+            }
+            return monthKey != null ? monthKey : "Unknown Month";
+        }
+        
+        public LocalDate getFirstDayOfMonth() {
+            return firstDayOfMonth;
+        }
         
         public BigDecimal getAverageAmount() {
             if (averageAmount != null) {
@@ -185,13 +278,6 @@ public class FinancialGroupingData {
             return transactionCount > 0 ? 
                 totalAmount.divide(BigDecimal.valueOf(transactionCount), 2, RoundingMode.HALF_UP) :
                 BigDecimal.ZERO;
-        }
-        
-        public String getDisplayName() {
-            if (firstDayOfMonth == null) {
-                return monthKey;
-            }
-            return firstDayOfMonth.getMonth().name() + " " + firstDayOfMonth.getYear();
         }
     }
 }
