@@ -1,8 +1,11 @@
 package org.example.backend.application.dto;
 
+import lombok.Builder;
 import lombok.Data;
 
+
 @Data
+@Builder
 public class CategorySuggestionCommand {
     private String description;     // 交易描述
     private Double amount;          // 金额
