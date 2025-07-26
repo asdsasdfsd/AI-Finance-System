@@ -104,7 +104,10 @@ public class Money {
     }
     
     public Money multiply(double multiplier) {
-        return multiply(BigDecimal.valueOf(multiplier));
+        BigDecimal result = this.amount.multiply(BigDecimal.valueOf(multiplier));
+        // 关键修复：先设置精度再创建Money对象
+        result = result.setScale(2, RoundingMode.HALF_UP);
+        return new Money(result, this.currencyCode);
     }
     
     /**
