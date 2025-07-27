@@ -1,5 +1,5 @@
 // backend/src/test/java/org/example/backend/domain/valueobject/MoneyTest.java
-package org.example.backend.domain.aggregate.valueobject;
+package org.example.backend.domain.valueobject;
 
 import org.example.backend.domain.valueobject.Money;
 import org.junit.jupiter.api.Test;
@@ -39,7 +39,8 @@ class MoneyTest extends ValueObjectTestBase {
         Money money = Money.zero(currency);
         
         // Then
-        assertEquals(BigDecimal.ZERO, money.getAmount());
+        // Use compareTo for BigDecimal comparison to handle precision differences
+        assertTrue(money.getAmount().compareTo(BigDecimal.ZERO) == 0);
         assertEquals(currency, money.getCurrencyCode());
     }
     
@@ -82,5 +83,21 @@ class MoneyTest extends ValueObjectTestBase {
         
         // When & Then
         testEqualityContract(money1, money2, differentMoney);
+    }
+
+    protected void testEqualityContract(Object obj1, Object obj2, Object differentObj) {
+        // Reflexive
+        assertEquals(obj1, obj1);
+        
+        // Symmetric
+        assertEquals(obj1, obj2);
+        assertEquals(obj2, obj1);
+        
+        // Not equal to different object
+        assertNotEquals(obj1, differentObj);
+        assertNotEquals(obj1, null);
+        
+        // Hash code consistency
+        assertEquals(obj1.hashCode(), obj2.hashCode());
     }
 }
