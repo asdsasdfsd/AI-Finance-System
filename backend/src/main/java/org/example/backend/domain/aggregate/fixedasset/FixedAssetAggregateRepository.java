@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Fixed Asset Aggregate Repository - 修复版本
+ * Fixed Asset Aggregate Repository - Enhanced Version
  */
 @Repository
 public interface FixedAssetAggregateRepository extends JpaRepository<FixedAssetAggregate, Integer> {
@@ -23,6 +23,13 @@ public interface FixedAssetAggregateRepository extends JpaRepository<FixedAssetA
     @Query("SELECT f FROM FixedAssetAggregate f WHERE f.assetId = :assetId AND f.companyId = :companyId")
     Optional<FixedAssetAggregate> findByIdAndTenant(@Param("assetId") Integer assetId, 
                                                    @Param("companyId") Integer companyId);
+    
+    /**
+     * Find fixed asset by ID and tenant - alternative method signature for tests
+     */
+    @Query("SELECT f FROM FixedAssetAggregate f WHERE f.assetId = :assetId AND f.companyId = :companyId")
+    Optional<FixedAssetAggregate> findByIdAndTenantId(@Param("assetId") Integer assetId, 
+                                                     @Param("companyId") Integer companyId);
     
     /**
      * Find fixed assets by tenant
@@ -42,7 +49,7 @@ public interface FixedAssetAggregateRepository extends JpaRepository<FixedAssetA
                                                       @Param("status") String status);
     
     /**
-     * Sum current value by tenant - 修复版本
+     * Sum current value by tenant
      */
     @Query("SELECT COALESCE(SUM(f.currentValue), 0) FROM FixedAssetAggregate f " +
            "WHERE f.companyId = :companyId AND f.status = 'ACTIVE'")
@@ -53,6 +60,8 @@ public interface FixedAssetAggregateRepository extends JpaRepository<FixedAssetA
      */
     @Query("SELECT COUNT(f) FROM FixedAssetAggregate f WHERE f.companyId = :companyId AND f.status = :status")
     long countByTenantIdAndStatus(@Param("companyId") Integer companyId, @Param("status") String status);
+    
+    // ========== TenantId Compatibility Methods ==========
     
     /**
      * Find fixed assets by tenant (alias method)
@@ -65,6 +74,13 @@ public interface FixedAssetAggregateRepository extends JpaRepository<FixedAssetA
      * Additional convenience method for TenantId compatibility
      */
     default Optional<FixedAssetAggregate> findByIdAndTenant(Integer assetId, TenantId tenantId) {
+        return findByIdAndTenant(assetId, tenantId.getValue());
+    }
+    
+    /**
+     * Find by asset ID and TenantId value object - for test compatibility
+     */
+    default Optional<FixedAssetAggregate> findByAssetIdAndTenantId(Integer assetId, TenantId tenantId) {
         return findByIdAndTenant(assetId, tenantId.getValue());
     }
     

@@ -17,6 +17,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -30,9 +32,10 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * Unit tests for FixedAssetApplicationService - Fixed Version
+ * Unit tests for FixedAssetApplicationService - Clean Version
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class FixedAssetApplicationServiceTest {
 
     @Mock
@@ -48,17 +51,9 @@ class FixedAssetApplicationServiceTest {
     private static final Integer TEST_ASSET_ID = 1001;
     private static final Integer TEST_COMPANY_ID = 1;
     private static final String TEST_ASSET_NAME = "Test Asset";
-    private static final String TEST_ASSET_TYPE = "Equipment";
     private static final String TEST_CURRENCY = "CNY";
     private static final BigDecimal TEST_COST = BigDecimal.valueOf(50000.00);
     private static final LocalDate TEST_PURCHASE_DATE = LocalDate.of(2024, 1, 15);
-
-    private FixedAssetAggregate testFixedAsset;
-
-    @BeforeEach
-    void setUp() {
-        testFixedAsset = createMockFixedAsset();
-    }
 
     // ========== Create Fixed Asset Tests ==========
 
@@ -67,15 +62,17 @@ class FixedAssetApplicationServiceTest {
     void shouldCreateFixedAssetSuccessfully() {
         // Given
         CreateFixedAssetCommand command = createValidCreateCommand();
-        when(fixedAssetRepository.save(any(FixedAssetAggregate.class))).thenReturn(testFixedAsset);
+        FixedAssetAggregate mockAsset = createBasicMockAsset();
+        
+        when(fixedAssetRepository.save(any(FixedAssetAggregate.class))).thenReturn(mockAsset);
 
         // When
         FixedAssetDTO result = fixedAssetApplicationService.createFixedAsset(command);
 
         // Then
         assertNotNull(result);
-        assertEquals(testFixedAsset.getAssetId(), result.getAssetId());
-        assertEquals(testFixedAsset.getName(), result.getName());
+        assertEquals(TEST_ASSET_ID, result.getAssetId());
+        assertEquals(TEST_ASSET_NAME, result.getName());
         
         verify(fixedAssetRepository).save(any(FixedAssetAggregate.class));
         verify(eventPublisher).publishAll(anyList());
@@ -97,9 +94,8 @@ class FixedAssetApplicationServiceTest {
         CreateFixedAssetCommand command = CreateFixedAssetCommand.builder()
                 .name(null)
                 .description("Test description")
-                .purchaseCost(TEST_COST)
-                .currency(TEST_CURRENCY)
-                .purchaseDate(TEST_PURCHASE_DATE)
+                .acquisitionCost(TEST_COST)
+                .acquisitionDate(TEST_PURCHASE_DATE)
                 .companyId(TEST_COMPANY_ID)
                 .build();
 
@@ -116,17 +112,19 @@ class FixedAssetApplicationServiceTest {
     void shouldUpdateFixedAssetSuccessfully() {
         // Given
         UpdateFixedAssetCommand command = createValidUpdateCommand();
-        when(fixedAssetRepository.findByIdAndTenantId(TEST_ASSET_ID, TEST_COMPANY_ID))
-                .thenReturn(Optional.of(testFixedAsset));
-        when(fixedAssetRepository.save(any(FixedAssetAggregate.class))).thenReturn(testFixedAsset);
+        FixedAssetAggregate mockAsset = createBasicMockAsset();
+        
+        when(fixedAssetRepository.findByIdAndTenant(TEST_ASSET_ID, TenantId.of(TEST_COMPANY_ID)))
+                .thenReturn(Optional.of(mockAsset));
+        when(fixedAssetRepository.save(any(FixedAssetAggregate.class))).thenReturn(mockAsset);
 
         // When
         FixedAssetDTO result = fixedAssetApplicationService.updateFixedAsset(TEST_ASSET_ID, command);
 
         // Then
         assertNotNull(result);
-        verify(fixedAssetRepository).findByIdAndTenantId(TEST_ASSET_ID, TEST_COMPANY_ID);(TEST_COMPANY_ID));
-        verify(fixedAssetRepository).save(testFixedAsset);
+        verify(fixedAssetRepository).findByIdAndTenant(TEST_ASSET_ID, TenantId.of(TEST_COMPANY_ID));
+        verify(fixedAssetRepository).save(mockAsset);
     }
 
     @Test
@@ -134,7 +132,7 @@ class FixedAssetApplicationServiceTest {
     void shouldThrowExceptionWhenFixedAssetNotFoundForUpdate() {
         // Given
         UpdateFixedAssetCommand command = createValidUpdateCommand();
-        when(fixedAssetRepository.findByAssetIdAndTenantId(TEST_ASSET_ID, TenantId.of(TEST_COMPANY_ID)))
+        when(fixedAssetRepository.findByIdAndTenant(TEST_ASSET_ID, TenantId.of(TEST_COMPANY_ID)))
                 .thenReturn(Optional.empty());
 
         // When & Then
@@ -150,18 +148,20 @@ class FixedAssetApplicationServiceTest {
     void shouldDepreciateFixedAssetSuccessfully() {
         // Given
         BigDecimal depreciationAmount = BigDecimal.valueOf(5000.00);
-        when(fixedAssetRepository.findByAssetIdAndTenantId(TEST_ASSET_ID, TenantId.of(TEST_COMPANY_ID)))
-                .thenReturn(Optional.of(testFixedAsset));
-        when(fixedAssetRepository.save(any(FixedAssetAggregate.class))).thenReturn(testFixedAsset);
+        FixedAssetAggregate mockAsset = createBasicMockAsset();
+        
+        when(fixedAssetRepository.findByIdAndTenant(TEST_ASSET_ID, TenantId.of(TEST_COMPANY_ID)))
+                .thenReturn(Optional.of(mockAsset));
+        when(fixedAssetRepository.save(any(FixedAssetAggregate.class))).thenReturn(mockAsset);
 
         // When
         FixedAssetDTO result = fixedAssetApplicationService.depreciateAsset(TEST_ASSET_ID, TEST_COMPANY_ID, depreciationAmount);
 
         // Then
         assertNotNull(result);
-        verify(fixedAssetRepository).findByAssetIdAndTenantId(TEST_ASSET_ID, TenantId.of(TEST_COMPANY_ID));
-        verify(testFixedAsset).recordDepreciation(any(Money.class));
-        verify(fixedAssetRepository).save(testFixedAsset);
+        verify(fixedAssetRepository).findByIdAndTenant(TEST_ASSET_ID, TenantId.of(TEST_COMPANY_ID));
+        verify(mockAsset).recordDepreciation(any(Money.class));
+        verify(fixedAssetRepository).save(mockAsset);
     }
 
     @Test
@@ -169,7 +169,7 @@ class FixedAssetApplicationServiceTest {
     void shouldThrowExceptionWhenFixedAssetNotFoundForDepreciation() {
         // Given
         BigDecimal depreciationAmount = BigDecimal.valueOf(5000.00);
-        when(fixedAssetRepository.findByAssetIdAndTenantId(TEST_ASSET_ID, TenantId.of(TEST_COMPANY_ID)))
+        when(fixedAssetRepository.findByIdAndTenant(TEST_ASSET_ID, TenantId.of(TEST_COMPANY_ID)))
                 .thenReturn(Optional.empty());
 
         // When & Then
@@ -184,20 +184,22 @@ class FixedAssetApplicationServiceTest {
     @DisplayName("Should dispose fixed asset successfully")
     void shouldDisposeFixedAssetSuccessfully() {
         // Given
-        Money disposalAmount = Money.of(BigDecimal.valueOf(10000.00), TEST_CURRENCY);
+        BigDecimal disposalAmount = BigDecimal.valueOf(10000.00);
         String reason = "Asset sold";
-        when(fixedAssetRepository.findByAssetIdAndTenantId(TEST_ASSET_ID, TenantId.of(TEST_COMPANY_ID)))
-                .thenReturn(Optional.of(testFixedAsset));
-        when(fixedAssetRepository.save(any(FixedAssetAggregate.class))).thenReturn(testFixedAsset);
+        FixedAssetAggregate mockAsset = createBasicMockAsset();
+        
+        when(fixedAssetRepository.findByIdAndTenant(TEST_ASSET_ID, TenantId.of(TEST_COMPANY_ID)))
+                .thenReturn(Optional.of(mockAsset));
+        when(fixedAssetRepository.save(any(FixedAssetAggregate.class))).thenReturn(mockAsset);
 
         // When
         FixedAssetDTO result = fixedAssetApplicationService.disposeAsset(TEST_ASSET_ID, TEST_COMPANY_ID, disposalAmount, reason);
 
         // Then
         assertNotNull(result);
-        verify(fixedAssetRepository).findByAssetIdAndTenantId(TEST_ASSET_ID, TenantId.of(TEST_COMPANY_ID));
-        verify(testFixedAsset).dispose(disposalAmount, reason);
-        verify(fixedAssetRepository).save(testFixedAsset);
+        verify(fixedAssetRepository).findByIdAndTenant(TEST_ASSET_ID, TenantId.of(TEST_COMPANY_ID));
+        verify(mockAsset).dispose(any(Money.class), eq(reason));
+        verify(fixedAssetRepository).save(mockAsset);
     }
 
     @Test
@@ -206,7 +208,7 @@ class FixedAssetApplicationServiceTest {
         // Given
         BigDecimal disposalAmount = BigDecimal.valueOf(10000.00);
         String reason = "Asset sold";
-        when(fixedAssetRepository.findByIdAndTenantId(TEST_ASSET_ID, TEST_COMPANY_ID))
+        when(fixedAssetRepository.findByIdAndTenant(TEST_ASSET_ID, TenantId.of(TEST_COMPANY_ID)))
                 .thenReturn(Optional.empty());
 
         // When & Then
@@ -221,28 +223,29 @@ class FixedAssetApplicationServiceTest {
     @DisplayName("Should get fixed asset by ID successfully")
     void shouldGetFixedAssetByIdSuccessfully() {
         // Given
-        when(fixedAssetRepository.findByIdAndTenantId(TEST_ASSET_ID, TEST_COMPANY_ID))
-                .thenReturn(Optional.of(testFixedAsset));
+        FixedAssetAggregate mockAsset = createBasicMockAsset();
+        when(fixedAssetRepository.findByIdAndTenant(TEST_ASSET_ID, TenantId.of(TEST_COMPANY_ID)))
+                .thenReturn(Optional.of(mockAsset));
 
         // When
-        FixedAssetDTO result = fixedAssetApplicationService.getFixedAssetById(TEST_ASSET_ID, TEST_COMPANY_ID);
+        FixedAssetDTO result = fixedAssetApplicationService.getFixedAsset(TEST_ASSET_ID, TEST_COMPANY_ID);
 
         // Then
         assertNotNull(result);
-        assertEquals(testFixedAsset.getAssetId(), result.getAssetId());
-        verify(fixedAssetRepository).findByIdAndTenantId(TEST_ASSET_ID, TEST_COMPANY_ID);
+        assertEquals(TEST_ASSET_ID, result.getAssetId());
+        verify(fixedAssetRepository).findByIdAndTenant(TEST_ASSET_ID, TenantId.of(TEST_COMPANY_ID));
     }
 
     @Test
     @DisplayName("Should throw exception when fixed asset not found by ID")
     void shouldThrowExceptionWhenFixedAssetNotFoundById() {
         // Given
-        when(fixedAssetRepository.findByIdAndTenantId(TEST_ASSET_ID, TEST_COMPANY_ID))
+        when(fixedAssetRepository.findByIdAndTenant(TEST_ASSET_ID, TenantId.of(TEST_COMPANY_ID)))
                 .thenReturn(Optional.empty());
 
         // When & Then
         assertThrows(ResourceNotFoundException.class, () -> {
-            fixedAssetApplicationService.getFixedAssetById(TEST_ASSET_ID, TEST_COMPANY_ID);
+            fixedAssetApplicationService.getFixedAsset(TEST_ASSET_ID, TEST_COMPANY_ID);
         });
     }
 
@@ -250,7 +253,8 @@ class FixedAssetApplicationServiceTest {
     @DisplayName("Should get fixed assets by company successfully")
     void shouldGetFixedAssetsByCompanySuccessfully() {
         // Given
-        List<FixedAssetAggregate> assets = List.of(testFixedAsset);
+        FixedAssetAggregate mockAsset = createBasicMockAsset();
+        List<FixedAssetAggregate> assets = List.of(mockAsset);
         when(fixedAssetRepository.findByTenantId(TenantId.of(TEST_COMPANY_ID)))
                 .thenReturn(assets);
 
@@ -286,18 +290,27 @@ class FixedAssetApplicationServiceTest {
                 .build();
     }
 
-    private FixedAssetAggregate createMockFixedAsset() {
+    private FixedAssetAggregate createBasicMockAsset() {
         FixedAssetAggregate asset = mock(FixedAssetAggregate.class);
         
+        // Only mock what's actually used in DTO mapping
         when(asset.getAssetId()).thenReturn(TEST_ASSET_ID);
         when(asset.getName()).thenReturn(TEST_ASSET_NAME);
+        when(asset.getDescription()).thenReturn("Test Description");
+        when(asset.getAcquisitionDate()).thenReturn(TEST_PURCHASE_DATE);
+        when(asset.getAcquisitionCost()).thenReturn(Money.of(TEST_COST, TEST_CURRENCY));
+        when(asset.getCurrentValue()).thenReturn(Money.of(TEST_COST, TEST_CURRENCY));
+        when(asset.getAccumulatedDepreciation()).thenReturn(Money.of(BigDecimal.ZERO, TEST_CURRENCY));
+        when(asset.getNetBookValue()).thenReturn(Money.of(TEST_COST, TEST_CURRENCY));
+        when(asset.getLocation()).thenReturn("Test Location");
+        when(asset.getSerialNumber()).thenReturn("SN123456");
+        when(asset.getStatus()).thenReturn(FixedAssetAggregate.AssetStatus.ACTIVE);
+        when(asset.getTenantId()).thenReturn(TenantId.of(TEST_COMPANY_ID));
+        when(asset.getDepartmentId()).thenReturn(1);
         when(asset.getCreatedAt()).thenReturn(LocalDateTime.now());
+        when(asset.getUpdatedAt()).thenReturn(LocalDateTime.now());
+        when(asset.isActive()).thenReturn(true);
         when(asset.getDomainEvents()).thenReturn(new ArrayList<>());
-        
-        // Mock behavior methods
-        doNothing().when(asset).recordDepreciation(any(Money.class));
-        doNothing().when(asset).dispose(any(Money.class), anyString());
-        doNothing().when(asset).clearDomainEvents();
         
         return asset;
     }

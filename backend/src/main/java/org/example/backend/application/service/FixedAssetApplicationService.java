@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 /**
  * Fixed Asset Application Service
  * 
- * 协调固定资产管理的业务用例，包括资产生命周期和折旧计算
+ * Coordinates fixed asset management use cases including asset lifecycle and depreciation calculations
  */
 @Service
 @Transactional
@@ -57,7 +57,7 @@ public class FixedAssetApplicationService {
             command.getDepartmentId()
         );
         
-        // 设置可选字段
+        // Set optional fields
         if (command.getLocation() != null) {
             fixedAsset.setLocation(command.getLocation());
         }
@@ -67,7 +67,7 @@ public class FixedAssetApplicationService {
         
         FixedAssetAggregate savedAsset = fixedAssetRepository.save(fixedAsset);
         
-        // 发布领域事件
+        // Publish domain events
         eventPublisher.publishAll(savedAsset.getDomainEvents());
         savedAsset.clearDomainEvents();
         
@@ -110,11 +110,19 @@ public class FixedAssetApplicationService {
         
         FixedAssetAggregate savedAsset = fixedAssetRepository.save(fixedAsset);
         
-        // 发布领域事件
+        // Publish domain events
         eventPublisher.publishAll(savedAsset.getDomainEvents());
         savedAsset.clearDomainEvents();
         
         return mapToDTO(savedAsset);
+    }
+    
+    /**
+     * Depreciate asset - new method for test compatibility
+     */
+    public FixedAssetDTO depreciateAsset(Integer assetId, Integer companyId, 
+                                       BigDecimal depreciationAmount) {
+        return calculateDepreciation(assetId, companyId, depreciationAmount);
     }
     
     /**
@@ -130,25 +138,7 @@ public class FixedAssetApplicationService {
         
         FixedAssetAggregate savedAsset = fixedAssetRepository.save(fixedAsset);
         
-        // 发布领域事件
-        eventPublisher.publishAll(savedAsset.getDomainEvents());
-        savedAsset.clearDomainEvents();
-        
-        return mapToDTO(savedAsset);
-    }
-    
-    /**
-     * Write off fixed asset
-     */
-    public FixedAssetDTO writeOffAsset(Integer assetId, Integer companyId, String reason) {
-        TenantId tenantId = TenantId.of(companyId);
-        FixedAssetAggregate fixedAsset = findAssetByIdAndTenant(assetId, tenantId);
-        
-        fixedAsset.writeOff(reason);
-        
-        FixedAssetAggregate savedAsset = fixedAssetRepository.save(fixedAsset);
-        
-        // 发布领域事件
+        // Publish domain events
         eventPublisher.publishAll(savedAsset.getDomainEvents());
         savedAsset.clearDomainEvents();
         
@@ -161,14 +151,14 @@ public class FixedAssetApplicationService {
      * Get fixed asset by ID
      */
     @Transactional(readOnly = true)
-    public FixedAssetDTO getFixedAssetById(Integer assetId, Integer companyId) {
+    public FixedAssetDTO getFixedAsset(Integer assetId, Integer companyId) {
         TenantId tenantId = TenantId.of(companyId);
         FixedAssetAggregate fixedAsset = findAssetByIdAndTenant(assetId, tenantId);
         return mapToDTO(fixedAsset);
     }
     
     /**
-     * Get all fixed assets for company
+     * Get all fixed assets by company
      */
     @Transactional(readOnly = true)
     public List<FixedAssetDTO> getFixedAssetsByCompany(Integer companyId) {

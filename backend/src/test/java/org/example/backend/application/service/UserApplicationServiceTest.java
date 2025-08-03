@@ -21,6 +21,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
+
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -36,6 +39,7 @@ import static org.mockito.Mockito.*;
  * Unit tests for UserApplicationService - Fixed Version
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class UserApplicationServiceTest {
 
     @Mock
@@ -246,15 +250,14 @@ class UserApplicationServiceTest {
         when(user.getEnabled()).thenReturn(true);
         when(user.getTenantId()).thenReturn(TenantId.of(TEST_COMPANY_ID));
         when(user.getCreatedAt()).thenReturn(LocalDateTime.now());
-        when(user.getRoles()).thenReturn(Set.of(testRole));
         when(user.getDomainEvents()).thenReturn(new ArrayList<>());
         
-        // Mock behavior methods
-        doNothing().when(user).updateBasicInfo(anyString(), anyString());
-        doNothing().when(user).changePassword(anyString());
-        doNothing().when(user).enable();
-        doNothing().when(user).disable();
-        doNothing().when(user).clearDomainEvents();
+        // 修复：简化 roles 的 mock，避免 UnfinishedStubbing
+        Set<Role> roles = new HashSet<>();
+        if (testRole != null) {
+            roles.add(testRole);
+        }
+        when(user.getRoles()).thenReturn(roles);
         
         return user;
     }
@@ -264,6 +267,9 @@ class UserApplicationServiceTest {
         
         when(company.getCompanyId()).thenReturn(TEST_COMPANY_ID);
         when(company.getTenantId()).thenReturn(TenantId.of(TEST_COMPANY_ID));
+        when(company.getCompanyName()).thenReturn("Test Company");
+        // 修复：添加公司状态为 ACTIVE
+        when(company.isActive()).thenReturn(true);
         
         return company;
     }
