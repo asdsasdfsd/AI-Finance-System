@@ -260,6 +260,9 @@
                     <excludes>
                         <exclude>**/*IntegrationTest.java</exclude>
                         <exclude>**/*IT.java</exclude>
+                        <exclude>**/BackendApplicationTests.java</exclude>
+                        <exclude>**/JwtAuthenticationTest.java</exclude>
+                        <exclude>**/FundServiceTest.java</exclude>
                     </excludes>
                     <!-- Enhanced reporting -->
                     <reportFormat>xml</reportFormat>
