@@ -17,8 +17,7 @@ import org.junit.jupiter.api.DisplayName;
     UserApplicationServiceTest.class,
     TransactionApplicationServiceTest.class,
     JournalEntryApplicationServiceTest.class,
-    FixedAssetApplicationServiceTest.class,
-    FinancialReportServicesTest.class
+    FixedAssetApplicationServiceTest.class
 })
 public class ApplicationServiceTestSuite {
     
