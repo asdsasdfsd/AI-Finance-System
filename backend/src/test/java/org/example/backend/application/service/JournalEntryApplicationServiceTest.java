@@ -26,6 +26,7 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.lang.reflect.Field;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -171,28 +172,105 @@ class JournalEntryApplicationServiceTest {
 
     // ========== createManualEntry Tests ==========
 
-//     @Test
-//     @DisplayName("Should create manual journal entry successfully")
-//     void shouldCreateManualJournalEntrySuccessfully() {
-//         // Given
-//         CreateJournalEntryCommand command = createValidManualJournalEntryCommand();
-//         JournalEntryAggregate mockJournalEntry = createMockJournalEntry();
-        
-//         when(journalEntryRepository.save(any(JournalEntryAggregate.class)))
-//                 .thenReturn(mockJournalEntry);
+	@Test
+	@DisplayName("Should create manual journal entry successfully")
+	void shouldCreateManualJournalEntrySuccessfully() {
+		// Given
+		CreateJournalEntryCommand command = createValidManualJournalEntryCommand();
+		
+		// CORRECT APPROACH: Mock only the repository behavior, let business logic run
+		when(journalEntryRepository.save(any(JournalEntryAggregate.class)))
+				.thenAnswer(invocation -> {
+					JournalEntryAggregate savedEntry = invocation.getArgument(0);
+					
+					// Simulate what JPA does - set the ID after saving
+					// This is the only "fake" part - simulating database ID generation
+					try {
+						Field entryIdField = JournalEntryAggregate.class.getDeclaredField("entryId");
+						entryIdField.setAccessible(true);
+						entryIdField.set(savedEntry, TEST_JOURNAL_ENTRY_ID);
+						
+						// Also fix the journal lines to have the correct entryId
+						for (org.example.backend.model.JournalLine line : savedEntry.getJournalLines()) {
+							if (line.getEntryId() == null) {
+								line.setEntryId(TEST_JOURNAL_ENTRY_ID);
+							}
+						}
+					} catch (Exception e) {
+						// If reflection fails, create a new properly configured entry
+						return createTestJournalEntryWithId();
+					}
+					
+					return savedEntry;
+				});
 
-//         // When
-//         JournalEntryDTO result = journalEntryApplicationService.createManualEntry(command);
+		// When - Execute REAL business logic
+		JournalEntryDTO result = journalEntryApplicationService.createManualEntry(command);
 
-//         // Then
-//         assertNotNull(result);
-//         assertEquals(TEST_JOURNAL_ENTRY_ID, result.getEntryId());
-//         assertEquals(TEST_DESCRIPTION, result.getDescription());
-//         assertEquals(JournalEntryAggregate.EntryStatus.POSTED, result.getStatus());
-//         assertEquals(2, result.getJournalLines().size());
-        
-//         verify(journalEntryRepository).save(any(JournalEntryAggregate.class));
-//     }
+		// Then - Test REAL results
+		assertNotNull(result);
+		assertEquals(TEST_JOURNAL_ENTRY_ID, result.getEntryId());
+		assertEquals(TEST_DESCRIPTION, result.getDescription());
+		
+		// KEY TEST: Manual entries should be DRAFT
+		assertEquals(JournalEntryAggregate.EntryStatus.DRAFT, result.getStatus());
+		
+		// KEY TEST: Should have the journal lines we added
+		assertEquals(2, result.getJournalLines().size());
+		
+		// Verify the content of the journal lines
+		List<JournalEntryDTO.JournalLineDTO> lines = result.getJournalLines();
+		
+		// First line: Debit
+		assertEquals(1001, lines.get(0).getAccountId());
+		assertEquals(0, TEST_AMOUNT.compareTo(lines.get(0).getDebitAmount()), 
+					"Debit amount should equal " + TEST_AMOUNT);
+		assertEquals(0, BigDecimal.ZERO.compareTo(lines.get(0).getCreditAmount()));
+		assertEquals("Debit line", lines.get(0).getDescription());
+		
+		// Second line: Credit  
+		assertEquals(4001, lines.get(1).getAccountId());
+		assertEquals(0, BigDecimal.ZERO.compareTo(lines.get(1).getDebitAmount()));
+		assertEquals(0, TEST_AMOUNT.compareTo(lines.get(1).getCreditAmount()),
+					"Credit amount should equal " + TEST_AMOUNT);
+		assertEquals("Credit line", lines.get(1).getDescription());
+		
+		assertTrue(result.isBalanced());
+		
+		// Verify dependencies were called correctly
+		verify(journalEntryRepository).save(any(JournalEntryAggregate.class));
+		verify(eventPublisher, never()).publishAll(anyList()); // No events for DRAFT entries
+	}
+
+	// Helper method to create a properly configured test entry if reflection fails
+	private JournalEntryAggregate createTestJournalEntryWithId() {
+		JournalEntryAggregate entry = JournalEntryAggregate.create(
+			TenantId.of(TEST_COMPANY_ID),
+			TEST_ENTRY_DATE,
+			TEST_DESCRIPTION,
+			TEST_USER_ID
+		);
+		
+		// Add the journal lines
+		entry.addJournalLine(1001, Money.of(TEST_AMOUNT, "CNY"), null, "Debit line");
+		entry.addJournalLine(4001, null, Money.of(TEST_AMOUNT, "CNY"), "Credit line");
+		
+		// Set ID using reflection
+		try {
+			Field entryIdField = JournalEntryAggregate.class.getDeclaredField("entryId");
+			entryIdField.setAccessible(true);
+			entryIdField.set(entry, TEST_JOURNAL_ENTRY_ID);
+			
+			// Fix journal lines
+			for (org.example.backend.model.JournalLine line : entry.getJournalLines()) {
+				line.setEntryId(TEST_JOURNAL_ENTRY_ID);
+			}
+		} catch (Exception e) {
+			System.err.println("Could not set ID via reflection: " + e.getMessage());
+		}
+		
+		return entry;
+	}
 
     @Test
     @DisplayName("Should throw exception when creating journal entry with unbalanced amounts")
@@ -487,19 +565,19 @@ class JournalEntryApplicationServiceTest {
     }
 
     private JournalEntryAggregate createMockJournalEntry() {
-        JournalEntryAggregate journalEntry = mock(JournalEntryAggregate.class);
-        when(journalEntry.getEntryId()).thenReturn(TEST_JOURNAL_ENTRY_ID);
-        when(journalEntry.getTenantId()).thenReturn(TenantId.of(TEST_COMPANY_ID));
-        when(journalEntry.getEntryDate()).thenReturn(TEST_ENTRY_DATE);
-        when(journalEntry.getDescription()).thenReturn(TEST_DESCRIPTION);
-        when(journalEntry.getStatus()).thenReturn(JournalEntryAggregate.EntryStatus.POSTED);
-        when(journalEntry.getCreatedBy()).thenReturn(TEST_USER_ID);
-        when(journalEntry.getCreatedAt()).thenReturn(LocalDateTime.now());
-        when(journalEntry.getDomainEvents()).thenReturn(Arrays.asList());
-        when(journalEntry.isBalanced()).thenReturn(true);        
-        when(journalEntry.getJournalLines()).thenReturn(Arrays.asList()); // 简化为空列表
-        return journalEntry;
-    }
+		JournalEntryAggregate journalEntry = mock(JournalEntryAggregate.class);
+		when(journalEntry.getEntryId()).thenReturn(TEST_JOURNAL_ENTRY_ID);
+		when(journalEntry.getTenantId()).thenReturn(TenantId.of(TEST_COMPANY_ID));
+		when(journalEntry.getEntryDate()).thenReturn(TEST_ENTRY_DATE);
+		when(journalEntry.getDescription()).thenReturn(TEST_DESCRIPTION);
+		when(journalEntry.getStatus()).thenReturn(JournalEntryAggregate.EntryStatus.POSTED); // Transaction entries are posted
+		when(journalEntry.getCreatedBy()).thenReturn(TEST_USER_ID);
+		when(journalEntry.getCreatedAt()).thenReturn(LocalDateTime.now());
+		when(journalEntry.getDomainEvents()).thenReturn(Arrays.asList());
+		when(journalEntry.isBalanced()).thenReturn(true);        
+		when(journalEntry.getJournalLines()).thenReturn(Arrays.asList()); // Simplified for transaction tests
+		return journalEntry;
+	}
 
     private JournalEntryAggregate createAnotherMockJournalEntry() {
         JournalEntryAggregate journalEntry = mock(JournalEntryAggregate.class);

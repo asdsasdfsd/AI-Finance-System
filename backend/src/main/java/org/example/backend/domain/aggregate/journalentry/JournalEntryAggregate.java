@@ -94,8 +94,13 @@ public class JournalEntryAggregate {
         }
         
         JournalLine line = new JournalLine();
-        // 不直接设置journalEntry关联，而是设置entryId
-        line.setEntryId(this.entryId);
+        
+        // BETTER FIX: Only set entryId if the aggregate has been saved
+        if (this.entryId != null) {
+            line.setEntryId(this.entryId);
+        }
+        // If entryId is null, JPA will set it automatically when this aggregate is saved
+        
         line.setAccountId(accountId);
         line.setDebitAmount(debitAmount != null ? debitAmount.getAmount() : BigDecimal.ZERO);
         line.setCreditAmount(creditAmount != null ? creditAmount.getAmount() : BigDecimal.ZERO);
