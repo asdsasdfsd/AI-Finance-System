@@ -67,7 +67,10 @@ public class JournalEntryAggregate {
     private List<Object> domainEvents = new ArrayList<>();
     
     // 构造函数
-    protected JournalEntryAggregate() {}
+    protected JournalEntryAggregate() {
+        this.status = EntryStatus.DRAFT; 
+        this.domainEvents = new ArrayList<>();
+    }
     
     private JournalEntryAggregate(TenantId tenantId, LocalDate entryDate, String description, Integer createdBy) {
         this.tenantId = tenantId;
