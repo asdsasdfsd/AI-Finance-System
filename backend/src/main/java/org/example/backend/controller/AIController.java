@@ -60,4 +60,33 @@ public class AIController {
             @RequestParam String reportType) {
         return aiApplicationService.generateReportInsights(reportData, reportType);
     }
+
+    /**
+     * 财务数据智能分析
+     */
+    @PostMapping("/analyze")
+    public FinancialAnalysisDTO analyzeFinancialData(@RequestBody FinancialAnalysisCommand command) {
+        // 这里假设 aiApplicationService 已实现了 analyzeFinancialData 方法
+        return aiApplicationService.analyzeFinancialData(command);
+    }
+
+    /**
+     * 获取AI智能推荐
+     */
+    @PostMapping("/recommend")
+    public AIRecommendationsDTO getRecommendations(@RequestBody RecommendationCommand command) {
+        // 这里假设 aiApplicationService 已实现了 getRecommendations 方法
+        return aiApplicationService.getRecommendations(command);
+    }
+
+    @GetMapping("/health")
+    public boolean healthCheck() {
+        return aiApplicationService.isServiceAvailable();
+    }
+
+    @GetMapping("/provider")
+    public String getProviderName() {
+        return aiApplicationService.getProviderName();
+    }
+
 }
