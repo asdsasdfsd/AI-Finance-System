@@ -52,4 +52,18 @@ public interface AIService {
      * @return 如 OpenAI、LocalAI 等
      */
     String getProviderName();
+
+    /**
+     * 财务数据智能分析
+     * @param command 分析命令对象，包含公司、时间区间、原始数据等
+     * @return 智能分析结果
+     */
+    FinancialAnalysisDTO analyzeFinancialData(FinancialAnalysisCommand command);
+
+    /**
+     * 获取AI智能推荐
+     * @param command 推荐命令对象，包含场景、目标对象等
+     * @return 推荐结果
+     */
+    AIRecommendationsDTO getRecommendations(RecommendationCommand command);
 }

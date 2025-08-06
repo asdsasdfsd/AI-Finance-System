@@ -194,6 +194,78 @@ public class OpenAIServiceImpl implements AIService {
     }
 
     @Override
+    public FinancialAnalysisDTO analyzeFinancialData(FinancialAnalysisCommand command) {
+        try {
+            // 构造 AI 分析 Prompt
+            String prompt = String.format("""
+                请对如下公司（ID：%d）的财务数据进行全面智能分析，时间范围为 %s 至 %s，报表类型为 %s。
+                原始数据如下：
+                %s
+
+                请输出：1. 综合摘要 2. 主要亮点 3. 潜在风险 4. 优化建议。
+                """,
+                    command.getCompanyId(),
+                    command.getStartDate(),
+                    command.getEndDate(),
+                    command.getReportType(),
+                    command.getRawData()
+            );
+
+            String aiResponse = callOpenAI(prompt);
+
+            // 简单解析（你可以根据AI返回的格式更细致拆分）
+            return FinancialAnalysisDTO.builder()
+                    .summary(aiResponse.length() > 200 ? aiResponse.substring(0, 200) + "..." : aiResponse)
+                    .highlights(List.of("AI自动分析亮点（请解析AI原始返回细化）"))
+                    .risks(List.of("AI自动分析风险（请解析AI原始返回细化）"))
+                    .suggestions(List.of("AI自动优化建议（请解析AI原始返回细化）"))
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Error in analyzeFinancialData: {}", e.getMessage());
+            return FinancialAnalysisDTO.builder()
+                    .summary("分析失败，请稍后再试。")
+                    .highlights(List.of())
+                    .risks(List.of())
+                    .suggestions(List.of())
+                    .build();
+        }
+    }
+
+    @Override
+    public AIRecommendationsDTO getRecommendations(RecommendationCommand command) {
+        try {
+            // 构造 AI 推荐 Prompt
+            String prompt = String.format("""
+                请基于如下场景“%s”，为公司ID：%d（目标对象：%s）提供3条专业的AI财务建议，说明推荐理由。
+                补充数据：%s
+                """,
+                    command.getScenario(),
+                    command.getCompanyId(),
+                    command.getTargetObject(),
+                    command.getData()
+            );
+
+            String aiResponse = callOpenAI(prompt);
+
+            // 简单封装（如需结构化可优化正则等）
+            return AIRecommendationsDTO.builder()
+                    .recommendations(List.of(aiResponse))
+                    .reasoning("AI智能推荐理由见详细内容")
+                    .confidence(0.95)
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Error in getRecommendations: {}", e.getMessage());
+            return AIRecommendationsDTO.builder()
+                    .recommendations(List.of("暂无推荐"))
+                    .reasoning("AI服务不可用")
+                    .confidence(0.0)
+                    .build();
+        }
+    }
+
+    @Override
     public boolean isServiceAvailable() {
         try {
             callOpenAI("Say 'pong' if you are available");
