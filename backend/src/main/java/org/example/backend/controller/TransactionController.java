@@ -9,6 +9,7 @@ import org.example.backend.application.dto.TransactionDTO;
 import org.example.backend.domain.aggregate.transaction.TransactionAggregate;
 import org.example.backend.domain.valueobject.TransactionStatus;
 import org.example.backend.util.JwtContextUtil;
+import org.example.backend.exception.MissingCompanyIdException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.context.annotation.Profile;
@@ -146,32 +147,43 @@ public class TransactionController {
     // ========== Query Operations (Backward Compatible) ==========
     
     /**
-     * Get all transactions (JWT-aware version)
+     * Get all transactions (JWT-aware version with proper security)
      */
     @GetMapping
     public ResponseEntity<List<TransactionDTO>> getAllTransactions(
             @RequestParam(required = false) Integer companyId,
             HttpServletRequest request) {
         
-        System.out.println("=== TransactionController.getAllTransactions 开始 ===");
+        Integer targetCompanyId = resolveCompanyId(companyId, request);
         
+        try {
+            List<TransactionDTO> transactions = transactionApplicationService.getTransactionsByCompany(targetCompanyId);
+            return ResponseEntity.ok(transactions);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to retrieve transactions for company " + targetCompanyId + ": " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Resolve company ID from various sources with proper security validation
+     */
+    private Integer resolveCompanyId(Integer paramCompanyId, HttpServletRequest request) {
         Integer targetCompanyId = null;
         
         // Method 1: Try to extract from JWT token in Authorization header
         String authHeader = request.getHeader("Authorization");
-        System.out.println("Authorization头: " + authHeader);
         
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
-            System.out.println("提取的JWT token: " + token.substring(0, Math.min(50, token.length())) + "...");
             
             try {
                 Integer jwtCompanyId = jwtUtil.extractCompanyId(token);
-                System.out.println("从JWT提取的公司ID: " + jwtCompanyId);
-                targetCompanyId = jwtCompanyId;
+                if (jwtCompanyId != null) {
+                    targetCompanyId = jwtCompanyId;
+                }
             } catch (Exception e) {
-                System.err.println("JWT解析失败: " + e.getMessage());
-                e.printStackTrace();
+                // Log but continue to try other methods
+                System.err.println("JWT parsing failed: " + e.getMessage());
             }
         }
         
@@ -179,35 +191,26 @@ public class TransactionController {
         if (targetCompanyId == null) {
             try {
                 targetCompanyId = jwtContextUtil.getCurrentCompanyId();
-                System.out.println("从JwtContextUtil获取的公司ID: " + targetCompanyId);
             } catch (Exception e) {
-                System.err.println("JwtContextUtil获取公司ID失败: " + e.getMessage());
+                // Log but continue to try other methods
+                System.err.println("JwtContextUtil failed: " + e.getMessage());
             }
         }
         
-        // Method 3: Use query parameter as fallback
+        // Method 3: Use query parameter as fallback (for backward compatibility)
         if (targetCompanyId == null) {
-            targetCompanyId = companyId;
-            System.out.println("使用查询参数公司ID: " + targetCompanyId);
+            targetCompanyId = paramCompanyId;
         }
         
-        // Method 4: Hardcoded fallback for development (临时方案)
+        // SECURITY FIX: If no company ID can be determined, throw exception
         if (targetCompanyId == null) {
-            System.out.println("警告: 无法获取公司ID，使用默认值1");
-            targetCompanyId = 1;
+            throw new MissingCompanyIdException(
+                "Company ID is required but could not be determined from JWT token, context, or request parameters. " +
+                "Please ensure you are properly authenticated or provide companyId parameter."
+            );
         }
         
-        System.out.println("最终使用的公司ID: " + targetCompanyId);
-        
-        try {
-            List<TransactionDTO> transactions = transactionApplicationService.getTransactionsByCompany(targetCompanyId);
-            System.out.println("成功获取到 " + transactions.size() + " 条交易记录");
-            return ResponseEntity.ok(transactions);
-        } catch (Exception e) {
-            System.err.println("获取交易记录失败: " + e.getMessage());
-            e.printStackTrace();
-            throw new RuntimeException("Failed to retrieve transactions: " + e.getMessage());
-        }
+        return targetCompanyId;
     }
     
     /**

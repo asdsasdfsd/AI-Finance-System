@@ -4,63 +4,92 @@ package org.example.backend.exception;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.WebRequest;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Global Exception Handler for the application
+ * 
+ * Provides centralized exception handling and proper HTTP status codes
+ */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-    
-    // Unauthorised Exceptions
-    @ExceptionHandler(UnauthorizedException.class)
-    @ResponseStatus(HttpStatus.UNAUTHORIZED)
-    public ResponseEntity<Map<String, Object>> handleUnauthorizedException(UnauthorizedException e) {
-        Map<String, Object> response = new HashMap<>();
-        Map<String, Object> error = new HashMap<>();
+
+    @ExceptionHandler(MissingCompanyIdException.class)
+    public ResponseEntity<Map<String, Object>> handleMissingCompanyIdException(
+            MissingCompanyIdException ex, WebRequest request) {
         
-        error.put("code", "AUTH-SEC-004");
-        error.put("message", e.getMessage());
+        Map<String, Object> errorDetails = new HashMap<>();
+        errorDetails.put("timestamp", LocalDateTime.now());
+        errorDetails.put("status", HttpStatus.UNAUTHORIZED.value());
+        errorDetails.put("error", "Unauthorized");
+        errorDetails.put("message", ex.getMessage());
+        errorDetails.put("path", request.getDescription(false).replace("uri=", ""));
+        errorDetails.put("code", "MISSING_COMPANY_ID");
         
-        response.put("status", "error");
-        response.put("error", error);
-        
-        return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+        return new ResponseEntity<>(errorDetails, HttpStatus.UNAUTHORIZED);
     }
-    
-    // Resource Not Found Exception
+
     @ExceptionHandler(ResourceNotFoundException.class)
-    @ResponseStatus(HttpStatus.NOT_FOUND)
-    public ResponseEntity<Map<String, Object>> handleResourceNotFoundException(ResourceNotFoundException e) {
-        Map<String, Object> response = new HashMap<>();
-        Map<String, Object> error = new HashMap<>();
+    public ResponseEntity<Map<String, Object>> handleResourceNotFoundException(
+            ResourceNotFoundException ex, WebRequest request) {
         
-        error.put("code", "RESOURCE-NOT-FOUND");
-        error.put("message", e.getMessage());
+        Map<String, Object> errorDetails = new HashMap<>();
+        errorDetails.put("timestamp", LocalDateTime.now());
+        errorDetails.put("status", HttpStatus.NOT_FOUND.value());
+        errorDetails.put("error", "Not Found");
+        errorDetails.put("message", ex.getMessage());
+        errorDetails.put("path", request.getDescription(false).replace("uri=", ""));
         
-        response.put("status", "error");
-        response.put("error", error);
-        
-        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+        return new ResponseEntity<>(errorDetails, HttpStatus.NOT_FOUND);
     }
-    
-    // Common Exceptions
+
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<Map<String, Object>> handleUnauthorizedException(
+            UnauthorizedException ex, WebRequest request) {
+        
+        Map<String, Object> errorDetails = new HashMap<>();
+        errorDetails.put("timestamp", LocalDateTime.now());
+        errorDetails.put("status", HttpStatus.FORBIDDEN.value());
+        errorDetails.put("error", "Forbidden");
+        errorDetails.put("message", ex.getMessage());
+        errorDetails.put("path", request.getDescription(false).replace("uri=", ""));
+        
+        return new ResponseEntity<>(errorDetails, HttpStatus.FORBIDDEN);
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalArgumentException(
+            IllegalArgumentException ex, WebRequest request) {
+        
+        Map<String, Object> errorDetails = new HashMap<>();
+        errorDetails.put("timestamp", LocalDateTime.now());
+        errorDetails.put("status", HttpStatus.BAD_REQUEST.value());
+        errorDetails.put("error", "Bad Request");
+        errorDetails.put("message", ex.getMessage());
+        errorDetails.put("path", request.getDescription(false).replace("uri=", ""));
+        
+        return new ResponseEntity<>(errorDetails, HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(Exception.class)
-    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-    public ResponseEntity<Map<String, Object>> handleException(Exception e) {
-        Map<String, Object> response = new HashMap<>();
-        Map<String, Object> error = new HashMap<>();
+    public ResponseEntity<Map<String, Object>> handleGenericException(
+            Exception ex, WebRequest request) {
         
-        error.put("code", "SERVER-ERROR");
-        error.put("message", "Internal Server Error: " + e.getMessage());
+        Map<String, Object> errorDetails = new HashMap<>();
+        errorDetails.put("timestamp", LocalDateTime.now());
+        errorDetails.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
+        errorDetails.put("error", "Internal Server Error");
+        errorDetails.put("message", "An unexpected error occurred");
+        errorDetails.put("path", request.getDescription(false).replace("uri=", ""));
         
-        response.put("status", "error");
-        response.put("error", error);
+        // Log the actual exception for debugging
+        ex.printStackTrace();
         
-        // Print the exception stack to the log instead of returning it to the client
-        e.printStackTrace();
-        
-        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        return new ResponseEntity<>(errorDetails, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 }

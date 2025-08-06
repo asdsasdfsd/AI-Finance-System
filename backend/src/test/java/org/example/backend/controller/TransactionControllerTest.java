@@ -12,6 +12,7 @@ import org.example.backend.util.JwtContextUtil;
 import org.example.backend.util.JwtUtil;
 import org.example.backend.exception.ResourceNotFoundException;
 import org.example.backend.exception.UnauthorizedException;
+import org.example.backend.exception.MissingCompanyIdException;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -358,21 +359,60 @@ class TransactionControllerTest {
         @Test
         @DisplayName("Should handle complex getAllTransactions request")
         void shouldHandleComplexGetAllTransactionsRequest() {
-            // Given - Based on the actual implementation, getAllTransactions uses complex logic to determine companyId
-            // The method tries JWT first, then JwtContextUtil, then parameter, finally defaults to 1
+            // Given - Provide companyId parameter to avoid MissingCompanyIdException
             List<TransactionDTO> expectedTransactions = Arrays.asList(createMockTransactionDTO());
             
-            // Mock the JwtContextUtil to return null (so it falls back to parameter or default)
+            // Mock the JwtContextUtil to return null (so it uses parameter)
             when(jwtContextUtil.getCurrentCompanyId()).thenReturn(null);
             
-            // Since the method falls back to default companyId = 1 when everything else fails
-            when(transactionApplicationService.getTransactionsByCompany(1))
+            // Since we're providing TEST_COMPANY_ID as parameter, it should use that
+            when(transactionApplicationService.getTransactionsByCompany(TEST_COMPANY_ID))
                 .thenReturn(expectedTransactions);
             
             // Mock HTTP request headers (no Authorization header)
             when(httpServletRequest.getHeader("Authorization")).thenReturn(null);
             
-            // When - pass null as companyId so it uses fallback logic
+            // When - pass TEST_COMPANY_ID as parameter
+            ResponseEntity<List<TransactionDTO>> response = transactionController
+                .getAllTransactions(TEST_COMPANY_ID, httpServletRequest);
+            
+            // Then
+            assertNotNull(response);
+            assertEquals(200, response.getStatusCode().value());
+            
+            // Verify it called with the provided companyId
+            verify(transactionApplicationService).getTransactionsByCompany(TEST_COMPANY_ID);
+        }
+
+        @Test
+        @DisplayName("Should throw MissingCompanyIdException when no companyId can be determined")
+        void shouldThrowMissingCompanyIdExceptionWhenNoCompanyIdCanBeDetermined() {
+            // Given - All sources return null
+            when(jwtContextUtil.getCurrentCompanyId()).thenReturn(null);
+            when(httpServletRequest.getHeader("Authorization")).thenReturn(null);
+            
+            // When & Then - Should throw MissingCompanyIdException when no companyId provided
+            MissingCompanyIdException exception = assertThrows(MissingCompanyIdException.class, () -> {
+                transactionController.getAllTransactions(null, httpServletRequest);
+            });
+            
+            assertTrue(exception.getMessage().contains("Company ID is required"));
+            assertTrue(exception.getMessage().contains("could not be determined"));
+        }
+
+        @Test
+        @DisplayName("Should use JWT companyId when available")
+        void shouldUseJwtCompanyIdWhenAvailable() {
+            // Given - JWT token contains companyId
+            List<TransactionDTO> expectedTransactions = Arrays.asList(createMockTransactionDTO());
+            String validToken = "valid.jwt.token";
+            
+            when(httpServletRequest.getHeader("Authorization")).thenReturn("Bearer " + validToken);
+            when(jwtUtil.extractCompanyId(validToken)).thenReturn(TEST_COMPANY_ID);
+            when(transactionApplicationService.getTransactionsByCompany(TEST_COMPANY_ID))
+                .thenReturn(expectedTransactions);
+            
+            // When
             ResponseEntity<List<TransactionDTO>> response = transactionController
                 .getAllTransactions(null, httpServletRequest);
             
@@ -380,8 +420,8 @@ class TransactionControllerTest {
             assertNotNull(response);
             assertEquals(200, response.getStatusCode().value());
             
-            // Verify it called with the default companyId = 1
-            verify(transactionApplicationService).getTransactionsByCompany(1);
+            // Verify it called with JWT companyId
+            verify(transactionApplicationService).getTransactionsByCompany(TEST_COMPANY_ID);
         }
     }
 
