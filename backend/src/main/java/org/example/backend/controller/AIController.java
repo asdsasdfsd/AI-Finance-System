@@ -1,9 +1,11 @@
 package org.example.backend.controller;
 
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.example.backend.application.dto.*;
 import org.example.backend.application.service.AIApplicationService;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -15,6 +17,17 @@ public class AIController {
 
     private final AIApplicationService aiApplicationService;
 
+    // 请求体模型
+    @Data
+    public static class AskRequest {
+        private String question;
+    }
+
+    // 简单问答接口
+    @PostMapping("/ask")
+    public Mono<String> askAI(@RequestBody AskRequest request) {
+        return aiApplicationService.askQuestion(request.getQuestion());
+    }
     /**
      * 增强交易（分类+异常检测）
      */

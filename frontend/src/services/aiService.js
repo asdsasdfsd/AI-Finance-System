@@ -1,101 +1,147 @@
-// frontend/src/services/aiService.js
 import axios from 'axios';
 import AuthService from './authService';
 
 const API_BASE_URL = 'http://localhost:8085/api/ai';
 
-// Get authentication headers
+// Get authentication headers (optional, supports both login/no-login scenarios)
 const getAuthHeader = () => {
-  const user = AuthService.getCurrentUser();
+  const user = AuthService.getCurrentUser && AuthService.getCurrentUser();
   return user && user.token
     ? { headers: { Authorization: `Bearer ${user.token}` } }
     : {};
 };
 
 const AIService = {
-  // Classify transaction using AI
+  // Enhanced transaction
   classifyTransaction: async (data) => {
-    console.log('🤖 AI: Classifying transaction...', data);
-    try {
-      const response = await axios.post(`${API_BASE_URL}/enhance-transaction`, data, getAuthHeader());
-      console.log('✅ AI: Transaction classified successfully:', response.data);
-      return response.data;
-    } catch (error) {
-      console.error('❌ AI: Error classifying transaction:', error);
-      throw error;
-    }
+    return (await axios.post(`${API_BASE_URL}/enhance-transaction`, data, getAuthHeader())).data;
   },
-
-  // Ask financial question to AI
+  // Financial Q&A
   askFinancialQuestion: async (data) => {
-    console.log('🤖 AI: Asking financial question...', data);
-    try {
-      const response = await axios.post(`${API_BASE_URL}/ask-financial-question`, data, getAuthHeader());
-      console.log('✅ AI: Financial question answered successfully:', response.data);
-      return response.data;
-    } catch (error) {
-      console.error('❌ AI: Error answering financial question:', error);
-      throw error;
-    }
+    return (await axios.post(`${API_BASE_URL}/ask-financial-question`, data, getAuthHeader())).data;
   },
-
-  // Detect anomaly using AI
-  detectAnomaly: async (data) => {
-    console.log('🤖 AI: Detecting anomaly...', data);
-    try {
-      const response = await axios.post(`${API_BASE_URL}/detect-anomalies`, data, getAuthHeader());
-      console.log('✅ AI: Anomaly detection completed:', response.data);
-      return response.data;
-    } catch (error) {
-      console.error('❌ AI: Error detecting anomaly:', error);
-      throw error;
-    }
+  // Category suggestions
+  categorySuggestions: async (data) => {
+    return (await axios.post(`${API_BASE_URL}/category-suggestions`, data, getAuthHeader())).data;
   },
-
-  // Get report insights from AI
-  reportInsight: async (data) => {
-    console.log('🤖 AI: Generating report insights...', data);
-    try {
-      const response = await axios.post(`${API_BASE_URL}/report-insights`, data, getAuthHeader());
-      console.log('✅ AI: Report insights generated successfully:', response.data);
-      return response.data;
-    } catch (error) {
-      console.error('❌ AI: Error generating report insights:', error);
-      throw error;
-    }
+  // Batch anomaly detection
+  detectAnomalies: async (params) => {
+    return (await axios.get(`${API_BASE_URL}/detect-anomalies`, { ...getAuthHeader(), params })).data;
   },
-
-  // Get AI analysis for financial data
-  analyzeFinancialData: async (data) => {
-    console.log('🤖 AI: Analyzing financial data...', data);
-    try {
-      const response = await axios.post(`${API_BASE_URL}/analyze`, data, getAuthHeader());
-      console.log('✅ AI: Financial data analyzed successfully:', response.data);
-      return response.data;
-    } catch (error) {
-      console.error('❌ AI: Error analyzing financial data:', error);
-      throw error;
-    }
+  // Smart report insights
+  reportInsight: async (params) => {
+    return (await axios.get(`${API_BASE_URL}/report-insights`, { ...getAuthHeader(), params })).data;
   },
-
-  // Get AI recommendations
-  getRecommendations: async (data) => {
-    console.log('🤖 AI: Getting recommendations...', data);
-    try {
-      const response = await axios.post(`${API_BASE_URL}/recommend`, data, getAuthHeader());
-      console.log('✅ AI: Recommendations generated successfully:', response.data);
-      return response.data;
-    } catch (error) {
-      console.error('❌ AI: Error getting recommendations:', error);
-      throw error;
-    }
+  // Financial analysis
+  analyze: async (data) => {
+    return (await axios.post(`${API_BASE_URL}/analyze`, data, getAuthHeader())).data;
+  },
+  // Smart recommendations
+  recommend: async (data) => {
+    return (await axios.post(`${API_BASE_URL}/recommend`, data, getAuthHeader())).data;
+  },
+  // Health check
+  healthCheck: async () => {
+    return (await axios.get(`${API_BASE_URL}/health`, getAuthHeader())).data;
+  },
+  // AI provider info
+  providerName: async () => {
+    return (await axios.get(`${API_BASE_URL}/provider`, getAuthHeader())).data;
   }
 };
 
-// Export individual functions for backward compatibility
+// Export all methods
 export const classifyTransaction = AIService.classifyTransaction;
 export const askFinancialQuestion = AIService.askFinancialQuestion;
-export const detectAnomaly = AIService.detectAnomaly;
+export const categorySuggestions = AIService.categorySuggestions;
+export const detectAnomalies = AIService.detectAnomalies;
 export const reportInsight = AIService.reportInsight;
+export const analyze = AIService.analyze;
+export const recommend = AIService.recommend;
+export const healthCheck = AIService.healthCheck;
+export const providerName = AIService.providerName;
+
+// Format AI response for human-readable English output
+export function formatAIResult(result) {
+  // Enhanced Transaction
+  if (result.aiClassification && result.anomalyDetection) {
+    const c = result.aiClassification;
+    const a = result.anomalyDetection;
+    return `【AI Enhanced Transaction Result】
+▶ Category: ${c.category} (Confidence: ${c.confidence})
+▶ Reason: ${c.reason}
+▶ Alternative Categories: ${(c.alternativeCategories || []).join(', ')}
+▶ Require Review: ${c.requireReview ? 'Yes' : 'No'}
+
+▶ Anomaly Detection: ${a.anomalous ? 'Abnormal' : 'Normal'}
+▶ Anomaly Score: ${a.anomalyScore}
+▶ Type: ${a.anomalyType}
+▶ Recommendations: ${(a.recommendations || []).join(', ')}
+
+AI Enhancement Time: ${result.enhancementTimestamp}`;
+  }
+  // Financial Analysis
+  if (result.summary && result.highlights && result.suggestions) {
+    return `【AI Financial Analysis】
+▶ Summary:
+${result.summary}
+
+▶ Highlights:
+${(result.highlights || []).map(h => '- ' + h).join('\n')}
+
+▶ Risks:
+${(result.risks || []).map(r => '- ' + r).join('\n')}
+
+▶ Suggestions:
+${(result.suggestions || []).map(s => '- ' + s).join('\n')}
+`;
+  }
+  // Q&A
+  if (result.answer && result.confidence) {
+    return `【AI Q&A】
+▶ Answer: ${result.answer}
+▶ Confidence: ${result.confidence}
+▶ Has Numeric Data: ${result.hasNumericData ? 'Yes' : 'No'}
+▶ Data Sources: ${(result.dataSources || []).join(', ')}
+${result.relatedData ? '▶ Related Data: ' + JSON.stringify(result.relatedData) : ''}`;
+  }
+  // Recommendations
+  if (result.recommendations && result.reasoning !== undefined) {
+    return `【AI Recommendations】
+${(result.recommendations || []).map(r => '- ' + r).join('\n')}
+▶ Reasoning: ${result.reasoning}
+▶ Confidence: ${result.confidence}`;
+  }
+  // Category Suggestions
+  if (Array.isArray(result) && result[0] && result[0].categoryCode) {
+    return result.map(
+      item =>
+        `【Category Suggestion】
+▶ Code: ${item.categoryCode}
+▶ Name: ${item.categoryName}
+▶ Chinese Name: ${item.chineseName}
+▶ Confidence: ${item.confidence}
+▶ Reason: ${item.reason}\n`
+    ).join('\n');
+  }
+  // Batch Anomaly Detection
+  if (Array.isArray(result) && result[0] && result[0].description && result[0].anomalyScore !== undefined) {
+    return result.map(
+      item =>
+        `【Anomaly Detection】
+▶ Description: ${item.description}
+▶ Amount: ${item.amount}
+▶ Date: ${item.transactionDate}
+▶ Category: ${item.category}
+▶ Anomaly Score: ${item.anomalyScore}
+▶ Type: ${item.anomalyType}
+▶ Recommendations: ${(item.recommendations || []).join(', ')}\n`
+    ).join('\n');
+  }
+  // Default: pretty print JSON
+  return typeof result === 'object'
+    ? JSON.stringify(result, null, 2)
+    : String(result);
+}
 
 export default AIService;
