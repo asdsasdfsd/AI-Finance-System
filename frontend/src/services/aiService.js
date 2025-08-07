@@ -17,7 +17,7 @@ const AIService = {
   classifyTransaction: async (data) => {
     console.log('🤖 AI: Classifying transaction...', data);
     try {
-      const response = await axios.post(`${API_BASE_URL}/classify`, data, getAuthHeader());
+      const response = await axios.post(`${API_BASE_URL}/enhance-transaction`, data, getAuthHeader());
       console.log('✅ AI: Transaction classified successfully:', response.data);
       return response.data;
     } catch (error) {
@@ -30,7 +30,7 @@ const AIService = {
   askFinancialQuestion: async (data) => {
     console.log('🤖 AI: Asking financial question...', data);
     try {
-      const response = await axios.post(`${API_BASE_URL}/ask`, data, getAuthHeader());
+      const response = await axios.post(`${API_BASE_URL}/ask-financial-question`, data, getAuthHeader());
       console.log('✅ AI: Financial question answered successfully:', response.data);
       return response.data;
     } catch (error) {
@@ -43,7 +43,7 @@ const AIService = {
   detectAnomaly: async (data) => {
     console.log('🤖 AI: Detecting anomaly...', data);
     try {
-      const response = await axios.post(`${API_BASE_URL}/detect`, data, getAuthHeader());
+      const response = await axios.post(`${API_BASE_URL}/detect-anomalies`, data, getAuthHeader());
       console.log('✅ AI: Anomaly detection completed:', response.data);
       return response.data;
     } catch (error) {
@@ -56,7 +56,7 @@ const AIService = {
   reportInsight: async (data) => {
     console.log('🤖 AI: Generating report insights...', data);
     try {
-      const response = await axios.post(`${API_BASE_URL}/report`, data, getAuthHeader());
+      const response = await axios.post(`${API_BASE_URL}/report-insights`, data, getAuthHeader());
       console.log('✅ AI: Report insights generated successfully:', response.data);
       return response.data;
     } catch (error) {

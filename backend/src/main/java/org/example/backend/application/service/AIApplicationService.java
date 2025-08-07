@@ -222,4 +222,54 @@ public class AIApplicationService {
             default -> "其他";
         };
     }
+
+    /**
+     * 财务数据智能分析
+     */
+    public FinancialAnalysisDTO analyzeFinancialData(FinancialAnalysisCommand command) {
+        try {
+            // 调用底层AI服务进行分析（你需在AIService中实现该方法）
+            return aiService.analyzeFinancialData(command);
+        } catch (Exception e) {
+            // 兜底方案：返回默认/空分析结果
+            return FinancialAnalysisDTO.builder()
+                    .summary("分析失败，请稍后再试。")
+                    .highlights(List.of())
+                    .risks(List.of())
+                    .suggestions(List.of())
+                    .build();
+        }
+    }
+
+    /**
+     * 获取AI智能推荐
+     */
+    public AIRecommendationsDTO getRecommendations(RecommendationCommand command) {
+        try {
+            // 调用底层AI服务获取推荐（你需在AIService中实现该方法）
+            return aiService.getRecommendations(command);
+        } catch (Exception e) {
+            // 兜底方案：返回默认/空推荐
+            return AIRecommendationsDTO.builder()
+                    .recommendations(List.of("暂无推荐"))
+                    .reasoning("AI服务不可用")
+                    .confidence(0.0)
+                    .build();
+        }
+    }
+
+
+    /**
+     * 健康检查
+     */
+    public boolean isServiceAvailable() {
+        return aiService.isServiceAvailable();
+    }
+
+    /**
+     * 获取当前AI服务提供商名称
+     */
+    public String getProviderName() {
+        return aiService.getProviderName();
+    }
 }
