@@ -149,7 +149,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                requestURI.contains("/h2-console") ||
                requestURI.contains("/actuator/health") ||
                requestURI.equals("/") ||
-               requestURI.contains("/error");
+               requestURI.contains("/error")||
+               requestURI.contains("/api/ai/");
     }
     
     /**

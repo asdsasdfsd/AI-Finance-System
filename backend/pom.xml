@@ -131,6 +131,10 @@
             <scope>test</scope>
         </dependency>
 
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+        </dependency>
         <!-- Database(ORM) -->
         <dependency>
             <groupId>mysql</groupId>
@@ -241,7 +245,6 @@
             <artifactId>commons-compress</artifactId>
             <version>1.21</version>
         </dependency>
-
     </dependencies>
 
     <build>

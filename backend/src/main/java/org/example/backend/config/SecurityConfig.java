@@ -39,7 +39,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         // Public endpoints that don't require authentication
-                        .requestMatchers("/api/auth/**", "/api/sso/**", "/api/public/**").permitAll()
+                        .requestMatchers("/api/auth/**", "/api/sso/**", "/api/public/**","/api/ai/*").permitAll()
                         .requestMatchers("/api/health/**", "/api/health", "/health").permitAll() // 新增健康检查
                         .requestMatchers("/error", "/actuator/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         // All other API endpoints require authentication

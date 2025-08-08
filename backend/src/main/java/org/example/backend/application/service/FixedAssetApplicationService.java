@@ -138,7 +138,25 @@ public class FixedAssetApplicationService {
         
         FixedAssetAggregate savedAsset = fixedAssetRepository.save(fixedAsset);
         
-        // Publish domain events
+        // 发布领域事件
+        eventPublisher.publishAll(savedAsset.getDomainEvents());
+        savedAsset.clearDomainEvents();
+        
+        return mapToDTO(savedAsset);
+    }
+    
+    /**
+     * Write off fixed asset
+     */
+    public FixedAssetDTO writeOffAsset(Integer assetId, Integer companyId, String reason) {
+        TenantId tenantId = TenantId.of(companyId);
+        FixedAssetAggregate fixedAsset = findAssetByIdAndTenant(assetId, tenantId);
+        
+        fixedAsset.writeOff(reason);
+        
+        FixedAssetAggregate savedAsset = fixedAssetRepository.save(fixedAsset);
+        
+        // 发布领域事件
         eventPublisher.publishAll(savedAsset.getDomainEvents());
         savedAsset.clearDomainEvents();
         

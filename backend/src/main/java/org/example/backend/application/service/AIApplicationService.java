@@ -2,10 +2,15 @@
 package org.example.backend.application.service;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.example.backend.application.dto.*;
 import org.example.backend.infrastructure.ai.AIService;
 import org.example.backend.infrastructure.ai.FinancialPromptBuilder;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -19,6 +24,46 @@ public class AIApplicationService {
     private final AIService aiService;
     private final AIDataService aiDataService;
     private final FinancialPromptBuilder promptBuilder;
+
+
+    @Value("${openai.api.key}")
+    private String apiKey;
+
+    @Value("${ai.openai.api-url}")
+    private String apiUrl;
+
+    @Value("${ai.openai.chat-model}")
+    private String model;
+
+    private final WebClient.Builder webClientBuilder = WebClient.builder();
+
+    public Mono<String> askQuestion(String question) {
+        WebClient webClient = webClientBuilder.baseUrl(apiUrl).build();
+
+        // 构造请求体
+        Map<String, Object> body = Map.of(
+                "model", model,
+                "messages", List.of(
+                        Map.of("role", "user", "content", question)
+                )
+        );
+
+        return webClient.post()
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(body)
+                .retrieve()
+                .bodyToMono(Map.class)
+                .map(response -> {
+                    // 解析回答内容
+                    List<Map<String, Object>> choices = (List<Map<String, Object>>) response.get("choices");
+                    if (choices != null && !choices.isEmpty()) {
+                        Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
+                        return (String) message.get("content");
+                    }
+                    return "AI没有返回答案";
+                });
+    }
 
     /**
      * Enhanced transaction creation flow
