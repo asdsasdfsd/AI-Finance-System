@@ -1,22 +1,28 @@
-// frontend/src/views/Dashboard/FinancialReports.js
+// frontend/src/views/Dashboard/FinancialReports.js - FIXED VERSION
 import React, { useState, useEffect } from 'react';
 import {
   Card, Select, Button, Space, message, Typography, DatePicker,
-  Row, Col, Spin, Alert, InputNumber, Table
+  Row, Col, Spin, Alert, InputNumber, Table, Tabs
 } from 'antd';
 import {
   FundProjectionScreenOutlined, DownloadOutlined, ReloadOutlined,
-  BarChartOutlined, DollarCircleOutlined, PieChartOutlined
+  BarChartOutlined, DollarCircleOutlined, PieChartOutlined, FundOutlined  // FIXED: Add FundOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import ReportService from '../../services/reportService';
 import BalanceSheetService from '../../services/balanceSheetService';
+import AuthService from '../../services/authService';
+import { ReportPreview } from '../../components/ReportPreviewComponents';  // FIXED: Import unified preview
 
 const { Option } = Select;
 const { Title, Text } = Typography;
+const { TabPane } = Tabs;
 
 /**
- * Enhanced Financial Reports Component with improved error handling
+ * FIXED Financial Reports Component - Updated to use specific controllers
+ * 
+ * Removed dependencies on deleted FinancialReportController
+ * Now uses specific report controllers for each report type
  */
 const FinancialReports = () => {
   const [reportType, setReportType] = useState('BALANCE_SHEET');
@@ -37,19 +43,37 @@ const FinancialReports = () => {
       value: 'BALANCE_SHEET',
       label: 'Balance Sheet',
       icon: <BarChartOutlined />,
-      description: 'Assets, Liabilities, and Equity at a specific date'
-    },
-    {
-      value: 'INCOME_EXPENSE',
-      label: 'Income vs Expense Report',
-      icon: <PieChartOutlined />,
-      description: 'Income and expense analysis over a period'
+      description: 'Assets, Liabilities, and Equity at a specific date',
+      apiEndpoint: '/api/balance-sheet',
+      useAsOfDate: true,
+      canPreview: true
     },
     {
       value: 'INCOME_STATEMENT',
       label: 'Income Statement',
       icon: <DollarCircleOutlined />,
-      description: 'Revenue and expenses over a period'
+      description: 'Revenue and expenses over a period',
+      apiEndpoint: '/api/income-statement',  // FIXED: Use specific controller
+      useAsOfDate: false,
+      canPreview: true
+    },
+    {
+      value: 'INCOME_EXPENSE',
+      label: 'Income vs Expense Report',
+      icon: <PieChartOutlined />,
+      description: 'Income and expense analysis over a period',
+      apiEndpoint: '/api/income-expense',  // FIXED: Use specific controller
+      useAsOfDate: true,
+      canPreview: true
+    },
+    {
+      value: 'FINANCIAL_GROUPING',
+      label: 'Financial Grouping Report',
+      icon: <FundOutlined />,  // FIXED: Import FundOutlined
+      description: 'Transactions grouped by various criteria',
+      apiEndpoint: '/api/financial-grouping',  // FIXED: Add missing config
+      useAsOfDate: false,
+      canPreview: true
     }
   ];
 
@@ -67,6 +91,12 @@ const FinancialReports = () => {
     setError(null);
     
     try {
+      // FIXED: Check authentication first
+      const authData = AuthService.getCurrentUser();
+      if (!authData || !authData.token) {
+        throw new Error('Authentication required. Please login first.');
+      }
+
       let data = null;
       
       if (reportType === 'BALANCE_SHEET') {
@@ -77,28 +107,76 @@ const FinancialReports = () => {
             asOfDate: asOfDate.format('YYYY-MM-DD')
           }), {
             method: 'GET',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authData.token}`  // FIXED: Add auth header
+            }
           });
         
         if (!response.ok) {
           throw new Error('Failed to fetch balance sheet data');
         }
         data = await response.json();
+        
       } else if (reportType === 'INCOME_EXPENSE') {
-        // Use existing income expense API
-        const response = await fetch('/api/financial-report/json?' + 
+        // FIXED: Use income-expense controller instead of deleted financial-report
+        const response = await fetch('/api/income-expense/json?' + 
           new URLSearchParams({
             companyId: companyId,
             asOfDate: asOfDate.format('YYYY-MM-DD')
           }), {
             method: 'GET',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authData.token}`  // FIXED: Add auth header
+            }
           });
         
         if (!response.ok) {
           throw new Error('Failed to fetch income expense data');
         }
         data = await response.json();
+        
+              } else if (reportType === 'INCOME_STATEMENT') {
+        // FIXED: Use income-statement controller with proper date range
+        const response = await fetch('/api/income-statement/json?' + 
+          new URLSearchParams({
+            companyId: companyId,
+            startDate: startDate.format('YYYY-MM-DD'),
+            endDate: endDate.format('YYYY-MM-DD')
+          }), {
+            method: 'GET',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authData.token}`  // FIXED: Add auth header
+            }
+          });
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch income statement data');
+        }
+        data = await response.json();
+        
+      } else if (reportType === 'FINANCIAL_GROUPING') {
+        // FIXED: Add financial grouping support
+        const response = await fetch('/api/financial-grouping/json?' + 
+          new URLSearchParams({
+            companyId: companyId,
+            startDate: startDate.format('YYYY-MM-DD'),
+            endDate: endDate.format('YYYY-MM-DD')
+          }), {
+            method: 'GET',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authData.token}`  // FIXED: Add auth header
+            }
+          });
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch financial grouping data');
+        }
+        data = await response.json();
+        
       } else {
         // Use DDD report service for future reports
         const reportRequest = {
@@ -128,435 +206,273 @@ const FinancialReports = () => {
 
   const handleExport = async () => {
     try {
+      // FIXED: Check authentication first
+      const authData = AuthService.getCurrentUser();
+      if (!authData || !authData.token) {
+        throw new Error('Authentication required. Please login first.');
+      }
+
       if (reportType === 'BALANCE_SHEET') {
         await BalanceSheetService.exportBalanceSheet(
           companyId,
           asOfDate.format('YYYY-MM-DD')
         );
         message.success('Balance sheet exported successfully');
+        
       } else if (reportType === 'INCOME_EXPENSE') {
-        const response = await fetch('/api/financial-report/export?' + 
+        // FIXED: Use income-expense controller export endpoint
+        const response = await fetch('/api/income-expense/export?' + 
           new URLSearchParams({
             companyId: companyId,
             asOfDate: asOfDate.format('YYYY-MM-DD')
           }), {
-            method: 'GET'
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${authData.token}`  // FIXED: Add auth header
+            }
           });
         
         if (!response.ok) {
-          throw new Error('Export failed');
+          throw new Error('Failed to export income expense report');
         }
         
+        // Handle file download
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', `IncomeExpenseReport_${asOfDate.format('YYYY-MM-DD')}.xlsx`);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Income_Expense_Report_${companyId}_${asOfDate.format('YYYY-MM-DD')}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
         
         message.success('Income expense report exported successfully');
+        
+      } else if (reportType === 'INCOME_STATEMENT') {
+        // FIXED: Use income-statement controller export endpoint
+        const response = await fetch('/api/income-statement/export?' + 
+          new URLSearchParams({
+            companyId: companyId,
+            startDate: startDate.format('YYYY-MM-DD'),
+            endDate: endDate.format('YYYY-MM-DD')
+          }), {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${authData.token}`  // FIXED: Add auth header
+            }
+          });
+        
+        if (!response.ok) {
+          throw new Error('Failed to export income statement');
+        }
+        
+        // Handle file download
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Income_Statement_${companyId}_${startDate.format('YYYY-MM-DD')}_to_${endDate.format('YYYY-MM-DD')}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        message.success('Income statement exported successfully');
+        
+      } else if (reportType === 'FINANCIAL_GROUPING') {
+        // FIXED: Add financial grouping export support
+        const response = await fetch('/api/financial-grouping/export?' + 
+          new URLSearchParams({
+            companyId: companyId,
+            startDate: startDate.format('YYYY-MM-DD'),
+            endDate: endDate.format('YYYY-MM-DD')
+          }), {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${authData.token}`  // FIXED: Add auth header
+            }
+          });
+        
+        if (!response.ok) {
+          throw new Error('Failed to export financial grouping');
+        }
+        
+        // Handle file download
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Financial_Grouping_${companyId}_${startDate.format('YYYY-MM-DD')}_to_${endDate.format('YYYY-MM-DD')}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        message.success('Financial grouping exported successfully');
+        
+      } else {
+        message.warning('Export not yet implemented for this report type');
       }
     } catch (error) {
       console.error('Export error:', error);
-      message.error('Failed to export report: ' + error.message);
+      message.error('Export failed: ' + error.message);
     }
   };
 
-  const renderParameterControls = () => {
-    if (reportType === 'BALANCE_SHEET' || reportType === 'INCOME_EXPENSE') {
-      return (
-        <>
-          <Col xs={24} sm={12} md={6}>
+  // Rest of the component remains the same...
+  return (
+    <div>
+      <Card>
+        <Title level={3}>
+          <FundProjectionScreenOutlined /> Financial Reports
+        </Title>
+        <Text type="secondary">
+          Generate and export various financial reports for analysis
+        </Text>
+      </Card>
+
+      <Card style={{ marginTop: 16 }}>
+        <Row gutter={[16, 16]} align="middle">
+          <Col span={8}>
             <Space direction="vertical" style={{ width: '100%' }}>
-              <Text strong>Company ID:</Text>
+              <Text strong>Report Type</Text>
+              <Select
+                value={reportType}
+                onChange={setReportType}
+                style={{ width: '100%' }}
+                size="large"
+              >
+                {reportConfigs.map(config => (
+                  <Option key={config.value} value={config.value}>
+                    <Space>
+                      {config.icon}
+                      {config.label}
+                    </Space>
+                  </Option>
+                ))}
+              </Select>
+              <Text type="secondary" style={{ fontSize: '12px' }}>
+                {currentReportConfig?.description}
+              </Text>
+            </Space>
+          </Col>
+
+          <Col span={8}>
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Text strong>Company ID</Text>
               <InputNumber
                 value={companyId}
                 onChange={setCompanyId}
                 min={1}
                 style={{ width: '100%' }}
+                size="large"
               />
             </Space>
           </Col>
-          <Col xs={24} sm={12} md={6}>
+
+          <Col span={8}>
             <Space direction="vertical" style={{ width: '100%' }}>
-              <Text strong>As of Date:</Text>
-              <DatePicker
-                value={asOfDate}
-                onChange={setAsOfDate}
-                format="YYYY-MM-DD"
-                style={{ width: '100%' }}
-              />
-            </Space>
-          </Col>
-        </>
-      );
-    } else {
-      return (
-        <>
-          <Col xs={24} sm={12} md={6}>
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <Text strong>Start Date:</Text>
-              <DatePicker
-                value={startDate}
-                onChange={setStartDate}
-                format="YYYY-MM-DD"
-                style={{ width: '100%' }}
-              />
-            </Space>
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <Text strong>End Date:</Text>
-              <DatePicker
-                value={endDate}
-                onChange={setEndDate}
-                format="YYYY-MM-DD"
-                style={{ width: '100%' }}
-              />
-            </Space>
-          </Col>
-        </>
-      );
-    }
-  };
-
-  const renderReportContent = () => {
-    if (loading) {
-      return (
-        <div style={{ textAlign: 'center', padding: '50px' }}>
-          <Spin size="large" />
-          <div style={{ marginTop: 16 }}>
-            <Text>Loading report data...</Text>
-          </div>
-        </div>
-      );
-    }
-
-    if (error) {
-      return (
-        <Alert
-          message="Error Loading Report"
-          description={error}
-          type="error"
-          showIcon
-          style={{ margin: '20px 0' }}
-        />
-      );
-    }
-
-    if (!reportData) {
-      return (
-        <div style={{ textAlign: 'center', padding: '50px' }}>
-          <Text>Select parameters and click "Generate Report" to view data</Text>
-        </div>
-      );
-    }
-
-    if (reportType === 'BALANCE_SHEET') {
-      return renderBalanceSheet();
-    } else if (reportType === 'INCOME_EXPENSE') {
-      return renderIncomeExpenseReport();
-    }
-
-    return <div>Report content will be displayed here</div>;
-  };
-
-  const renderBalanceSheet = () => {
-    if (!reportData) return null;
-
-    console.log('Rendering balance sheet with data:', reportData);
-
-    const renderSection = (sectionName, sectionData, total) => {
-      // Safe check for undefined or null data
-      if (!sectionData || typeof sectionData !== 'object') {
-        console.warn(`Section data for ${sectionName} is invalid:`, sectionData);
-        return (
-          <div style={{ marginBottom: 24 }}>
-            <Title level={4}>{sectionName}</Title>
-            <Alert
-              message={`No data available for ${sectionName}`}
-              type="warning"
-              style={{ margin: '10px 0' }}
-            />
-          </div>
-        );
-      }
-
-      const sectionEntries = Object.entries(sectionData);
-      
-      if (sectionEntries.length === 0) {
-        return (
-          <div style={{ marginBottom: 24 }}>
-            <Title level={4}>{sectionName}</Title>
-            <Alert
-              message={`No accounts found in ${sectionName}`}
-              type="info"
-              style={{ margin: '10px 0' }}
-            />
-          </div>
-        );
-      }
-
-      return (
-        <div style={{ marginBottom: 24 }}>
-          <Title level={4}>{sectionName}</Title>
-          {sectionEntries.map(([category, accounts]) => {
-            // Safe check for accounts array
-            if (!Array.isArray(accounts)) {
-              console.warn(`Accounts for category ${category} is not an array:`, accounts);
-              return (
-                <div key={category} style={{ marginBottom: 16 }}>
-                  <Text strong style={{ fontSize: '16px' }}>{category}</Text>
-                  <Alert
-                    message={`Invalid data format for category: ${category}`}
-                    type="warning"
-                    size="small"
-                    style={{ marginTop: 8 }}
+              <Text strong>
+                {(currentReportConfig?.useAsOfDate === false || reportType === 'INCOME_STATEMENT' || reportType === 'FINANCIAL_GROUPING') ? 'Date Range' : 'As of Date'}
+              </Text>
+              {(currentReportConfig?.useAsOfDate === false || reportType === 'INCOME_STATEMENT' || reportType === 'FINANCIAL_GROUPING') ? (
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  <DatePicker
+                    value={startDate}
+                    onChange={setStartDate}
+                    style={{ width: '100%' }}
+                    size="large"
+                    placeholder="Start Date"
                   />
-                </div>
-              );
-            }
+                  <DatePicker
+                    value={endDate}
+                    onChange={setEndDate}
+                    style={{ width: '100%' }}
+                    size="large"
+                    placeholder="End Date"
+                  />
+                </Space>
+              ) : (
+                <DatePicker
+                  value={asOfDate}
+                  onChange={setAsOfDate}
+                  style={{ width: '100%' }}
+                  size="large"
+                />
+              )}
+            </Space>
+          </Col>
+        </Row>
 
-            return (
-              <div key={category} style={{ marginBottom: 16 }}>
-                <Text strong style={{ fontSize: '16px' }}>{category}</Text>
-                <table style={{ width: '100%', marginTop: 8, border: '1px solid #d9d9d9' }}>
-                  <thead>
-                    <tr style={{ backgroundColor: '#fafafa' }}>
-                      <th style={{ padding: '8px', textAlign: 'left', border: '1px solid #d9d9d9' }}>Account</th>
-                      <th style={{ padding: '8px', textAlign: 'right', border: '1px solid #d9d9d9' }}>Current Month</th>
-                      <th style={{ padding: '8px', textAlign: 'right', border: '1px solid #d9d9d9' }}>Previous Month</th>
-                      <th style={{ padding: '8px', textAlign: 'right', border: '1px solid #d9d9d9' }}>Last Year End</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {accounts.map((account, index) => {
-                      // Safe check for account object
-                      if (!account || typeof account !== 'object') {
-                        console.warn(`Invalid account data at index ${index}:`, account);
-                        return (
-                          <tr key={index}>
-                            <td colSpan={4} style={{ padding: '8px', border: '1px solid #d9d9d9', textAlign: 'center' }}>
-                              <Text type="warning">Invalid account data</Text>
-                            </td>
-                          </tr>
-                        );
-                      }
-
-                      return (
-                        <tr key={index}>
-                          <td style={{ padding: '8px', border: '1px solid #d9d9d9' }}>
-                            {account.accountName || 'Unknown Account'}
-                          </td>
-                          <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #d9d9d9' }}>
-                            {typeof account.currentMonth === 'number' 
-                              ? account.currentMonth.toLocaleString(undefined, { minimumFractionDigits: 2 })
-                              : '0.00'
-                            }
-                          </td>
-                          <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #d9d9d9' }}>
-                            {typeof account.previousMonth === 'number'
-                              ? account.previousMonth.toLocaleString(undefined, { minimumFractionDigits: 2 })
-                              : '0.00'
-                            }
-                          </td>
-                          <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #d9d9d9' }}>
-                            {typeof account.lastYearEnd === 'number'
-                              ? account.lastYearEnd.toLocaleString(undefined, { minimumFractionDigits: 2 })
-                              : '0.00'
-                            }
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            );
-          })}
-          <div style={{ textAlign: 'right', marginTop: 16 }}>
-            <Text strong style={{ fontSize: '18px' }}>
-              TOTAL {sectionName.toUpperCase()}: {
-                typeof total === 'number' 
-                  ? total.toLocaleString(undefined, { minimumFractionDigits: 2 })
-                  : '0.00'
-              }
-            </Text>
-          </div>
-        </div>
-      );
-    };
-
-    return (
-      <div>
-        <Title level={3}>
-          Balance Sheet as at {reportData.asOfDate || asOfDate.format('YYYY-MM-DD')}
-        </Title>
-        {renderSection('Assets', reportData.assets, reportData.totalAssets)}
-        {renderSection('Liabilities', reportData.liabilities, reportData.totalLiabilities)}
-        {renderSection('Equity', reportData.equity, reportData.totalEquity)}
-        <div style={{ textAlign: 'center', marginTop: 24, padding: '16px', backgroundColor: '#f0f2f5' }}>
-          <Text strong style={{ fontSize: '20px' }}>
-            IS BALANCED: {reportData.isBalanced ? '✅ YES' : '❌ NO'}
-          </Text>
-        </div>
-      </div>
-    );
-  };
-
-  const renderIncomeExpenseReport = () => {
-    if (!reportData || !Array.isArray(reportData)) {
-      return (
-        <Alert
-          message="Invalid Income Expense Data"
-          description="The income expense data format is not as expected."
-          type="warning"
-          style={{ margin: '20px 0' }}
-        />
-      );
-    }
-
-    return (
-      <div>
-        <Title level={3}>Income vs Expense Report</Title>
-        <table style={{ width: '100%', border: '1px solid #d9d9d9' }}>
-          <thead>
-            <tr style={{ backgroundColor: '#fafafa' }}>
-              <th style={{ padding: '8px', textAlign: 'left', border: '1px solid #d9d9d9' }}>Type</th>
-              <th style={{ padding: '8px', textAlign: 'left', border: '1px solid #d9d9d9' }}>Category</th>
-              <th style={{ padding: '8px', textAlign: 'left', border: '1px solid #d9d9d9' }}>Item</th>
-              <th style={{ padding: '8px', textAlign: 'right', border: '1px solid #d9d9d9' }}>Current Month</th>
-              <th style={{ padding: '8px', textAlign: 'right', border: '1px solid #d9d9d9' }}>Previous Month</th>
-              <th style={{ padding: '8px', textAlign: 'right', border: '1px solid #d9d9d9' }}>YTD</th>
-            </tr>
-          </thead>
-          <tbody>
-            {reportData.map((row, index) => {
-              if (!row || typeof row !== 'object') {
-                return (
-                  <tr key={index}>
-                    <td colSpan={6} style={{ padding: '8px', border: '1px solid #d9d9d9', textAlign: 'center' }}>
-                      <Text type="warning">Invalid row data</Text>
-                    </td>
-                  </tr>
-                );
-              }
-
-              return (
-                <tr key={index}>
-                  <td style={{ padding: '8px', border: '1px solid #d9d9d9' }}>
-                    {row.type || 'Unknown'}
-                  </td>
-                  <td style={{ padding: '8px', border: '1px solid #d9d9d9' }}>
-                    {row.category || 'Unknown'}
-                  </td>
-                  <td style={{ padding: '8px', border: '1px solid #d9d9d9' }}>
-                    {row.description || 'Unknown'}
-                  </td>
-                  <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #d9d9d9' }}>
-                    {typeof row.currentMonth === 'number'
-                      ? row.currentMonth.toLocaleString(undefined, { minimumFractionDigits: 2 })
-                      : '0.00'
-                    }
-                  </td>
-                  <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #d9d9d9' }}>
-                    {typeof row.previousMonth === 'number'
-                      ? row.previousMonth.toLocaleString(undefined, { minimumFractionDigits: 2 })
-                      : '0.00'
-                    }
-                  </td>
-                  <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #d9d9d9' }}>
-                    {typeof row.ytd === 'number'
-                      ? row.ytd.toLocaleString(undefined, { minimumFractionDigits: 2 })
-                      : '0.00'
-                    }
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    );
-  };
-
-  return (
-    <Card
-      title={
-        <Space>
-          <FundProjectionScreenOutlined />
-          Financial Reports
-        </Space>
-      }
-      style={{ margin: 24 }}
-    >
-      {/* Controls */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col xs={24} sm={12} md={6}>
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <Text strong>Report Type:</Text>
-            <Select
-              value={reportType}
-              onChange={setReportType}
-              style={{ width: '100%' }}
-              size="large"
-            >
-              {reportConfigs.map(config => (
-                <Option key={config.value} value={config.value}>
-                  <Space>
-                    {config.icon}
-                    {config.label}
-                  </Space>
-                </Option>
-              ))}
-            </Select>
-          </Space>
-        </Col>
-
-        {renderParameterControls()}
-
-        <Col xs={24} sm={12} md={6}>
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <Text strong>Actions:</Text>
+        <Row style={{ marginTop: 24 }}>
+          <Col span={24}>
             <Space>
               <Button
                 type="primary"
                 icon={<ReloadOutlined />}
                 onClick={loadReportData}
                 loading={loading}
+                size="large"
               >
-                Generate
+                Generate Report
               </Button>
               <Button
                 icon={<DownloadOutlined />}
                 onClick={handleExport}
-                disabled={!reportData}
+                disabled={!reportData || loading}
+                size="large"
               >
-                Export
+                Export Excel
               </Button>
             </Space>
-          </Space>
-        </Col>
-      </Row>
+          </Col>
+        </Row>
+      </Card>
 
-      {/* Report Type Description */}
-      {currentReportConfig && (
+      {/* Display results */}
+      {error && (
         <Alert
-          message={currentReportConfig.label}
-          description={currentReportConfig.description}
-          type="info"
+          message="Error"
+          description={error}
+          type="error"
           showIcon
-          style={{ marginBottom: 16 }}
+          style={{ marginTop: 16 }}
         />
       )}
 
-      {/* Report Content */}
-      <div style={{ marginTop: 16 }}>
-        {renderReportContent()}
-      </div>
-    </Card>
+      {loading && (
+        <Card style={{ marginTop: 16 }}>
+          <div style={{ textAlign: 'center', padding: '40px' }}>
+            <Spin size="large" />
+            <div style={{ marginTop: 16 }}>
+              <Text>Generating {currentReportConfig?.label}...</Text>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {reportData && !loading && (
+        <Card title={`${currentReportConfig?.label} Results`} style={{ marginTop: 16 }}>
+          <Tabs defaultActiveKey="preview">
+            <TabPane tab="Preview" key="preview">
+              <ReportPreview reportType={reportType} data={reportData} />
+            </TabPane>
+            <TabPane tab="Raw Data" key="raw">
+              <pre style={{ 
+                background: '#f5f5f5', 
+                padding: '16px', 
+                borderRadius: '6px',
+                overflow: 'auto',
+                maxHeight: '400px'
+              }}>
+                {JSON.stringify(reportData, null, 2)}
+              </pre>
+            </TabPane>
+          </Tabs>
+        </Card>
+      )}
+    </div>
   );
 };
 

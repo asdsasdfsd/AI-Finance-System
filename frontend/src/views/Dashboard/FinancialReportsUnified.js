@@ -10,12 +10,13 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import AuthService from '../../services/authService';
+import { ReportPreview } from '../../components/ReportPreviewComponents';
 
 const { Option } = Select;
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
 
-// API Configuration
+// API Configuration - Updated to use correct specific controllers
 const API_CONFIG = {
   BASE_URL: 'http://localhost:8085',
   ENDPOINTS: {
@@ -26,7 +27,7 @@ const API_CONFIG = {
   }
 };
 
-// FIXED: Helper function to get auth headers for fetch requests
+// Helper function to get auth headers for fetch requests
 const getAuthHeaders = () => {
   const authData = AuthService.getCurrentUser();
   const headers = {
@@ -43,7 +44,7 @@ const getAuthHeaders = () => {
   return headers;
 };
 
-// FIXED: Helper function to make authenticated fetch requests
+// Helper function to make authenticated fetch requests
 const makeAuthenticatedRequest = async (url, options = {}) => {
   const headers = getAuthHeaders();
   
@@ -74,7 +75,7 @@ const makeAuthenticatedRequest = async (url, options = {}) => {
 };
 
 /**
- * Enhanced Financial Reports Component with FIXED authentication
+ * Enhanced Financial Reports Component with unified styling
  */
 const FinancialReportsUnified = () => {
   const [reportType, setReportType] = useState('BALANCE_SHEET');
@@ -90,7 +91,7 @@ const FinancialReportsUnified = () => {
   const [startDate, setStartDate] = useState(dayjs().subtract(3, 'month'));
   const [endDate, setEndDate] = useState(dayjs());
 
-  // Report configurations
+  // Complete report configurations
   const reportConfigs = [
     {
       value: 'BALANCE_SHEET',
@@ -140,7 +141,7 @@ const FinancialReportsUnified = () => {
     }
   ];
 
-  // FIXED: Test backend connection with auth
+  // Test backend connection with auth
   useEffect(() => {
     testBackendConnection();
   }, []);
@@ -182,7 +183,7 @@ const FinancialReportsUnified = () => {
     setError(null);
     
     try {
-      // FIXED: Check authentication before making request
+      // Check authentication before making request
       const authData = AuthService.getCurrentUser();
       if (!authData || !authData.token) {
         throw new Error('Authentication required. Please login first.');
@@ -206,7 +207,7 @@ const FinancialReportsUnified = () => {
       const fullUrl = `${url}?${params.toString()}`;
       console.log(`🔄 [Report] Loading ${reportType} data from: ${fullUrl}`);
       
-      // FIXED: Use authenticated request
+      // Use authenticated request
       const response = await makeAuthenticatedRequest(fullUrl);
       const data = await response.json();
       
@@ -222,12 +223,12 @@ const FinancialReportsUnified = () => {
     }
   };
 
-  // FIXED: Enhanced export functionality with proper authentication
+  // Enhanced export functionality with proper authentication
   const handleExport = async () => {
     setExporting(true);
     
     try {
-      // FIXED: Check authentication before making request
+      // Check authentication before making request
       const authData = AuthService.getCurrentUser();
       if (!authData || !authData.token) {
         throw new Error('Authentication required. Please login first.');
@@ -249,689 +250,308 @@ const FinancialReportsUnified = () => {
       }
       
       const fullUrl = `${url}?${params.toString()}`;
-      console.log(`📥 [Export] Exporting ${reportType} from: ${fullUrl}`);
+      console.log(`🔽 [Export] Exporting ${reportType} from: ${fullUrl}`);
       
-      // FIXED: Use authenticated request with proper headers
-      const response = await makeAuthenticatedRequest(fullUrl, {
-        headers: {
-          ...getAuthHeaders(),
-          'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        }
-      });
+      // Use authenticated request for export
+      const response = await makeAuthenticatedRequest(fullUrl);
       
-      // Check if response is actually Excel content
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('spreadsheetml')) {
-        throw new Error('Server did not return Excel file. Check server logs.');
-      }
-      
+      // Handle file download
       const blob = await response.blob();
-      
-      if (blob.size === 0) {
-        throw new Error('Received empty file from server');
-      }
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
       
       // Generate filename
       const dateStr = config.useAsOfDate 
         ? asOfDate.format('YYYY-MM-DD')
         : `${startDate.format('YYYY-MM-DD')}_to_${endDate.format('YYYY-MM-DD')}`;
-      const filename = `${config.label.replace(/\s+/g, '_')}_${dateStr}.xlsx`;
+      a.download = `${config.label.replace(/\s+/g, '_')}_${companyId}_${dateStr}.xlsx`;
       
-      // Download file
-      const url_obj = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url_obj;
-      link.setAttribute('download', filename);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url_obj);
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(downloadUrl);
+      document.body.removeChild(a);
       
-      console.log(`✅ [Export] ${reportType} exported successfully: ${filename} (${blob.size} bytes)`);
-      message.success(`${config.label} exported successfully!`);
+      message.success(`${config.label} exported successfully`);
       
     } catch (error) {
       console.error('❌ [Export] Export failed:', error);
       message.error(`Export failed: ${error.message}`);
-      
-      // FIXED: Handle auth errors specifically
-      if (error.message.includes('401') || error.message.includes('Authorization')) {
-        message.error('Authentication failed. Please login again.');
-        // Optionally redirect to login
-        // window.location.href = '/login';
-      }
     } finally {
       setExporting(false);
     }
   };
 
-  // Auto-load report when dependencies change
-  useEffect(() => {
-    if (reportType && companyId) {
-      loadReportData();
-    }
-  }, [reportType, companyId, asOfDate, startDate, endDate]);
+  // Helper functions for legacy summary display
+  const renderReportSummary = (data, type) => {
+    if (!data) return null;
 
-  const renderReportPreview = () => {
-    if (loading) {
-      return (
-        <div style={{ textAlign: 'center', padding: '50px' }}>
-          <Spin size="large" />
-          <div style={{ marginTop: 16 }}>Loading report data...</div>
-        </div>
-      );
-    }
-
-    if (error) {
-      return (
-        <Alert 
-          message="Error Loading Report" 
-          description={error}
-          type="error" 
-          showIcon
-          action={
-            <Button size="small" danger onClick={loadReportData}>
-              Retry
-            </Button>
-          }
-        />
-      );
-    }
-
-    if (!reportData) {
-      return (
-        <Alert 
-          message="No Data" 
-          description="No report data available. Click 'Load Report' to fetch data."
-          type="info" 
-          showIcon
-        />
-      );
-    }
-
-    // Render different previews based on report type
-    switch (reportType) {
+    switch (type) {
       case 'BALANCE_SHEET':
-        return renderBalanceSheetPreview();
-      case 'INCOME_EXPENSE':
-        return renderIncomeExpensePreview();
-      case 'FINANCIAL_GROUPING':
-        return renderFinancialGroupingPreview();
+        return renderBalanceSheetSummary(data);
       case 'INCOME_STATEMENT':
-        return renderIncomeStatementPreview();
+        return renderIncomeStatementSummary(data);
+      case 'INCOME_EXPENSE':
+        return renderIncomeExpenseSummary(data);
+      case 'FINANCIAL_GROUPING':
+        return renderFinancialGroupingSummary(data);
       default:
-        return <div>Preview not available for this report type</div>;
+        return <Text>Summary view not available for this report type</Text>;
     }
   };
 
-  const renderBalanceSheetPreview = () => {
-    if (!reportData) return null;
-
-    const columns = [
-      { title: 'Account', dataIndex: 'accountName', key: 'accountName' },
-      { title: 'Current Month', dataIndex: 'currentMonth', key: 'currentMonth', 
-        render: (value) => `$${Number(value || 0).toLocaleString()}` },
-      { title: 'Previous Month', dataIndex: 'previousMonth', key: 'previousMonth',
-        render: (value) => `$${Number(value || 0).toLocaleString()}` },
-      { title: 'Last Year End', dataIndex: 'lastYearEnd', key: 'lastYearEnd',
-        render: (value) => `$${Number(value || 0).toLocaleString()}` }
+  const renderBalanceSheetSummary = (data) => {
+    const summaryData = [
+      { key: 'totalAssets', label: 'Total Assets', value: data.totalAssets || 0 },
+      { key: 'totalLiabilities', label: 'Total Liabilities', value: data.totalLiabilities || 0 },
+      { key: 'totalEquity', label: 'Total Equity', value: data.totalEquity || 0 },
+      { key: 'balanced', label: 'Balanced', value: data.isBalanced ? 'Yes' : 'No' }
     ];
 
     return (
-      <Tabs defaultActiveKey="assets">
-        <TabPane tab="Assets" key="assets">
-          {reportData.assets && Object.entries(reportData.assets).map(([category, accounts]) => (
-            <div key={category} style={{ marginBottom: 24 }}>
-              <Title level={4}>{category}</Title>
-              <Table 
-                dataSource={accounts} 
-                columns={columns} 
-                pagination={false}
-                size="small"
-                rowKey="accountName"
-              />
-            </div>
-          ))}
-        </TabPane>
-        <TabPane tab="Liabilities" key="liabilities">
-          {reportData.liabilities && Object.entries(reportData.liabilities).map(([category, accounts]) => (
-            <div key={category} style={{ marginBottom: 24 }}>
-              <Title level={4}>{category}</Title>
-              <Table 
-                dataSource={accounts} 
-                columns={columns} 
-                pagination={false}
-                size="small"
-                rowKey="accountName"
-              />
-            </div>
-          ))}
-        </TabPane>
-        <TabPane tab="Equity" key="equity">
-          {reportData.equity && Object.entries(reportData.equity).map(([category, accounts]) => (
-            <div key={category} style={{ marginBottom: 24 }}>
-              <Title level={4}>{category}</Title>
-              <Table 
-                dataSource={accounts} 
-                columns={columns} 
-                pagination={false}
-                size="small"
-                rowKey="accountName"
-              />
-            </div>
-          ))}
-        </TabPane>
-      </Tabs>
+      <Table 
+        dataSource={summaryData}
+        columns={[
+          { title: 'Item', dataIndex: 'label', key: 'label' },
+          { title: 'Value', dataIndex: 'value', key: 'value' }
+        ]}
+        pagination={false}
+        size="small"
+      />
     );
   };
 
-  const renderFinancialGroupingPreview = () => {
-    if (!reportData) return null;
-
-    return (
-      <Tabs defaultActiveKey="category">
-        <TabPane tab="By Category" key="category">
-          {reportData.categoryGrouping && (
-            <Table 
-              dataSource={Object.entries(reportData.categoryGrouping).map(([key, value]) => ({ key, value }))}
-              columns={[
-                { title: 'Category', dataIndex: 'key', key: 'key' },
-                { title: 'Amount', dataIndex: 'value', key: 'value', 
-                  render: (value) => `$${Number(value || 0).toLocaleString()}` }
-              ]}
-              pagination={false}
-              size="small"
-            />
-          )}
-        </TabPane>
-        <TabPane tab="By Department" key="department">
-          {reportData.departmentGrouping && (
-            <Table 
-              dataSource={Object.entries(reportData.departmentGrouping).map(([key, value]) => ({ key, value }))}
-              columns={[
-                { title: 'Department', dataIndex: 'key', key: 'key' },
-                { title: 'Amount', dataIndex: 'value', key: 'value', 
-                  render: (value) => `$${Number(value || 0).toLocaleString()}` }
-              ]}
-              pagination={false}
-              size="small"
-            />
-          )}
-        </TabPane>
-      </Tabs>
-    );
-  };
-
-// frontend/src/views/Dashboard/FinancialReportsUnified.js
-
-  // Replace the renderIncomeStatementPreview function with this implementation:
-  const renderIncomeStatementPreview = () => {
-    if (!reportData) return null;
-
-    // Create sections for display
-    const sections = [
-      {
-        title: 'I. Operating Revenue',
-        items: reportData.revenues || [],
-        total: reportData.totalRevenue,
-        isRevenue: true
-      },
-      {
-        title: 'II. Operating Expenses', 
-        items: reportData.operatingExpenses || [],
-        total: reportData.totalOperatingExpenses,
-        isRevenue: false
-      },
-      {
-        title: 'III. Administrative Expenses',
-        items: reportData.administrativeExpenses || [],
-        total: reportData.totalAdministrativeExpenses,
-        isRevenue: false
-      },
-      {
-        title: 'IV. Financial Expenses',
-        items: reportData.financialExpenses || [],
-        total: reportData.totalFinancialExpenses,
-        isRevenue: false
-      }
+  const renderIncomeStatementSummary = (data) => {
+    const summaryData = [
+      { key: 'totalRevenue', label: 'Total Revenue', value: data.totalRevenue || 0 },
+      { key: 'totalExpenses', label: 'Total Expenses', value: data.totalExpenses || 0 },
+      { key: 'netIncome', label: 'Net Income', value: data.netIncome || 0 }
     ];
 
-    // Add other income section if exists
-    if (reportData.otherIncomes && reportData.otherIncomes.length > 0) {
-      sections.push({
-        title: 'V. Other Income',
-        items: reportData.otherIncomes,
-        total: reportData.totalOtherIncomes,
-        isRevenue: true
-      });
+    return (
+      <Table 
+        dataSource={summaryData}
+        columns={[
+          { title: 'Item', dataIndex: 'label', key: 'label' },
+          { title: 'Value', dataIndex: 'value', key: 'value' }
+        ]}
+        pagination={false}
+        size="small"
+      />
+    );
+  };
+
+  const renderIncomeExpenseSummary = (data) => {
+    const summaryData = [
+      { key: 'totalIncomeYTD', label: 'Total Income (YTD)', value: data.totalIncomeYTD || 0 },
+      { key: 'totalExpenseYTD', label: 'Total Expense (YTD)', value: data.totalExpenseYTD || 0 },
+      { key: 'netIncomeYTD', label: 'Net Income (YTD)', value: data.netIncomeYTD || 0 },
+      { key: 'totalIncomeMonth', label: 'Total Income (Month)', value: data.totalIncomeMonth || 0 },
+      { key: 'totalExpenseMonth', label: 'Total Expense (Month)', value: data.totalExpenseMonth || 0 },
+      { key: 'netIncomeMonth', label: 'Net Income (Month)', value: data.netIncomeMonth || 0 }
+    ];
+
+    return (
+      <Table 
+        dataSource={summaryData}
+        columns={[
+          { title: 'Item', dataIndex: 'label', key: 'label' },
+          { title: 'Value', dataIndex: 'value', key: 'value' }
+        ]}
+        pagination={false}
+        size="small"
+      />
+    );
+  };
+
+  const renderFinancialGroupingSummary = (data) => {
+    if (!data.groupings && !data.categoryGrouping) {
+      return <Text>No grouping data available</Text>;
     }
 
-    // Add other expenses section if exists
-    if (reportData.otherExpenses && reportData.otherExpenses.length > 0) {
-      sections.push({
-        title: 'VI. Other Expenses',
-        items: reportData.otherExpenses,
-        total: reportData.totalOtherExpenses,
-        isRevenue: false
-      });
-    }
+    const groupingData = data.groupings || data.categoryGrouping || {};
+    const summaryData = Object.entries(groupingData).map(([key, value], index) => ({
+      key: index,
+      label: key,
+      value: typeof value === 'object' ? JSON.stringify(value) : value
+    }));
 
     return (
-      <div style={{ padding: '20px' }}>
-        {/* Company Header */}
-        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-          <Title level={3}>{reportData.companyName}</Title>
-          <Title level={4}>Income Statement</Title>
-          <Text>{reportData.periodDescription}</Text>
-        </div>
-
-        {/* Revenue and Expense Sections */}
-        {sections.map((section, index) => (
-          <div key={index} style={{ marginBottom: '25px' }}>
-            <Title level={5} style={{ 
-              backgroundColor: '#f5f5f5', 
-              padding: '10px',
-              margin: '0 0 10px 0',
-              fontWeight: 'bold'
-            }}>
-              {section.title}
-            </Title>
-            
-            {/* Section Items */}
-            {section.items.map((item, itemIndex) => (
-              <Row key={itemIndex} style={{ padding: '5px 20px' }}>
-                <Col span={16}>
-                  <Text>{item.name || item.category}</Text>
-                </Col>
-                <Col span={8} style={{ textAlign: 'right' }}>
-                  <Text>${Number(item.amount || 0).toLocaleString()}</Text>
-                </Col>
-              </Row>
-            ))}
-            
-            {/* Section Total */}
-            <Row style={{ 
-              padding: '5px 20px', 
-              borderTop: '1px solid #d9d9d9',
-              fontWeight: 'bold',
-              backgroundColor: '#fafafa'
-            }}>
-              <Col span={16}>
-                <Text strong>Subtotal</Text>
-              </Col>
-              <Col span={8} style={{ textAlign: 'right' }}>
-                <Text strong>${Number(section.total || 0).toLocaleString()}</Text>
-              </Col>
-            </Row>
-          </div>
-        ))}
-
-        {/* Summary Section */}
-        <div style={{ 
-          marginTop: '30px', 
-          borderTop: '2px solid #000',
-          paddingTop: '15px'
-        }}>
-          <Title level={5}>Summary</Title>
-          
-          <Row style={{ padding: '5px 0' }}>
-            <Col span={16}>
-              <Text strong>Total Revenue</Text>
-            </Col>
-            <Col span={8} style={{ textAlign: 'right' }}>
-              <Text strong>${Number(reportData.totalRevenue || 0).toLocaleString()}</Text>
-            </Col>
-          </Row>
-          
-          <Row style={{ padding: '5px 0' }}>
-            <Col span={16}>
-              <Text strong>Total Expenses</Text>
-            </Col>
-            <Col span={8} style={{ textAlign: 'right' }}>
-              <Text strong>${Number(reportData.totalExpenses || 0).toLocaleString()}</Text>
-            </Col>
-          </Row>
-          
-          <Row style={{ 
-            padding: '10px 0',
-            borderTop: '1px solid #000',
-            fontSize: '16px'
-          }}>
-            <Col span={16}>
-              <Text strong style={{ fontSize: '16px' }}>Net Income</Text>
-            </Col>
-            <Col span={8} style={{ textAlign: 'right' }}>
-              <Text strong style={{ 
-                fontSize: '16px',
-                color: reportData.netIncome >= 0 ? '#52c41a' : '#ff4d4f'
-              }}>
-                ${Number(reportData.netIncome || 0).toLocaleString()}
-              </Text>
-            </Col>
-          </Row>
-
-          {/* Additional Metrics */}
-          {reportData.grossProfitMargin !== undefined && (
-            <Row style={{ padding: '5px 0', marginTop: '10px' }}>
-              <Col span={16}>
-                <Text>Gross Profit Margin</Text>
-              </Col>
-              <Col span={8} style={{ textAlign: 'right' }}>
-                <Text>{Number(reportData.grossProfitMargin || 0).toFixed(1)}%</Text>
-              </Col>
-            </Row>
-          )}
-          
-          {reportData.netProfitMargin !== undefined && (
-            <Row style={{ padding: '5px 0' }}>
-              <Col span={16}>
-                <Text>Net Profit Margin</Text>
-              </Col>
-              <Col span={8} style={{ textAlign: 'right' }}>
-                <Text>{Number(reportData.netProfitMargin || 0).toFixed(1)}%</Text>
-              </Col>
-            </Row>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  // Replace the renderIncomeExpensePreview function with this implementation:
-  const renderIncomeExpensePreview = () => {
-    if (!reportData) return null;
-    
-    // Handle the correct data structure - reportData is an object with incomeRows and expenseRows
-    const { incomeRows = [], expenseRows = [] } = reportData;
-
-    const columns = [
-      { 
-        title: 'Category', 
-        dataIndex: 'category', 
-        key: 'category',
-        width: '20%'
-      },
-      { 
-        title: 'Description', 
-        dataIndex: 'description', 
-        key: 'description',
-        width: '25%'
-      },
-      { 
-        title: 'Current Month', 
-        dataIndex: 'currentMonth', 
-        key: 'currentMonth',
-        width: '15%',
-        align: 'right',
-        render: (value) => `$${Number(value || 0).toLocaleString()}`
-      },
-      { 
-        title: 'Year to Date', 
-        dataIndex: 'yearToDate', 
-        key: 'yearToDate',
-        width: '15%',
-        align: 'right',
-        render: (value) => `$${Number(value || 0).toLocaleString()}`
-      }
-    ];
-
-    return (
-      <div style={{ padding: '20px' }}>
-        {/* Company Header */}
-        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-          <Title level={3}>{reportData.companyName}</Title>
-          <Title level={4}>Income vs Expense Report</Title>
-          <Text>As of {reportData.asOfDate}</Text>
-        </div>
-
-        <Tabs defaultActiveKey="income">
-          <TabPane tab="Income" key="income">
-            <div style={{ marginBottom: '20px' }}>
-              <Title level={5} style={{ color: '#52c41a' }}>Income Details</Title>
-              <Table 
-                dataSource={incomeRows} 
-                columns={columns} 
-                pagination={false}
-                size="small"
-                rowKey={(record, index) => `income_${index}`}
-                summary={() => (
-                  <Table.Summary>
-                    <Table.Summary.Row style={{ backgroundColor: '#f6ffed' }}>
-                      <Table.Summary.Cell colSpan={2}>
-                        <Text strong>Total Income</Text>
-                      </Table.Summary.Cell>
-                      <Table.Summary.Cell>
-                        <Text strong style={{ color: '#52c41a' }}>
-                          ${Number(reportData.totalIncomeMonth || 0).toLocaleString()}
-                        </Text>
-                      </Table.Summary.Cell>
-                      <Table.Summary.Cell>
-                        <Text strong style={{ color: '#52c41a' }}>
-                          ${Number(reportData.totalIncomeYTD || 0).toLocaleString()}
-                        </Text>
-                      </Table.Summary.Cell>
-                    </Table.Summary.Row>
-                  </Table.Summary>
-                )}
-              />
-            </div>
-          </TabPane>
-
-          <TabPane tab="Expenses" key="expenses">
-            <div style={{ marginBottom: '20px' }}>
-              <Title level={5} style={{ color: '#ff4d4f' }}>Expense Details</Title>
-              <Table 
-                dataSource={expenseRows} 
-                columns={columns} 
-                pagination={false}
-                size="small"
-                rowKey={(record, index) => `expense_${index}`}
-                summary={() => (
-                  <Table.Summary>
-                    <Table.Summary.Row style={{ backgroundColor: '#fff2f0' }}>
-                      <Table.Summary.Cell colSpan={2}>
-                        <Text strong>Total Expenses</Text>
-                      </Table.Summary.Cell>
-                      <Table.Summary.Cell>
-                        <Text strong style={{ color: '#ff4d4f' }}>
-                          ${Number(reportData.totalExpenseMonth || 0).toLocaleString()}
-                        </Text>
-                      </Table.Summary.Cell>
-                      <Table.Summary.Cell>
-                        <Text strong style={{ color: '#ff4d4f' }}>
-                          ${Number(reportData.totalExpenseYTD || 0).toLocaleString()}
-                        </Text>
-                      </Table.Summary.Cell>
-                    </Table.Summary.Row>
-                  </Table.Summary>
-                )}
-              />
-            </div>
-          </TabPane>
-
-          <TabPane tab="Summary" key="summary">
-            <div style={{ padding: '20px' }}>
-              <Title level={5}>Financial Summary</Title>
-              
-              <Row gutter={[16, 16]}>
-                <Col xs={24} md={12}>
-                  <Card size="small" title="Current Month">
-                    <div style={{ marginBottom: '10px' }}>
-                      <Text>Total Income: </Text>
-                      <Text strong style={{ color: '#52c41a' }}>
-                        ${Number(reportData.totalIncomeMonth || 0).toLocaleString()}
-                      </Text>
-                    </div>
-                    <div style={{ marginBottom: '10px' }}>
-                      <Text>Total Expenses: </Text>
-                      <Text strong style={{ color: '#ff4d4f' }}>
-                        ${Number(reportData.totalExpenseMonth || 0).toLocaleString()}
-                      </Text>
-                    </div>
-                    <div style={{ 
-                      paddingTop: '10px', 
-                      borderTop: '1px solid #d9d9d9' 
-                    }}>
-                      <Text>Net Income: </Text>
-                      <Text strong style={{ 
-                        color: reportData.netIncomeMonth >= 0 ? '#52c41a' : '#ff4d4f',
-                        fontSize: '16px'
-                      }}>
-                        ${Number(reportData.netIncomeMonth || 0).toLocaleString()}
-                      </Text>
-                    </div>
-                  </Card>
-                </Col>
-                
-                <Col xs={24} md={12}>
-                  <Card size="small" title="Year to Date">
-                    <div style={{ marginBottom: '10px' }}>
-                      <Text>Total Income: </Text>
-                      <Text strong style={{ color: '#52c41a' }}>
-                        ${Number(reportData.totalIncomeYTD || 0).toLocaleString()}
-                      </Text>
-                    </div>
-                    <div style={{ marginBottom: '10px' }}>
-                      <Text>Total Expenses: </Text>
-                      <Text strong style={{ color: '#ff4d4f' }}>
-                        ${Number(reportData.totalExpenseYTD || 0).toLocaleString()}
-                      </Text>
-                    </div>
-                    <div style={{ 
-                      paddingTop: '10px', 
-                      borderTop: '1px solid #d9d9d9' 
-                    }}>
-                      <Text>Net Income: </Text>
-                      <Text strong style={{ 
-                        color: reportData.netIncomeYTD >= 0 ? '#52c41a' : '#ff4d4f',
-                        fontSize: '16px'
-                      }}>
-                        ${Number(reportData.netIncomeYTD || 0).toLocaleString()}
-                      </Text>
-                    </div>
-                  </Card>
-                </Col>
-              </Row>
-            </div>
-          </TabPane>
-        </Tabs>
-      </div>
+      <Table 
+        dataSource={summaryData}
+        columns={[
+          { title: 'Group', dataIndex: 'label', key: 'label' },
+          { title: 'Value', dataIndex: 'value', key: 'value' }
+        ]}
+        pagination={false}
+        size="small"
+      />
     );
   };
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div>
       <Card>
-        <Title level={2}>
-          <FundProjectionScreenOutlined /> Financial Reports
+        <Title level={3}>
+          <FundProjectionScreenOutlined /> Financial Reports (Unified)
         </Title>
-        
+        <Text type="secondary">
+          Generate and export various financial reports using the DDD architecture
+        </Text>
         {testingConnection && (
           <Alert 
             message="Testing backend connection..." 
             type="info" 
-            style={{ marginBottom: 16 }}
+            showIcon 
+            style={{ marginTop: 16 }}
           />
         )}
+      </Card>
 
-        <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-          <Col xs={24} sm={12} md={8}>
-            <label>Report Type:</label>
-            <Select 
-              value={reportType} 
-              onChange={setReportType}
-              style={{ width: '100%' }}
-              placeholder="Select report type"
-            >
-              {reportConfigs.map(config => (
-                <Option key={config.value} value={config.value}>
-                  {config.icon} {config.label}
-                </Option>
-              ))}
-            </Select>
-            {currentReportConfig && (
-              <Text type="secondary" style={{ fontSize: '12px' }}>
-                {currentReportConfig.description}
-              </Text>
-            )}
-          </Col>
-
-          <Col xs={24} sm={12} md={4}>
-            <label>Company ID:</label>
-            <Select 
-              value={companyId} 
-              onChange={setCompanyId}
-              style={{ width: '100%' }}
-            >
-              <Option value={1}>Company 1</Option>
-              <Option value={2}>Company 2</Option>
-              <Option value={3}>Company 3</Option>
-            </Select>
-          </Col>
-
-          {currentReportConfig?.useAsOfDate ? (
-            <Col xs={24} sm={12} md={6}>
-              <label>As of Date:</label>
-              <DatePicker 
-                value={asOfDate}
-                onChange={setAsOfDate}
+      <Card style={{ marginTop: 16 }}>
+        <Row gutter={[16, 16]} align="middle">
+          <Col span={6}>
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Text strong>Report Type</Text>
+              <Select
+                value={reportType}
+                onChange={setReportType}
                 style={{ width: '100%' }}
-                format="YYYY-MM-DD"
+                size="large"
+              >
+                {reportConfigs.map(config => (
+                  <Option key={config.value} value={config.value}>
+                    <Space>
+                      {config.icon}
+                      {config.label}
+                    </Space>
+                  </Option>
+                ))}
+              </Select>
+              <Text type="secondary" style={{ fontSize: '12px' }}>
+                {currentReportConfig?.description}
+              </Text>
+            </Space>
+          </Col>
+
+          <Col span={6}>
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Text strong>Company ID</Text>
+              <input
+                type="number"
+                value={companyId}
+                onChange={(e) => setCompanyId(parseInt(e.target.value) || 1)}
+                min={1}
+                style={{ width: '100%', padding: '8px', fontSize: '16px' }}
               />
-            </Col>
-          ) : (
-            <>
-              <Col xs={24} sm={12} md={6}>
-                <label>Start Date:</label>
-                <DatePicker 
-                  value={startDate}
-                  onChange={setStartDate}
+            </Space>
+          </Col>
+
+          <Col span={12}>
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Text strong>
+                {currentReportConfig?.useAsOfDate ? 'As of Date' : 'Date Range'}
+              </Text>
+              {currentReportConfig?.useAsOfDate ? (
+                <DatePicker
+                  value={asOfDate}
+                  onChange={setAsOfDate}
                   style={{ width: '100%' }}
-                  format="YYYY-MM-DD"
+                  size="large"
                 />
-              </Col>
-              <Col xs={24} sm={12} md={6}>
-                <label>End Date:</label>
-                <DatePicker 
-                  value={endDate}
-                  onChange={setEndDate}
-                  style={{ width: '100%' }}
-                  format="YYYY-MM-DD"
-                />
-              </Col>
-            </>
-          )}
+              ) : (
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  <DatePicker
+                    value={startDate}
+                    onChange={setStartDate}
+                    style={{ width: '100%' }}
+                    size="large"
+                    placeholder="Start Date"
+                  />
+                  <DatePicker
+                    value={endDate}
+                    onChange={setEndDate}
+                    style={{ width: '100%' }}
+                    size="large"
+                    placeholder="End Date"
+                  />
+                </Space>
+              )}
+            </Space>
+          </Col>
         </Row>
 
-        <Space style={{ marginBottom: 16 }}>
-          <Button 
-            type="primary" 
-            icon={<ReloadOutlined />}
-            onClick={loadReportData}
-            loading={loading}
-          >
-            Load Report
-          </Button>
-          
-          <Button 
-            type="default"
-            icon={<DownloadOutlined />}
-            onClick={handleExport}
-            loading={exporting}
-            disabled={!currentReportConfig}
-          >
-            {exporting ? 'Exporting...' : 'Export to Excel'}
-          </Button>
-        </Space>
-
-        <Card 
-          title={`${currentReportConfig?.label || 'Report'} Preview`}
-          size="small"
-          style={{ minHeight: '400px' }}
-        >
-          {renderReportPreview()}
-        </Card>
+        <Row style={{ marginTop: 24 }}>
+          <Col span={24}>
+            <Space>
+              <Button
+                type="primary"
+                icon={<ReloadOutlined />}
+                onClick={loadReportData}
+                loading={loading}
+                size="large"
+              >
+                Generate Report
+              </Button>
+              <Button
+                icon={<DownloadOutlined />}
+                onClick={handleExport}
+                disabled={!reportData || loading}
+                loading={exporting}
+                size="large"
+              >
+                Export Excel
+              </Button>
+            </Space>
+          </Col>
+        </Row>
       </Card>
+
+      {/* Display results */}
+      {error && (
+        <Alert
+          message="Error"
+          description={error}
+          type="error"
+          showIcon
+          style={{ marginTop: 16 }}
+        />
+      )}
+
+      {loading && (
+        <Card style={{ marginTop: 16 }}>
+          <div style={{ textAlign: 'center', padding: '40px' }}>
+            <Spin size="large" />
+            <div style={{ marginTop: 16 }}>
+              <Text>Generating {currentReportConfig?.label}...</Text>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {reportData && !loading && (
+        <Card title={`${currentReportConfig?.label} Results`} style={{ marginTop: 16 }}>
+          <Tabs defaultActiveKey="preview">
+            <TabPane tab="Enhanced Preview" key="preview">
+              <ReportPreview reportType={reportType} data={reportData} />
+            </TabPane>
+            <TabPane tab="Summary" key="summary">
+              {renderReportSummary(reportData, reportType)}
+            </TabPane>
+            <TabPane tab="Raw Data" key="raw">
+              <pre style={{ 
+                background: '#f5f5f5', 
+                padding: '16px', 
+                borderRadius: '6px',
+                overflow: 'auto',
+                maxHeight: '400px'
+              }}>
+                {JSON.stringify(reportData, null, 2)}
+              </pre>
+            </TabPane>
+          </Tabs>
+        </Card>
+      )}
     </div>
   );
 };
