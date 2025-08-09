@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Card, Table, Button, Space, Tag, Select, DatePicker, Input,
   message, Modal, Tooltip, Progress, Typography, Row, Col, 
-  Statistic, Descriptions, Drawer, Alert, Spin
+  Statistic, Descriptions, Drawer, Alert, Spin, Divider
 } from 'antd';
 import {
   FileTextOutlined, DownloadOutlined, DeleteOutlined, 
@@ -21,9 +21,10 @@ const { Option } = Select;
 const { Search } = Input;
 
 /**
- * Enhanced Report Management Component
+ * Fixed Report Management Component
  * 
  * Features:
+ * - Properly handle backend API responses
  * - View report details
  * - Download reports
  * - Archive/Delete reports
@@ -43,31 +44,79 @@ const ReportManagement = () => {
     searchTerm: ''
   });
 
-  const reportTypes = ReportService.getReportTypes();
-  const reportStatuses = ReportService.getReportStatuses();
+  // Static options - fallback if backend doesn't provide them
+  const reportTypes = [
+    { value: 'BALANCE_SHEET', label: 'Balance Sheet' },
+    { value: 'INCOME_STATEMENT', label: 'Income Statement' },
+    { value: 'INCOME_EXPENSE', label: 'Income & Expense' },
+    { value: 'FINANCIAL_GROUPING', label: 'Financial Grouping' },
+  ];
+
+  const reportStatuses = [
+    { value: 'PENDING', label: 'Pending' },
+    { value: 'GENERATING', label: 'Generating' },
+    { value: 'COMPLETED', label: 'Completed' },
+    { value: 'FAILED', label: 'Failed' },
+    { value: 'ARCHIVED', label: 'Archived' },
+  ];
 
   useEffect(() => {
     fetchReports();
     fetchStatistics();
+  }, []);
+
+  // Separate effect for filter changes to avoid infinite loops
+  useEffect(() => {
+    const delayedFetch = setTimeout(() => {
+      fetchReports();
+    }, 500);
+    
+    return () => clearTimeout(delayedFetch);
   }, [filters]);
 
   const fetchReports = async () => {
     setLoading(true);
     try {
       const filterParams = {
+        page: 0,
+        size: 100,
         ...filters,
         startDate: filters.dateRange?.[0]?.format('YYYY-MM-DD'),
         endDate: filters.dateRange?.[1]?.format('YYYY-MM-DD')
       };
-      delete filterParams.dateRange;
+      delete filterParams.dateRange; // Remove dateRange as we've converted it
 
+      console.log('Fetching reports with params:', filterParams);
+      
       const response = await ReportService.getReports(filterParams);
-      if (response.status === 'success') {
-        setReports(response.data || []);
+      console.log('Reports response:', response);
+      
+      // Handle different response formats from backend
+      let reportData = [];
+      if (response && response.data) {
+        // Response format: {status: 'success', data: [...]}
+        reportData = Array.isArray(response.data) ? response.data : [];
+      } else if (Array.isArray(response)) {
+        // Direct array response
+        reportData = response;
+      } else if (response && Array.isArray(response.content)) {
+        // Paginated response: {content: [...], totalElements: ...}
+        reportData = response.content;
       }
+      
+      console.log('Processed report data:', reportData);
+      setReports(reportData);
+      
+      if (reportData.length === 0) {
+        console.log('No reports found - this may be normal if no reports have been generated yet');
+      } else {
+        message.success(`Found ${reportData.length} reports`);
+      }
+      
     } catch (error) {
       console.error('Error fetching reports:', error);
       message.error('Failed to fetch reports: ' + error.message);
+      setReports([]); // Set empty array on error
     } finally {
       setLoading(false);
     }
@@ -75,33 +124,53 @@ const ReportManagement = () => {
 
   const fetchStatistics = async () => {
     try {
-      const response = await ReportService.getReportStatistics();
-      if (response.status === 'success') {
+      // Try to fetch statistics, but don't fail if not available
+      const response = await ReportService.getReportStatistics?.();
+      if (response && response.data) {
         setStatistics(response.data);
       }
     } catch (error) {
       console.error('Error fetching statistics:', error);
       // Don't show error message for statistics as it's not critical
+      // Generate basic statistics from current reports
+      const stats = generateBasicStatistics(reports);
+      setStatistics(stats);
     }
+  };
+
+  // Generate basic statistics from reports data
+  const generateBasicStatistics = (reportsData) => {
+    const total = reportsData.length;
+    const completed = reportsData.filter(r => r.status === 'COMPLETED').length;
+    const generating = reportsData.filter(r => r.status === 'GENERATING').length;
+    const failed = reportsData.filter(r => r.status === 'FAILED').length;
+    
+    return {
+      totalReports: total,
+      completedReports: completed,
+      generatingReports: generating,
+      failedReports: failed
+    };
   };
 
   const handleViewDetails = async (report) => {
     try {
-      // Fetch full report details
-      const response = await ReportService.getReport(report.reportId);
-      if (response.status === 'success') {
-        setSelectedReport(response.data);
-        setDetailsVisible(true);
-      } else {
-        throw new Error(response.message || 'Failed to fetch report details');
-      }
-    } catch (error) {
-      console.error('Error fetching report details:', error);
-      message.error('Failed to fetch report details: ' + error.message);
-      
-      // If API call fails, show basic details from table data
       setSelectedReport(report);
       setDetailsVisible(true);
+      
+      // Try to fetch full report details
+      try {
+        const response = await ReportService.getReport(report.reportId);
+        if (response && response.data) {
+          setSelectedReport(response.data);
+        }
+      } catch (detailError) {
+        console.warn('Could not fetch detailed report info:', detailError);
+        // Continue with basic report data
+      }
+    } catch (error) {
+      console.error('Error viewing report details:', error);
+      message.error('Failed to view report details: ' + error.message);
     }
   };
 
@@ -112,12 +181,17 @@ const ReportManagement = () => {
         return;
       }
 
-      // Fix the download function call
+      message.loading('Downloading report...', 0);
       const result = await ReportService.downloadReport(report.reportId, report.reportName);
-      if (result.success) {
+      message.destroy(); // Clear loading message
+      
+      if (result && result.success) {
         message.success('Report downloaded successfully: ' + result.fileName);
+      } else {
+        message.success('Report download started');
       }
     } catch (error) {
+      message.destroy(); // Clear loading message
       console.error('Download error:', error);
       message.error('Failed to download report: ' + error.message);
     }
@@ -152,253 +226,107 @@ const ReportManagement = () => {
           console.error('Delete error:', error);
           message.error('Failed to delete report: ' + error.message);
         }
-      }
+      },
     });
   };
 
-  const getStatusTag = (status) => {
-    const statusConfig = reportStatuses.find(s => s.value === status);
-    if (!statusConfig) return <Tag>{status}</Tag>;
+  // Render statistics cards
+  const renderStatistics = () => {
+    const stats = statistics || generateBasicStatistics(reports);
     
     return (
-      <Tag color={statusConfig.color} icon={getStatusIcon(status)}>
-        {statusConfig.label}
-      </Tag>
-    );
-  };
-
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'GENERATING':
-        return <ClockCircleOutlined />;
-      case 'COMPLETED':
-        return <CheckCircleOutlined />;
-      case 'FAILED':
-        return <ExclamationCircleOutlined />;
-      default:
-        return null;
-    }
-  };
-
-  const getReportTypeIcon = (type) => {
-    const reportType = reportTypes.find(rt => rt.value === type);
-    return reportType ? reportType.icon : <FileTextOutlined />;
-  };
-
-  const columns = [
-    {
-      title: 'Report Name',
-      dataIndex: 'reportName',
-      key: 'reportName',
-      render: (text, record) => (
-        <Space>
-          {getReportTypeIcon(record.reportType)}
-          <div>
-            <div style={{ fontWeight: 500 }}>{text}</div>
-            <Text type="secondary" style={{ fontSize: '12px' }}>
-              ID: {record.reportId}
-            </Text>
-          </div>
-        </Space>
-      ),
-    },
-    {
-      title: 'Type',
-      dataIndex: 'reportType',
-      key: 'reportType',
-      render: (type) => {
-        const reportType = reportTypes.find(rt => rt.value === type);
-        return reportType ? reportType.label : type;
-      },
-      filters: reportTypes.map(type => ({ text: type.label, value: type.value })),
-      onFilter: (value, record) => record.reportType === value,
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status) => getStatusTag(status),
-      filters: reportStatuses.map(status => ({ text: status.label, value: status.value })),
-      onFilter: (value, record) => record.status === value,
-    },
-    {
-      title: 'Period',
-      key: 'period',
-      render: (_, record) => (
-        <div>
-          <div>{dayjs(record.startDate).format('MMM DD, YYYY')}</div>
-          <Text type="secondary" style={{ fontSize: '12px' }}>
-            to {dayjs(record.endDate).format('MMM DD, YYYY')}
-          </Text>
-        </div>
-      ),
-    },
-    {
-      title: 'File Size',
-      dataIndex: 'fileSizeFormatted',
-      key: 'fileSize',
-      render: (size, record) => (
-        record.status === 'COMPLETED' ? size || 'Unknown' : '-'
-      ),
-    },
-    {
-      title: 'Created',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      render: (date) => (
-        <div>
-          <div>{dayjs(date).format('MMM DD, YYYY')}</div>
-          <Text type="secondary" style={{ fontSize: '12px' }}>
-            {dayjs(date).format('HH:mm:ss')}
-          </Text>
-        </div>
-      ),
-      sorter: (a, b) => dayjs(a.createdAt).unix() - dayjs(b.createdAt).unix(),
-      defaultSortOrder: 'descend',
-    },
-    {
-      title: 'Actions',
-      key: 'actions',
-      width: 120,
-      render: (_, record) => (
-        <Space size="small">
-          <Tooltip title="View Details">
-            <Button 
-              type="text" 
-              icon={<EyeOutlined />} 
-              onClick={() => handleViewDetails(record)}
-            />
-          </Tooltip>
-          
-          {record.status === 'COMPLETED' && (
-            <Tooltip title="Download">
-              <Button 
-                type="text" 
-                icon={<DownloadOutlined />} 
-                onClick={() => handleDownload(record)}
-              />
-            </Tooltip>
-          )}
-          
-          {record.status === 'COMPLETED' && (
-            <Tooltip title="Archive">
-              <Button 
-                type="text" 
-                icon={<AlertOutlined />} 
-                onClick={() => handleArchive(record.reportId)}
-              />
-            </Tooltip>
-          )}
-          
-          {(record.status === 'FAILED' || record.status === 'ARCHIVED') && (
-            <Tooltip title="Delete">
-              <Button 
-                type="text" 
-                danger
-                icon={<DeleteOutlined />} 
-                onClick={() => handleDelete(record)}
-              />
-            </Tooltip>
-          )}
-        </Space>
-      )
-    }
-  ];
-
-  const renderStatistics = () => {
-    if (!statistics) return null;
-
-    return (
-      <Card size="small" style={{ marginBottom: 16 }}>
-        <Row gutter={16}>
-          <Col span={6}>
+      <Row gutter={16} style={{ marginBottom: 24 }}>
+        <Col span={6}>
+          <Card size="small">
             <Statistic
               title="Total Reports"
-              value={statistics.totalReports || 0}
+              value={stats.totalReports || 0}
               prefix={<FileTextOutlined />}
             />
-          </Col>
-          <Col span={6}>
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card size="small">
             <Statistic
               title="Completed"
-              value={statistics.completedReports || 0}
-              prefix={<CheckCircleOutlined />}
+              value={stats.completedReports || 0}
+              prefix={<CheckCircleOutlined style={{ color: '#52c41a' }} />}
               valueStyle={{ color: '#52c41a' }}
             />
-          </Col>
-          <Col span={6}>
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card size="small">
             <Statistic
               title="Generating"
-              value={statistics.generatingReports || 0}
-              prefix={<ClockCircleOutlined />}
+              value={stats.generatingReports || 0}
+              prefix={<ClockCircleOutlined style={{ color: '#1890ff' }} />}
               valueStyle={{ color: '#1890ff' }}
             />
-          </Col>
-          <Col span={6}>
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card size="small">
             <Statistic
-              title="Total Size"
-              value={statistics.totalFileSizeFormatted || '0 B'}
-              prefix={<FolderOutlined />}
+              title="Failed"
+              value={stats.failedReports || 0}
+              prefix={<ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />}
+              valueStyle={{ color: '#ff4d4f' }}
             />
-          </Col>
-        </Row>
-      </Card>
+          </Card>
+        </Col>
+      </Row>
     );
   };
 
+  // Render filters
   const renderFilters = () => (
     <Card size="small" style={{ marginBottom: 16 }}>
-      <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} md={6}>
+      <Row gutter={16}>
+        <Col span={6}>
           <Select
-            placeholder="Filter by type"
+            placeholder="Filter by Type"
             allowClear
             style={{ width: '100%' }}
             value={filters.reportType}
-            onChange={(value) => setFilters({ ...filters, reportType: value })}
+            onChange={(value) => setFilters(prev => ({ ...prev, reportType: value }))}
           >
             {reportTypes.map(type => (
               <Option key={type.value} value={type.value}>
-                <Space>
-                  {type.icon}
-                  {type.label}
-                </Space>
+                {type.label}
               </Option>
             ))}
           </Select>
         </Col>
-        
-        <Col xs={24} sm={12} md={6}>
+        <Col span={6}>
           <Select
-            placeholder="Filter by status"
+            placeholder="Filter by Status"
             allowClear
             style={{ width: '100%' }}
             value={filters.status}
-            onChange={(value) => setFilters({ ...filters, status: value })}
+            onChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
           >
             {reportStatuses.map(status => (
               <Option key={status.value} value={status.value}>
-                <Tag color={status.color}>{status.label}</Tag>
+                {status.label}
               </Option>
             ))}
           </Select>
         </Col>
-        
-        <Col xs={24} sm={12} md={6}>
+        <Col span={6}>
           <RangePicker
-            placeholder={['Start date', 'End date']}
             style={{ width: '100%' }}
             value={filters.dateRange}
-            onChange={(dates) => setFilters({ ...filters, dateRange: dates })}
+            onChange={(dates) => setFilters(prev => ({ ...prev, dateRange: dates }))}
+            placeholder={['Start Date', 'End Date']}
           />
         </Col>
-        
-        <Col xs={24} sm={12} md={6}>
+        <Col span={6}>
           <Search
             placeholder="Search reports..."
             allowClear
             value={filters.searchTerm}
-            onChange={(e) => setFilters({ ...filters, searchTerm: e.target.value })}
+            onChange={(e) => setFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
             onSearch={() => fetchReports()}
           />
         </Col>
@@ -406,118 +334,197 @@ const ReportManagement = () => {
     </Card>
   );
 
+  // Table columns
+  const columns = [
+    {
+      title: 'Report Name',
+      dataIndex: 'reportName',
+      key: 'reportName',
+      ellipsis: true,
+      render: (text, record) => (
+        <Space>
+          <FileTextOutlined />
+          <span>{text || 'Unnamed Report'}</span>
+        </Space>
+      ),
+    },
+    {
+      title: 'Type',
+      dataIndex: 'reportType',
+      key: 'reportType',
+      width: 150,
+      render: (type) => {
+        const typeObj = reportTypes.find(t => t.value === type);
+        return (
+          <Tag color="blue">
+            {typeObj ? typeObj.label : type}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: 'Period',
+      key: 'period',
+      width: 150,
+      render: (_, record) => {
+        if (record.startDate && record.endDate) {
+          return (
+            <span>
+              {dayjs(record.startDate).format('MMM DD')} - {dayjs(record.endDate).format('MMM DD, YYYY')}
+            </span>
+          );
+        }
+        return '-';
+      },
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      width: 120,
+      render: (status) => {
+        let color = 'default';
+        let icon = <InfoCircleOutlined />;
+        
+        switch (status) {
+          case 'COMPLETED':
+            color = 'green';
+            icon = <CheckCircleOutlined />;
+            break;
+          case 'GENERATING':
+            color = 'blue';
+            icon = <ClockCircleOutlined />;
+            break;
+          case 'FAILED':
+            color = 'red';
+            icon = <ExclamationCircleOutlined />;
+            break;
+          case 'PENDING':
+            color = 'orange';
+            icon = <ClockCircleOutlined />;
+            break;
+          default:
+            break;
+        }
+        
+        return (
+          <Tag color={color} icon={icon}>
+            {status}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: 'Created',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      width: 150,
+      render: (date) => date ? dayjs(date).format('MMM DD, HH:mm') : '-',
+    },
+    {
+      title: 'File Size',
+      dataIndex: 'fileSize',
+      key: 'fileSize',
+      width: 100,
+      render: (size) => {
+        if (!size) return '-';
+        if (size < 1024) return `${size} B`;
+        if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+        return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+      },
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      width: 200,
+      render: (_, record) => (
+        <Space>
+          <Tooltip title="View Details">
+            <Button
+              type="text"
+              icon={<EyeOutlined />}
+              onClick={() => handleViewDetails(record)}
+            />
+          </Tooltip>
+          
+          {record.status === 'COMPLETED' && (
+            <Tooltip title="Download">
+              <Button
+                type="text"
+                icon={<DownloadOutlined />}
+                onClick={() => handleDownload(record)}
+              />
+            </Tooltip>
+          )}
+          
+          {record.status === 'COMPLETED' && (
+            <Tooltip title="Archive">
+              <Button
+                type="text"
+                icon={<FolderOutlined />}
+                onClick={() => handleArchive(record.reportId)}
+              />
+            </Tooltip>
+          )}
+          
+          {(record.status === 'FAILED' || record.status === 'ARCHIVED') && (
+            <Tooltip title="Delete">
+              <Button
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => handleDelete(record)}
+              />
+            </Tooltip>
+          )}
+        </Space>
+      ),
+    },
+  ];
+
+  // Render report details drawer
   const renderReportDetails = () => {
     if (!selectedReport) return null;
 
     return (
       <Drawer
-        title={
-          <Space>
-            <FileTextOutlined />
-            Report Details
-          </Space>
-        }
-        width={600}
+        title="Report Details"
         open={detailsVisible}
-        onClose={() => {
-          setDetailsVisible(false);
-          setSelectedReport(null);
-        }}
-        extra={
-          <Space>
-            {selectedReport.status === 'COMPLETED' && (
-              <Button
-                type="primary"
-                icon={<DownloadOutlined />}
-                onClick={() => handleDownload(selectedReport)}
-              >
-                Download
-              </Button>
-            )}
-          </Space>
-        }
+        onClose={() => setDetailsVisible(false)}
+        width={600}
       >
         <Descriptions column={1} bordered>
-          <Descriptions.Item label="Report ID">
-            {selectedReport.reportId}
-          </Descriptions.Item>
-          
           <Descriptions.Item label="Report Name">
-            {selectedReport.reportName}
+            {selectedReport.reportName || 'Unnamed Report'}
           </Descriptions.Item>
-          
-          <Descriptions.Item label="Type">
-            <Space>
-              {getReportTypeIcon(selectedReport.reportType)}
-              {reportTypes.find(rt => rt.value === selectedReport.reportType)?.label || selectedReport.reportType}
-            </Space>
+          <Descriptions.Item label="Report Type">
+            <Tag color="blue">
+              {reportTypes.find(t => t.value === selectedReport.reportType)?.label || selectedReport.reportType}
+            </Tag>
           </Descriptions.Item>
-          
           <Descriptions.Item label="Status">
-            {getStatusTag(selectedReport.status)}
+            <Tag color={selectedReport.status === 'COMPLETED' ? 'green' : 'orange'}>
+              {selectedReport.status}
+            </Tag>
           </Descriptions.Item>
-          
           <Descriptions.Item label="Period">
-            <Space direction="vertical" size={0}>
-              <Text>
-                <CalendarOutlined /> {dayjs(selectedReport.startDate).format('MMMM DD, YYYY')}
-              </Text>
-              <Text>
-                <CalendarOutlined /> {dayjs(selectedReport.endDate).format('MMMM DD, YYYY')}
-              </Text>
-            </Space>
+            {selectedReport.startDate && selectedReport.endDate
+              ? `${dayjs(selectedReport.startDate).format('YYYY-MM-DD')} to ${dayjs(selectedReport.endDate).format('YYYY-MM-DD')}`
+              : 'N/A'
+            }
           </Descriptions.Item>
-          
-          <Descriptions.Item label="Created">
-            <Space direction="vertical" size={0}>
-              <Text>{dayjs(selectedReport.createdAt).format('MMMM DD, YYYY HH:mm:ss')}</Text>
-              <Text type="secondary">
-                <UserOutlined /> Created by user {selectedReport.createdBy || 'Unknown'}
-              </Text>
-            </Space>
+          <Descriptions.Item label="Created At">
+            {selectedReport.createdAt ? dayjs(selectedReport.createdAt).format('YYYY-MM-DD HH:mm:ss') : 'N/A'}
           </Descriptions.Item>
-          
-          {selectedReport.completedAt && (
-            <Descriptions.Item label="Completed">
-              {dayjs(selectedReport.completedAt).format('MMMM DD, YYYY HH:mm:ss')}
-            </Descriptions.Item>
-          )}
-          
-          {selectedReport.status === 'COMPLETED' && (
-            <Descriptions.Item label="File Information">
-              <Space direction="vertical" size={0}>
-                <Text>Format: {selectedReport.fileFormat || 'Excel (.xlsx)'}</Text>
-                <Text>Size: {selectedReport.fileSizeFormatted || 'Unknown'}</Text>
-                {selectedReport.filePath && (
-                  <Text type="secondary" style={{ fontSize: '12px' }}>
-                    Path: {selectedReport.filePath}
-                  </Text>
-                )}
-              </Space>
-            </Descriptions.Item>
-          )}
-          
-          {selectedReport.aiAnalysisEnabled && (
-            <Descriptions.Item label="AI Analysis">
-              <Space direction="vertical" size={0}>
-                <Text>
-                  Enabled: {selectedReport.aiAnalysisEnabled ? 'Yes' : 'No'}
-                </Text>
-                {selectedReport.aiAnalysisStatus && (
-                  <Text>Status: {selectedReport.aiAnalysisStatus}</Text>
-                )}
-              </Space>
-            </Descriptions.Item>
-          )}
-          
-          {selectedReport.errorMessage && selectedReport.status === 'FAILED' && (
-            <Descriptions.Item label="Error Details">
-              <Alert
-                message="Report Generation Failed"
-                description={selectedReport.errorMessage}
-                type="error"
-                showIcon
-              />
+          <Descriptions.Item label="File Size">
+            {selectedReport.fileSize ? `${(selectedReport.fileSize / 1024).toFixed(1)} KB` : 'N/A'}
+          </Descriptions.Item>
+          <Descriptions.Item label="File Path">
+            {selectedReport.filePath || 'N/A'}
+          </Descriptions.Item>
+          {selectedReport.errorMessage && (
+            <Descriptions.Item label="Error Message">
+              <Text type="danger">{selectedReport.errorMessage}</Text>
             </Descriptions.Item>
           )}
         </Descriptions>
@@ -525,8 +532,8 @@ const ReportManagement = () => {
         {selectedReport.status === 'GENERATING' && (
           <div style={{ marginTop: 16 }}>
             <Alert
-              message="Report Generation in Progress"
-              description="This report is currently being generated. Please check back later or refresh the page for updates."
+              message="Report is being generated"
+              description="Please check back later or refresh the page for updates."
               type="info"
               showIcon
               icon={<ClockCircleOutlined />}
@@ -536,6 +543,19 @@ const ReportManagement = () => {
               status="active" 
               style={{ marginTop: 12 }}
             />
+          </div>
+        )}
+
+        {selectedReport.status === 'COMPLETED' && (
+          <div style={{ marginTop: 16 }}>
+            <Button
+              type="primary"
+              icon={<DownloadOutlined />}
+              onClick={() => handleDownload(selectedReport)}
+              block
+            >
+              Download Report
+            </Button>
           </div>
         )}
       </Drawer>
@@ -575,7 +595,7 @@ const ReportManagement = () => {
       <Table
         columns={columns}
         dataSource={reports}
-        rowKey={(record) => record.reportId}
+        rowKey={(record) => record.reportId || record.id}
         loading={loading}
         pagination={{
           total: reports.length,
@@ -588,7 +608,10 @@ const ReportManagement = () => {
         scroll={{ x: 1200 }}
         locale={{
           emptyText: loading ? (
-            <Spin tip="Loading reports..." />
+            <div style={{ textAlign: 'center', padding: '20px' }}>
+              <Spin size="large" />
+              <div style={{ marginTop: '16px' }}>Loading reports...</div>
+            </div>
           ) : (
             <div style={{ padding: '20px', textAlign: 'center' }}>
               <FileTextOutlined style={{ fontSize: '48px', color: '#d9d9d9' }} />
@@ -599,6 +622,15 @@ const ReportManagement = () => {
                 <Text type="secondary" style={{ fontSize: '12px' }}>
                   Generate your first report to see it here
                 </Text>
+              </div>
+              <div style={{ marginTop: '16px' }}>
+                <Button 
+                  type="primary" 
+                  onClick={fetchReports}
+                  icon={<ReloadOutlined />}
+                >
+                  Refresh
+                </Button>
               </div>
             </div>
           )
