@@ -1,7 +1,9 @@
 // backend/src/main/java/org/example/backend/domain/aggregate/report/ReportAggregate.java
 package org.example.backend.domain.aggregate.report;
 
+import org.example.backend.domain.valueobject.ReportContent;
 import org.example.backend.domain.event.ReportGeneratedEvent;
+import org.example.backend.domain.event.ReportContentStoredEvent;
 import org.example.backend.domain.valueobject.TenantId;
 import org.example.backend.domain.valueobject.ReportType;
 import org.example.backend.domain.valueobject.ReportStatus;
@@ -14,16 +16,15 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 
 /**
- * Report Aggregate Root
+ * Report Aggregate Root - DDD Compliant
  * 
  * Responsibilities:
  * 1. Manage financial report lifecycle
- * 2. Control report generation process
- * 3. Store report metadata and file path
- * 4. Prepare data for AI analysis
+ * 2. Control report generation and storage process  
+ * 3. Encapsulate report content as value object
+ * 4. Coordinate with AI analysis through domain events
  */
 @Entity
 @Table(name = "Report", indexes = {
@@ -59,6 +60,7 @@ public class ReportAggregate {
     @Column(name = "status", nullable = false)
     private ReportStatus status;
     
+    // File storage for download
     @Column(name = "file_path", length = 500)
     private String filePath;
     
@@ -68,15 +70,20 @@ public class ReportAggregate {
     @Column(name = "file_size")
     private Long fileSize;
     
-    // AI Analysis preparation
+    // Content storage as value object
+    @Embedded
+    private ReportContent content;
+    
+    // AI Analysis state
     @Column(name = "ai_analysis_enabled")
     private Boolean aiAnalysisEnabled;
     
-    @Column(name = "ai_analysis_data", columnDefinition = "TEXT")
-    private String aiAnalysisData;
-    
     @Column(name = "ai_analysis_status")
     private String aiAnalysisStatus;
+    
+    @Lob
+    @Column(name = "ai_analysis_results")
+    private String aiAnalysisResults;
     
     // Audit fields
     @Column(name = "created_by")
@@ -91,7 +98,6 @@ public class ReportAggregate {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
     
-    // Error handling
     @Column(name = "error_message", length = 1000)
     private String errorMessage;
     
@@ -99,57 +105,46 @@ public class ReportAggregate {
     @Transient
     private List<Object> domainEvents = new ArrayList<>();
     
-    // ========== Constructors ==========
-    
-    protected ReportAggregate() {
-        // JPA requires default constructor
-    }
-    
-    private ReportAggregate(ReportType reportType, String reportName, LocalDate startDate, 
-                          LocalDate endDate, TenantId tenantId, Integer createdBy) {
-        validateReportCreation(reportType, reportName, startDate, endDate, tenantId, createdBy);
-        
-        this.reportType = reportType;
-        this.reportName = reportName;
-        this.startDate = startDate;
-        this.endDate = endDate;
-        this.tenantId = tenantId;
-        this.createdBy = createdBy;
-        this.status = ReportStatus.GENERATING;
-        this.aiAnalysisEnabled = false;
-        this.fileFormat = "XLSX";
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
-    }
-    
-    // ========== Factory Methods ==========
+    // Constructors
+    protected ReportAggregate() {}
     
     /**
-     * Create new report generation request
+     * Create new report for generation
      */
     public static ReportAggregate create(ReportType reportType, String reportName, 
                                        LocalDate startDate, LocalDate endDate, 
                                        TenantId tenantId, Integer createdBy) {
-        return new ReportAggregate(reportType, reportName, startDate, endDate, tenantId, createdBy);
+        ReportAggregate report = new ReportAggregate();
+        report.reportType = reportType;
+        report.reportName = reportName;
+        report.startDate = startDate;
+        report.endDate = endDate;
+        report.tenantId = tenantId;
+        report.createdBy = createdBy;
+        report.status = ReportStatus.GENERATING;
+        report.fileFormat = "XLSX";
+        report.aiAnalysisEnabled = false;
+        report.createdAt = LocalDateTime.now();
+        report.updatedAt = LocalDateTime.now();
+        
+        return report;
     }
     
     /**
-     * Create new report with AI analysis enabled
+     * Create report with AI analysis enabled
      */
-    public static ReportAggregate createWithAI(ReportType reportType, String reportName, 
-                                             LocalDate startDate, LocalDate endDate, 
-                                             TenantId tenantId, Integer createdBy) {
-        ReportAggregate report = new ReportAggregate(reportType, reportName, startDate, endDate, tenantId, createdBy);
+    public static ReportAggregate createWithAI(ReportType reportType, String reportName,
+                                              LocalDate startDate, LocalDate endDate,
+                                              TenantId tenantId, Integer createdBy) {
+        ReportAggregate report = create(reportType, reportName, startDate, endDate, tenantId, createdBy);
         report.enableAIAnalysis();
         return report;
     }
     
-    // ========== Business Methods ==========
-    
     /**
-     * Mark report generation as completed
+     * Complete report generation with file and content
      */
-    public void completeGeneration(String filePath, Long fileSize) {
+    public void completeGeneration(String filePath, Long fileSize, String contentData, String contentFormat) {
         if (status != ReportStatus.GENERATING) {
             throw new IllegalStateException("Report is not in generating status");
         }
@@ -158,20 +153,70 @@ public class ReportAggregate {
             throw new IllegalArgumentException("File path cannot be empty");
         }
         
+        // Store file information
         this.filePath = filePath;
         this.fileSize = fileSize;
+        
+        // Store content as value object
+        if (contentData != null && !contentData.trim().isEmpty()) {
+            this.content = ReportContent.create(contentData, contentFormat);
+        }
+        
         this.status = ReportStatus.COMPLETED;
         this.completedAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
-        this.errorMessage = null; // Clear any previous errors
+        this.errorMessage = null;
         
-        // Publish domain event
+        // Publish domain events
         addDomainEvent(new ReportGeneratedEvent(this.reportId, this.reportType, 
                                               this.tenantId.getValue(), this.aiAnalysisEnabled));
+        
+        if (hasContentData()) {
+            addDomainEvent(new ReportContentStoredEvent(this.reportId, contentFormat, 
+                                                      this.content.getSize()));
+        }
     }
     
     /**
-     * Mark report generation as failed
+     * Enable AI analysis
+     */
+    public void enableAIAnalysis() {
+        this.aiAnalysisEnabled = true;
+        this.aiAnalysisStatus = "PENDING";
+        this.updatedAt = LocalDateTime.now();
+    }
+    
+    /**
+     * Complete AI analysis with results
+     */
+    public void completeAIAnalysis(String analysisResults) {
+        if (!aiAnalysisEnabled) {
+            throw new IllegalStateException("AI analysis is not enabled for this report");
+        }
+        
+        if (!isReadyForAI()) {
+            throw new IllegalStateException("Report is not ready for AI analysis");
+        }
+        
+        this.aiAnalysisResults = analysisResults;
+        this.aiAnalysisStatus = "COMPLETED";
+        this.updatedAt = LocalDateTime.now();
+    }
+    
+    /**
+     * Archive report (business rule: soft delete)
+     */
+    public void archive() {
+        if (status == ReportStatus.GENERATING) {
+            throw new IllegalStateException("Cannot archive report that is still generating");
+        }
+        
+        this.status = ReportStatus.ARCHIVED;
+        this.updatedAt = LocalDateTime.now();
+    }
+    
+    /**
+     * Fail report generation
      */
     public void failGeneration(String errorMessage) {
         if (status != ReportStatus.GENERATING) {
@@ -183,176 +228,133 @@ public class ReportAggregate {
         this.updatedAt = LocalDateTime.now();
     }
     
+    // Business rule methods
+    
     /**
-     * Enable AI analysis for this report
+     * Check if report can be viewed
      */
-    public void enableAIAnalysis() {
-        this.aiAnalysisEnabled = true;
-        this.aiAnalysisStatus = "PENDING";
-        this.updatedAt = LocalDateTime.now();
+    public boolean canBeViewed() {
+        return status == ReportStatus.COMPLETED && hasContentData();
     }
     
     /**
-     * Prepare data for AI analysis
+     * Check if report can be downloaded
      */
-    public void prepareForAIAnalysis(String analysisData) {
-        if (!aiAnalysisEnabled) {
-            throw new IllegalStateException("AI analysis is not enabled for this report");
-        }
-        
-        this.aiAnalysisData = analysisData;
-        this.aiAnalysisStatus = "READY";
-        this.updatedAt = LocalDateTime.now();
+    public boolean canBeDownloaded() {
+        return status == ReportStatus.COMPLETED && filePath != null;
     }
     
     /**
-     * Mark AI analysis as completed
+     * Check if report can be deleted
      */
-    public void completeAIAnalysis(String analysisResult) {
-        if (!aiAnalysisEnabled) {
-            throw new IllegalStateException("AI analysis is not enabled for this report");
-        }
-        
-        this.aiAnalysisData = analysisResult;
-        this.aiAnalysisStatus = "COMPLETED";
-        this.updatedAt = LocalDateTime.now();
+    public boolean canBeDeleted() {
+        return status != ReportStatus.GENERATING;
     }
     
     /**
-     * Update report name
+     * Check if report has content data
      */
-    public void updateReportName(String newName) {
-        if (status == ReportStatus.GENERATING) {
-            throw new IllegalStateException("Cannot modify report while generating");
-        }
-        
-        if (newName == null || newName.trim().isEmpty()) {
-            throw new IllegalArgumentException("Report name cannot be empty");
-        }
-        
-        this.reportName = newName.trim();
-        this.updatedAt = LocalDateTime.now();
+    public boolean hasContentData() {
+        return content != null && content.isViewable();
     }
     
     /**
-     * Archive completed report
+     * Check if report is ready for AI analysis
      */
-    public void archive() {
-        if (status != ReportStatus.COMPLETED) {
-            throw new IllegalStateException("Only completed reports can be archived");
-        }
-        
-        this.status = ReportStatus.ARCHIVED;
-        this.updatedAt = LocalDateTime.now();
+    public boolean isReadyForAI() {
+        return status == ReportStatus.COMPLETED && 
+               aiAnalysisEnabled && 
+               content != null &&
+               content.isSuitableForAI() &&
+               ("PENDING".equals(aiAnalysisStatus) || "READY".equals(aiAnalysisStatus));
     }
     
-    // ========== Query Methods ==========
+    /**
+     * Get content for AI analysis
+     */
+    public String getContentForAI() {
+        if (!isReadyForAI()) {
+            throw new IllegalStateException("Report is not ready for AI analysis");
+        }
+        return content.getData();
+    }
     
     /**
-     * Check if report generation is completed
+     * Get display-friendly period description
+     */
+    public String getPeriodDescription() {
+        return startDate + " to " + endDate;
+    }
+    
+    /**
+     * Get formatted file size
+     */
+    public String getFileSizeFormatted() {
+        if (fileSize == null) return "Unknown";
+        return formatBytes(fileSize);
+    }
+    
+    /**
+     * Get formatted content size
+     */
+    public String getContentSizeFormatted() {
+        if (content == null) return "No content";
+        return content.getFormattedSize();
+    }
+    
+    // Helper methods
+    
+    private String formatBytes(long bytes) {
+        double size = bytes;
+        String[] units = {"B", "KB", "MB", "GB"};
+        int unitIndex = 0;
+        
+        while (size >= 1024 && unitIndex < units.length - 1) {
+            size /= 1024;
+            unitIndex++;
+        }
+        
+        return String.format("%.1f %s", size, units[unitIndex]);
+    }
+    
+    private void addDomainEvent(Object event) {
+        if (domainEvents == null) {
+            domainEvents = new ArrayList<>();
+        }
+        domainEvents.add(event);
+    }
+    
+    @DomainEvents
+    public List<Object> domainEvents() {
+        return Collections.unmodifiableList(domainEvents);
+    }
+    
+    @AfterDomainEventPublication
+    public void clearDomainEvents() {
+        domainEvents.clear();
+    }
+    
+    /**
+     * Check if report is completed
      */
     public boolean isCompleted() {
         return status == ReportStatus.COMPLETED;
     }
     
     /**
-     * Check if report generation failed
+     * Check if report is failed
      */
     public boolean isFailed() {
         return status == ReportStatus.FAILED;
     }
     
     /**
-     * Check if report is ready for download
+     * Get domain events (for testing)
      */
-    public boolean isReadyForDownload() {
-        return status == ReportStatus.COMPLETED && filePath != null;
-    }
-    
-    /**
-     * Check if AI analysis is ready
-     */
-    public boolean isAIAnalysisReady() {
-        return aiAnalysisEnabled && "READY".equals(aiAnalysisStatus);
-    }
-    
-    /**
-     * Get report period description
-     */
-    public String getPeriodDescription() {
-        return String.format("%s to %s", startDate.toString(), endDate.toString());
-    }
-    
-    /**
-     * Get file size in human readable format
-     */
-    public String getFileSizeFormatted() {
-        if (fileSize == null) return "Unknown";
-        
-        if (fileSize < 1024) return fileSize + " B";
-        if (fileSize < 1024 * 1024) return String.format("%.1f KB", fileSize / 1024.0);
-        return String.format("%.1f MB", fileSize / (1024.0 * 1024.0));
-    }
-    
-    /**
-     * Check if belongs to tenant
-     */
-    public boolean belongsToTenant(TenantId tenantId) {
-        return this.tenantId.equals(tenantId);
-    }
-    
-    // ========== Validation Methods ==========
-    
-    private void validateReportCreation(ReportType reportType, String reportName, 
-                                      LocalDate startDate, LocalDate endDate, 
-                                      TenantId tenantId, Integer createdBy) {
-        if (reportType == null) {
-            throw new IllegalArgumentException("Report type cannot be null");
-        }
-        
-        if (reportName == null || reportName.trim().isEmpty()) {
-            throw new IllegalArgumentException("Report name cannot be empty");
-        }
-        
-        if (startDate == null || endDate == null) {
-            throw new IllegalArgumentException("Start date and end date cannot be null");
-        }
-        
-        if (startDate.isAfter(endDate)) {
-            throw new IllegalArgumentException("Start date cannot be after end date");
-        }
-        
-        if (endDate.isAfter(LocalDate.now())) {
-            throw new IllegalArgumentException("End date cannot be in the future");
-        }
-        
-        if (tenantId == null) {
-            throw new IllegalArgumentException("Tenant ID cannot be null");
-        }
-        
-        if (createdBy == null) {
-            throw new IllegalArgumentException("Creator user ID cannot be null");
-        }
-    }
-    
-    // ========== Domain Events Management ==========
-    
-    private void addDomainEvent(Object event) {
-        this.domainEvents.add(event);
-    }
-    
-    @DomainEvents
     public List<Object> getDomainEvents() {
-        return Collections.unmodifiableList(domainEvents);
+        return domainEvents();
     }
-    
-    @AfterDomainEventPublication
-    public void clearDomainEvents() {
-        this.domainEvents.clear();
-    }
-    
-    // ========== Getters ==========
-    
+
     public Integer getReportId() { return reportId; }
     public TenantId getTenantId() { return tenantId; }
     public ReportType getReportType() { return reportType; }
@@ -363,34 +365,13 @@ public class ReportAggregate {
     public String getFilePath() { return filePath; }
     public String getFileFormat() { return fileFormat; }
     public Long getFileSize() { return fileSize; }
+    public ReportContent getContent() { return content; }
     public Boolean getAiAnalysisEnabled() { return aiAnalysisEnabled; }
-    public String getAiAnalysisData() { return aiAnalysisData; }
     public String getAiAnalysisStatus() { return aiAnalysisStatus; }
+    public String getAiAnalysisResults() { return aiAnalysisResults; }
     public Integer getCreatedBy() { return createdBy; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getCompletedAt() { return completedAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public String getErrorMessage() { return errorMessage; }
-    
-    // ========== Object Methods ==========
-    
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        
-        ReportAggregate that = (ReportAggregate) obj;
-        return Objects.equals(reportId, that.reportId);
-    }
-    
-    @Override
-    public int hashCode() {
-        return Objects.hash(reportId);
-    }
-    
-    @Override
-    public String toString() {
-        return String.format("Report{id=%d, type=%s, name=%s, status=%s, period=%s}", 
-                           reportId, reportType, reportName, status, getPeriodDescription());
-    }
 }

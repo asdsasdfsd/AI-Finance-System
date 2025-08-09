@@ -2,6 +2,7 @@
 package org.example.backend.domain.aggregate.report;
 
 import org.example.backend.domain.aggregate.AggregateTestBase;
+import org.example.backend.domain.event.ReportContentStoredEvent;
 import org.example.backend.domain.event.ReportGeneratedEvent;
 import org.example.backend.domain.event.ReportGenerationFailedEvent;
 import org.example.backend.domain.valueobject.ReportStatus;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 
 import java.time.LocalDate;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -135,36 +137,21 @@ public class ReportAggregateTest extends AggregateTestBase {
         ReportAggregate report = createTestReport();
         String filePath = "/reports/income_statement_2024_01.xlsx";
         Long fileSizeBytes = 1024L;
+        String contentData = "{\"reportType\": \"INCOME_STATEMENT\", \"data\": \"test\"}";
+        String contentFormat = "JSON";
         
-        // When
-        report.completeGeneration(filePath, fileSizeBytes);
+        // When - Fixed method call with all parameters
+        report.completeGeneration(filePath, fileSizeBytes, contentData, contentFormat);
         
         // Then
         assertEquals(ReportStatus.COMPLETED, report.getStatus());
         assertEquals(filePath, report.getFilePath());
+        assertTrue(report.hasContentData());
         
         // Verify domain event
         assertEventPublished(report.getDomainEvents(), ReportGeneratedEvent.class);
     }
-    
-    @Test
-    @DisplayName("Should fail generation with error message")
-    void shouldFailGenerationWithErrorMessage() {
-        // Given
-        ReportAggregate report = createTestReport();
-        String errorMessage = "Database connection failed";
-        
-        // When
-        report.failGeneration(errorMessage);
-        
-        // Then
-        assertEquals(ReportStatus.FAILED, report.getStatus());
-        assertEquals(errorMessage, report.getErrorMessage());
-        
-        // Verify domain event
-        // assertEventPublished(report.getDomainEvents(), ReportGenerationFailedEvent.class);
-    }
-    
+
     @Test
     @DisplayName("Should enable AI analysis successfully")
     void shouldEnableAiAnalysisSuccessfully() {
@@ -176,32 +163,6 @@ public class ReportAggregateTest extends AggregateTestBase {
         
         // Then
         assertTrue(report.getAiAnalysisEnabled());
-    }
-    
-    @Test
-    @DisplayName("Should check if report is completed correctly")
-    void shouldCheckIfReportIsCompletedCorrectly() {
-        // Given
-        ReportAggregate report = createTestReport();
-        
-        // When & Then
-        assertFalse(report.isCompleted()); // Initial state
-        
-        report.completeGeneration("/path/report.xlsx", 1024L);
-        assertTrue(report.isCompleted()); // Completed
-    }
-    
-    @Test
-    @DisplayName("Should check if report is failed correctly")
-    void shouldCheckIfReportIsFailedCorrectly() {
-        // Given
-        ReportAggregate report = createTestReport();
-        
-        // When & Then
-        assertFalse(report.isFailed()); // Initial state
-        
-        report.failGeneration("Test error");
-        assertTrue(report.isFailed()); // Failed
     }
     
     @Test
@@ -258,5 +219,71 @@ public class ReportAggregateTest extends AggregateTestBase {
             createTestTenantId(),
             TEST_USER_ID
         );
+    }
+
+    @Test
+    @DisplayName("Should complete generation with content and publish events")
+    void shouldCompleteGenerationWithContentAndPublishEvents() {
+        // Given
+        ReportAggregate report = createTestReport();
+        String filePath = "/reports/test_report.xlsx";
+        Long fileSize = 2048L;
+        String contentData = "{\"test\": \"data\"}";
+        String contentFormat = "JSON";
+        
+        // When - Fixed method call
+        report.completeGeneration(filePath, fileSize, contentData, contentFormat);
+        
+        // Then
+        assertTrue(report.isCompleted());
+        assertEquals(filePath, report.getFilePath());
+        assertEquals(fileSize, report.getFileSize());
+        assertTrue(report.hasContentData());
+        
+        // Verify events
+        List<Object> events = report.getDomainEvents();
+        assertTrue(events.stream().anyMatch(e -> e instanceof ReportGeneratedEvent));
+        assertTrue(events.stream().anyMatch(e -> e instanceof ReportContentStoredEvent));
+    }
+
+    @Test
+    @DisplayName("Should fail generation with error message")
+    void shouldFailGenerationWithErrorMessage() {
+        // Given
+        ReportAggregate report = createTestReport();
+        String errorMessage = "Database connection failed";
+        
+        // When
+        report.failGeneration(errorMessage);
+        
+        // Then
+        assertTrue(report.isFailed());
+        assertEquals(errorMessage, report.getErrorMessage());
+    }
+
+    @Test
+    @DisplayName("Should check if report is completed correctly")
+    void shouldCheckIfReportIsCompletedCorrectly() {
+        // Given
+        ReportAggregate report = createTestReport();
+        
+        // When & Then
+        assertFalse(report.isCompleted()); // Initial state
+        
+        report.completeGeneration("/path/report.xlsx", 1024L, "{}", "JSON");
+        assertTrue(report.isCompleted()); // Completed
+    }
+
+    @Test
+    @DisplayName("Should check if report is failed correctly")
+    void shouldCheckIfReportIsFailedCorrectly() {
+        // Given
+        ReportAggregate report = createTestReport();
+        
+        // When & Then
+        assertFalse(report.isFailed()); // Initial state
+        
+        report.failGeneration("Test error");
+        assertTrue(report.isFailed()); // Failed
     }
 }

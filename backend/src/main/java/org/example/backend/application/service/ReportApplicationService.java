@@ -16,6 +16,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -31,6 +33,7 @@ import java.util.stream.Collectors;
  * 3. Handle report lifecycle management for Balance Sheet, Income Statement, etc.
  * 4. Provide unified interface for all financial reports
  */
+@Slf4j
 @Service
 @Transactional
 public class ReportApplicationService {
@@ -248,7 +251,7 @@ public class ReportApplicationService {
     }
     
     // ========== Private Helper Methods ==========
-    
+        
     /**
      * Generate report asynchronously - Enhanced to support all report types
      */
@@ -257,6 +260,8 @@ public class ReportApplicationService {
         try {
             String filePath = null;
             Long fileSize = null;
+            String contentData = null;
+            String contentFormat = "JSON";
             
             // Generate different report types using DDD services
             switch (report.getReportType()) {
@@ -267,60 +272,83 @@ public class ReportApplicationService {
                         report.getEndDate()
                     );
                     filePath = reportGenerationService.generateIncomeStatement(incomeData, report.getTenantId().getValue());
+                    // Convert to structured data for AI analysis
+                    contentData = convertIncomeStatementToJson(incomeData);
+                    break;
+                    
+                case BALANCE_SHEET:
+                    var balanceData = balanceSheetDataService.generateBalanceSheet(
+                        report.getTenantId().getValue(), 
+                        report.getEndDate()
+                    );
+                    filePath = reportGenerationService.generateBalanceSheet(balanceData, report.getTenantId().getValue());
+                    contentData = convertBalanceSheetToJson(balanceData);
+                    break;
+                    
+                case INCOME_EXPENSE:
+                    var expenseData = incomeExpenseDataService.generateIncomeExpenseReport(
+                        report.getTenantId(), 
+                        report.getEndDate()
+                    );
+                    filePath = reportGenerationService.generateIncomeExpense(expenseData, report.getTenantId().getValue());
+                    contentData = convertIncomeExpenseToJson(expenseData);
                     break;
                     
                 case FINANCIAL_GROUPING:
-                    var groupingData = financialGroupingDataService.getFinancialGroupingData(
+                    var groupingData = financialGroupingDataService.getFinancialGroupingDataByTenant(
                         report.getTenantId(), 
                         report.getStartDate(), 
                         report.getEndDate()
                     );
                     filePath = reportGenerationService.generateFinancialGrouping(groupingData, report.getTenantId().getValue());
-                    break;
-                    
-                case BALANCE_SHEET:
-                    var balanceSheetData = balanceSheetDataService.generateBalanceSheet(
-                        report.getTenantId().getValue(),
-                        report.getEndDate()
-                    );
-                    filePath = reportGenerationService.generateBalanceSheet(balanceSheetData, report.getTenantId().getValue());
-                    break;
-                    
-                case INCOME_EXPENSE:
-                    var incomeExpenseData = incomeExpenseDataService.generateIncomeExpenseReport(
-                        report.getTenantId(),
-                        report.getEndDate()
-                    );
-                    filePath = reportGenerationService.generateIncomeExpense(incomeExpenseData, report.getTenantId().getValue());
+                    contentData = convertFinancialGroupingToJson(groupingData);
                     break;
                     
                 default:
-                    throw new UnsupportedOperationException("Report type not supported: " + report.getReportType());
+                    throw new IllegalArgumentException("Unsupported report type: " + report.getReportType());
             }
             
-            // Get file size
-            fileSize = reportGenerationService.getFileSize(filePath);
-            
-            // Update report as completed
-            report.completeGeneration(filePath, fileSize);
-            
-            // Prepare AI analysis data if enabled
-            if (Boolean.TRUE.equals(report.getAiAnalysisEnabled())) {
-                String analysisData = prepareAIAnalysisData(report);
-                report.prepareForAIAnalysis(analysisData);
+            // Calculate file size
+            if (filePath != null) {
+                fileSize = reportGenerationService.getFileSize(filePath);
             }
+            
+            // Complete generation with content data - Fixed method call
+            report.completeGeneration(filePath, fileSize, contentData, contentFormat);
             
             reportRepository.save(report);
             
         } catch (Exception e) {
-            // Mark report as failed
-            report.failGeneration("Report generation failed: " + e.getMessage());
-            reportRepository.save(report);
+            // Use System.out.println instead of log since @Slf4j is not available
+            System.err.println("Report generation failed for report " + report.getReportId() + ": " + e.getMessage());
             
-            System.err.println("Failed to generate report " + report.getReportId() + ": " + e.getMessage());
+            report.failGeneration("Generation failed: " + e.getMessage());
+            reportRepository.save(report);
         }
     }
-    
+
+    // Helper methods to convert data to JSON format for AI analysis
+    private String convertIncomeStatementToJson(Object incomeData) {
+        // Simple JSON conversion - in production use Jackson or similar
+        return String.format("{\"reportType\": \"INCOME_STATEMENT\", \"data\": \"%s\"}", 
+                            incomeData.toString().replace("\"", "\\\""));
+    }
+
+    private String convertBalanceSheetToJson(Object balanceData) {
+        return String.format("{\"reportType\": \"BALANCE_SHEET\", \"data\": \"%s\"}", 
+                            balanceData.toString().replace("\"", "\\\""));
+    }
+
+    private String convertIncomeExpenseToJson(Object expenseData) {
+        return String.format("{\"reportType\": \"INCOME_EXPENSE\", \"data\": \"%s\"}", 
+                            expenseData.toString().replace("\"", "\\\""));
+    }
+
+    private String convertFinancialGroupingToJson(Object groupingData) {
+        return String.format("{\"reportType\": \"FINANCIAL_GROUPING\", \"data\": \"%s\"}", 
+                            groupingData.toString().replace("\"", "\\\""));
+    }
+
     /**
      * Check if similar report already exists
      */
