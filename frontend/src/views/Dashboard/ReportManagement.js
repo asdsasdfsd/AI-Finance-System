@@ -1,42 +1,29 @@
 // frontend/src/views/Dashboard/ReportManagement.js
+// FIXED Report Management with working delete functionality
+
 import React, { useState, useEffect } from 'react';
 import {
-  Card, Table, Button, Space, Tag, Select, DatePicker, Input,
-  message, Modal, Tooltip, Progress, Typography, Row, Col, 
-  Statistic, Descriptions, Drawer, Alert, Spin, Divider
+  Card, Table, Button, Space, message, Tag, Typography, Row, Col, 
+  Select, DatePicker, Input, Statistic, Popconfirm, Modal, Alert, Spin
 } from 'antd';
 import {
-  FileTextOutlined, DownloadOutlined, DeleteOutlined, 
-  AlertOutlined, ReloadOutlined, SearchOutlined,
-  EyeOutlined, ClockCircleOutlined, CheckCircleOutlined,
-  ExclamationCircleOutlined, FileExcelOutlined, InfoCircleOutlined,
-  CalendarOutlined, UserOutlined, FolderOutlined
+  FileTextOutlined, DownloadOutlined, DeleteOutlined, EyeOutlined,
+  CheckCircleOutlined, ClockCircleOutlined, ExclamationCircleOutlined,
+  ReloadOutlined, SearchOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import ReportService from '../../services/reportService';
 
-const { RangePicker } = DatePicker;
 const { Title, Text } = Typography;
 const { Option } = Select;
-const { Search } = Input;
+const { RangePicker } = DatePicker;
 
-/**
- * Fixed Report Management Component
- * 
- * Features:
- * - Properly handle backend API responses
- * - View report details
- * - Download reports
- * - Archive/Delete reports
- * - Filter and search
- * - Statistics dashboard
- */
 const ReportManagement = () => {
+  // State management
   const [reports, setReports] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [statistics, setStatistics] = useState(null);
-  const [selectedReport, setSelectedReport] = useState(null);
-  const [detailsVisible, setDetailsVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(null); // Track which report is being deleted
   const [filters, setFilters] = useState({
     reportType: null,
     status: null,
@@ -44,43 +31,41 @@ const ReportManagement = () => {
     searchTerm: ''
   });
 
-  // Static options - fallback if backend doesn't provide them
+  // Report types
   const reportTypes = [
     { value: 'BALANCE_SHEET', label: 'Balance Sheet' },
     { value: 'INCOME_STATEMENT', label: 'Income Statement' },
-    { value: 'INCOME_EXPENSE', label: 'Income & Expense' },
-    { value: 'FINANCIAL_GROUPING', label: 'Financial Grouping' },
+    { value: 'INCOME_EXPENSE', label: 'Income vs Expense' },
+    { value: 'FINANCIAL_GROUPING', label: 'Financial Grouping' }
   ];
 
-  const reportStatuses = [
+  // Status options
+  const statusOptions = [
     { value: 'PENDING', label: 'Pending' },
     { value: 'GENERATING', label: 'Generating' },
     { value: 'COMPLETED', label: 'Completed' },
-    { value: 'FAILED', label: 'Failed' },
-    { value: 'ARCHIVED', label: 'Archived' },
+    { value: 'FAILED', label: 'Failed' }
   ];
 
+  // Load data on component mount
   useEffect(() => {
     fetchReports();
     fetchStatistics();
-  }, []);
-
-  // Separate effect for filter changes to avoid infinite loops
-  useEffect(() => {
-    const delayedFetch = setTimeout(() => {
-      fetchReports();
-    }, 500);
-    
-    return () => clearTimeout(delayedFetch);
   }, [filters]);
 
+  // Fetch reports with applied filters
   const fetchReports = async () => {
     setLoading(true);
     try {
+      console.log('[ReportManagement] Fetching reports with filters:', filters);
+      
+      // Build filter parameters
       const filterParams = {
         page: 0,
         size: 100,
-        ...filters,
+        reportType: filters.reportType,
+        status: filters.status,
+        searchTerm: filters.searchTerm || undefined,
         startDate: filters.dateRange?.[0]?.format('YYYY-MM-DD'),
         endDate: filters.dateRange?.[1]?.format('YYYY-MM-DD')
       };
@@ -122,113 +107,265 @@ const ReportManagement = () => {
     }
   };
 
+  // Fetch statistics
   const fetchStatistics = async () => {
     try {
       // Try to fetch statistics, but don't fail if not available
       const response = await ReportService.getReportStatistics?.();
       if (response && response.data) {
         setStatistics(response.data);
+      } else {
+        // Generate basic statistics from reports data
+        setStatistics(generateBasicStatistics(reports));
       }
     } catch (error) {
-      console.error('Error fetching statistics:', error);
-      // Don't show error message for statistics as it's not critical
-      // Generate basic statistics from current reports
-      const stats = generateBasicStatistics(reports);
-      setStatistics(stats);
+      console.log('Statistics not available, generating from reports data');
+      setStatistics(generateBasicStatistics(reports));
     }
   };
 
   // Generate basic statistics from reports data
   const generateBasicStatistics = (reportsData) => {
-    const total = reportsData.length;
-    const completed = reportsData.filter(r => r.status === 'COMPLETED').length;
-    const generating = reportsData.filter(r => r.status === 'GENERATING').length;
-    const failed = reportsData.filter(r => r.status === 'FAILED').length;
+    if (!Array.isArray(reportsData)) return null;
     
     return {
-      totalReports: total,
-      completedReports: completed,
-      generatingReports: generating,
-      failedReports: failed
+      totalReports: reportsData.length,
+      completedReports: reportsData.filter(r => r.status === 'COMPLETED').length,
+      generatingReports: reportsData.filter(r => r.status === 'GENERATING' || r.status === 'PENDING').length,
+      failedReports: reportsData.filter(r => r.status === 'FAILED').length,
+      totalFileSize: reportsData.reduce((sum, r) => sum + (r.fileSize || 0), 0),
+      totalFileSizeFormatted: formatFileSize(reportsData.reduce((sum, r) => sum + (r.fileSize || 0), 0))
     };
   };
 
-  const handleViewDetails = async (report) => {
-    try {
-      setSelectedReport(report);
-      setDetailsVisible(true);
-      
-      // Try to fetch full report details
-      try {
-        const response = await ReportService.getReport(report.reportId);
-        if (response && response.data) {
-          setSelectedReport(response.data);
-        }
-      } catch (detailError) {
-        console.warn('Could not fetch detailed report info:', detailError);
-        // Continue with basic report data
-      }
-    } catch (error) {
-      console.error('Error viewing report details:', error);
-      message.error('Failed to view report details: ' + error.message);
-    }
+  // Format file size
+  const formatFileSize = (bytes) => {
+    if (!bytes) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const handleDownload = async (report) => {
-    try {
-      if (!report.isDownloadable && report.status !== 'COMPLETED') {
-        message.warning('This report is not ready for download yet');
-        return;
-      }
-
-      message.loading('Downloading report...', 0);
-      const result = await ReportService.downloadReport(report.reportId, report.reportName);
-      message.destroy(); // Clear loading message
-      
-      if (result && result.success) {
-        message.success('Report downloaded successfully: ' + result.fileName);
-      } else {
-        message.success('Report download started');
-      }
-    } catch (error) {
-      message.destroy(); // Clear loading message
-      console.error('Download error:', error);
-      message.error('Failed to download report: ' + error.message);
+  // FIXED: Handle report deletion with proper error handling
+  const handleDeleteReport = async (report) => {
+    if (!report || !report.reportId) {
+      message.error('Invalid report data');
+      return;
     }
-  };
 
-  const handleArchive = async (reportId) => {
-    try {
-      await ReportService.archiveReport(reportId);
-      message.success('Report archived successfully');
-      fetchReports();
-      fetchStatistics();
-    } catch (error) {
-      console.error('Archive error:', error);
-      message.error('Failed to archive report: ' + error.message);
-    }
-  };
-
-  const handleDelete = (report) => {
     Modal.confirm({
       title: 'Delete Report',
-      content: `Are you sure you want to delete "${report.reportName}"? This action cannot be undone.`,
+      content: `Are you sure you want to delete "${report.reportName}"?\n\nThis action cannot be undone.`,
       okText: 'Delete',
       okType: 'danger',
       cancelText: 'Cancel',
       onOk: async () => {
+        setDeleting(report.reportId);
         try {
+          console.log(`[ReportManagement] Deleting report ${report.reportId}:`, report.reportName);
+          
+          // Call delete API
           await ReportService.deleteReport(report.reportId);
+          
           message.success('Report deleted successfully');
-          fetchReports();
-          fetchStatistics();
+          
+          // Refresh data
+          await fetchReports();
+          await fetchStatistics();
+          
         } catch (error) {
-          console.error('Delete error:', error);
-          message.error('Failed to delete report: ' + error.message);
+          console.error('[ReportManagement] Delete error:', error);
+          
+          // Provide specific error messages
+          if (error.message.includes('404')) {
+            message.error('Report not found (may have already been deleted)');
+          } else if (error.message.includes('403')) {
+            message.error('You do not have permission to delete this report');
+          } else if (error.message.includes('500')) {
+            message.error('Server error occurred while deleting report');
+          } else {
+            message.error('Failed to delete report: ' + error.message);
+          }
+          
+          // Still refresh in case the report was actually deleted
+          fetchReports();
+        } finally {
+          setDeleting(null);
         }
       },
     });
   };
+
+  // Handle download report
+  const handleDownloadReport = async (report) => {
+    try {
+      console.log(`[ReportManagement] Downloading report ${report.reportId}:`, report.reportName);
+      
+      const response = await ReportService.downloadReport(report.reportId);
+      
+      // Create download link
+      const url = window.URL.createObjectURL(response);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = report.fileName || `${report.reportName}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      message.success('Report downloaded successfully');
+      
+    } catch (error) {
+      console.error('[ReportManagement] Download error:', error);
+      message.error('Failed to download report: ' + error.message);
+    }
+  };
+
+  // Handle view report details
+  const handleViewReport = (report) => {
+    Modal.info({
+      title: 'Report Details',
+      width: 600,
+      content: (
+        <div>
+          <p><strong>Report Name:</strong> {report.reportName}</p>
+          <p><strong>Type:</strong> {report.reportType}</p>
+          <p><strong>Status:</strong> <Tag color={getStatusColor(report.status)}>{report.status}</Tag></p>
+          <p><strong>Created:</strong> {dayjs(report.createdAt).format('YYYY-MM-DD HH:mm:ss')}</p>
+          <p><strong>Period:</strong> {report.startDate} to {report.endDate}</p>
+          {report.fileSize && <p><strong>File Size:</strong> {formatFileSize(report.fileSize)}</p>}
+          {report.fileName && <p><strong>File Name:</strong> {report.fileName}</p>}
+          {report.errorMessage && (
+            <Alert
+              message="Error Details"
+              description={report.errorMessage}
+              type="error"
+              showIcon
+              style={{ marginTop: 16 }}
+            />
+          )}
+        </div>
+      ),
+    });
+  };
+
+  // Get status color
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'COMPLETED': return 'success';
+      case 'GENERATING': 
+      case 'PENDING': return 'processing';
+      case 'FAILED': return 'error';
+      default: return 'default';
+    }
+  };
+
+  // FIXED: Table columns with proper delete button logic
+  const columns = [
+    {
+      title: 'Report Name',
+      dataIndex: 'reportName',
+      key: 'reportName',
+      ellipsis: true,
+      render: (text, record) => (
+        <div>
+          <div style={{ fontWeight: 'bold' }}>{text}</div>
+          <Text type="secondary" style={{ fontSize: '12px' }}>
+            {record.reportType}
+          </Text>
+        </div>
+      ),
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      width: 120,
+      render: (status) => (
+        <Tag color={getStatusColor(status)}>
+          {status}
+        </Tag>
+      ),
+      filters: statusOptions.map(option => ({ text: option.label, value: option.value })),
+      onFilter: (value, record) => record.status === value,
+    },
+    {
+      title: 'Period',
+      key: 'period',
+      width: 200,
+      render: (_, record) => (
+        <div>
+          <div>{record.startDate}</div>
+          <Text type="secondary">to {record.endDate}</Text>
+        </div>
+      ),
+    },
+    {
+      title: 'Created',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      width: 160,
+      render: (date) => dayjs(date).format('MMM DD, HH:mm'),
+      sorter: (a, b) => dayjs(a.createdAt).unix() - dayjs(b.createdAt).unix(),
+    },
+    {
+      title: 'File Size',
+      dataIndex: 'fileSize',
+      key: 'fileSize',
+      width: 100,
+      render: (size) => size ? formatFileSize(size) : '-',
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      width: 200,
+      render: (_, record) => (
+        <Space size="small">
+          <Button
+            type="link"
+            icon={<EyeOutlined />}
+            onClick={() => handleViewReport(record)}
+            size="small"
+          >
+            View
+          </Button>
+          
+          {record.status === 'COMPLETED' && record.fileName && (
+            <Button
+              type="link"
+              icon={<DownloadOutlined />}
+              onClick={() => handleDownloadReport(record)}
+              size="small"
+            >
+              Download
+            </Button>
+          )}
+          
+          {/* FIXED: Show delete button for all reports, with loading state */}
+          <Popconfirm
+            title="Delete Report"
+            description="Are you sure you want to delete this report?"
+            onConfirm={() => handleDeleteReport(record)}
+            okText="Delete"
+            cancelText="Cancel"
+            okType="danger"
+          >
+            <Button
+              type="link"
+              danger
+              icon={<DeleteOutlined />}
+              size="small"
+              loading={deleting === record.reportId}
+              disabled={deleting === record.reportId}
+            >
+              Delete
+            </Button>
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ];
 
   // Render statistics cards
   const renderStatistics = () => {
@@ -236,35 +373,6 @@ const ReportManagement = () => {
     
     return (
       <Row gutter={16} style={{ marginBottom: 24 }}>
-        <Col span={6}>
-          <Card size="small">
-            <Statistic
-              title="Total Reports"
-              value={stats.totalReports || 0}
-              prefix={<FileTextOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card size="small">
-            <Statistic
-              title="Completed"
-              value={stats.completedReports || 0}
-              prefix={<CheckCircleOutlined style={{ color: '#52c41a' }} />}
-              valueStyle={{ color: '#52c41a' }}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card size="small">
-            <Statistic
-              title="Generating"
-              value={stats.generatingReports || 0}
-              prefix={<ClockCircleOutlined style={{ color: '#1890ff' }} />}
-              valueStyle={{ color: '#1890ff' }}
-            />
-          </Card>
-        </Col>
         <Col span={6}>
           <Card size="small">
             <Statistic
@@ -306,7 +414,7 @@ const ReportManagement = () => {
             value={filters.status}
             onChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
           >
-            {reportStatuses.map(status => (
+            {statusOptions.map(status => (
               <Option key={status.value} value={status.value}>
                 {status.label}
               </Option>
@@ -318,273 +426,48 @@ const ReportManagement = () => {
             style={{ width: '100%' }}
             value={filters.dateRange}
             onChange={(dates) => setFilters(prev => ({ ...prev, dateRange: dates }))}
-            placeholder={['Start Date', 'End Date']}
+            format="YYYY-MM-DD"
           />
         </Col>
         <Col span={6}>
-          <Search
+          <Input
             placeholder="Search reports..."
-            allowClear
+            prefix={<SearchOutlined />}
             value={filters.searchTerm}
             onChange={(e) => setFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
-            onSearch={() => fetchReports()}
+            allowClear
           />
         </Col>
       </Row>
     </Card>
   );
 
-  // Table columns
-  const columns = [
-    {
-      title: 'Report Name',
-      dataIndex: 'reportName',
-      key: 'reportName',
-      ellipsis: true,
-      render: (text, record) => (
-        <Space>
-          <FileTextOutlined />
-          <span>{text || 'Unnamed Report'}</span>
-        </Space>
-      ),
-    },
-    {
-      title: 'Type',
-      dataIndex: 'reportType',
-      key: 'reportType',
-      width: 150,
-      render: (type) => {
-        const typeObj = reportTypes.find(t => t.value === type);
-        return (
-          <Tag color="blue">
-            {typeObj ? typeObj.label : type}
-          </Tag>
-        );
-      },
-    },
-    {
-      title: 'Period',
-      key: 'period',
-      width: 150,
-      render: (_, record) => {
-        if (record.startDate && record.endDate) {
-          return (
-            <span>
-              {dayjs(record.startDate).format('MMM DD')} - {dayjs(record.endDate).format('MMM DD, YYYY')}
-            </span>
-          );
-        }
-        return '-';
-      },
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      width: 120,
-      render: (status) => {
-        let color = 'default';
-        let icon = <InfoCircleOutlined />;
-        
-        switch (status) {
-          case 'COMPLETED':
-            color = 'green';
-            icon = <CheckCircleOutlined />;
-            break;
-          case 'GENERATING':
-            color = 'blue';
-            icon = <ClockCircleOutlined />;
-            break;
-          case 'FAILED':
-            color = 'red';
-            icon = <ExclamationCircleOutlined />;
-            break;
-          case 'PENDING':
-            color = 'orange';
-            icon = <ClockCircleOutlined />;
-            break;
-          default:
-            break;
-        }
-        
-        return (
-          <Tag color={color} icon={icon}>
-            {status}
-          </Tag>
-        );
-      },
-    },
-    {
-      title: 'Created',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      width: 150,
-      render: (date) => date ? dayjs(date).format('MMM DD, HH:mm') : '-',
-    },
-    {
-      title: 'File Size',
-      dataIndex: 'fileSize',
-      key: 'fileSize',
-      width: 100,
-      render: (size) => {
-        if (!size) return '-';
-        if (size < 1024) return `${size} B`;
-        if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-        return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-      },
-    },
-    {
-      title: 'Actions',
-      key: 'actions',
-      width: 200,
-      render: (_, record) => (
-        <Space>
-          <Tooltip title="View Details">
-            <Button
-              type="text"
-              icon={<EyeOutlined />}
-              onClick={() => handleViewDetails(record)}
-            />
-          </Tooltip>
-          
-          {record.status === 'COMPLETED' && (
-            <Tooltip title="Download">
-              <Button
-                type="text"
-                icon={<DownloadOutlined />}
-                onClick={() => handleDownload(record)}
-              />
-            </Tooltip>
-          )}
-          
-          {record.status === 'COMPLETED' && (
-            <Tooltip title="Archive">
-              <Button
-                type="text"
-                icon={<FolderOutlined />}
-                onClick={() => handleArchive(record.reportId)}
-              />
-            </Tooltip>
-          )}
-          
-          {(record.status === 'FAILED' || record.status === 'ARCHIVED') && (
-            <Tooltip title="Delete">
-              <Button
-                type="text"
-                danger
-                icon={<DeleteOutlined />}
-                onClick={() => handleDelete(record)}
-              />
-            </Tooltip>
-          )}
-        </Space>
-      ),
-    },
-  ];
-
-  // Render report details drawer
-  const renderReportDetails = () => {
-    if (!selectedReport) return null;
-
-    return (
-      <Drawer
-        title="Report Details"
-        open={detailsVisible}
-        onClose={() => setDetailsVisible(false)}
-        width={600}
-      >
-        <Descriptions column={1} bordered>
-          <Descriptions.Item label="Report Name">
-            {selectedReport.reportName || 'Unnamed Report'}
-          </Descriptions.Item>
-          <Descriptions.Item label="Report Type">
-            <Tag color="blue">
-              {reportTypes.find(t => t.value === selectedReport.reportType)?.label || selectedReport.reportType}
-            </Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="Status">
-            <Tag color={selectedReport.status === 'COMPLETED' ? 'green' : 'orange'}>
-              {selectedReport.status}
-            </Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="Period">
-            {selectedReport.startDate && selectedReport.endDate
-              ? `${dayjs(selectedReport.startDate).format('YYYY-MM-DD')} to ${dayjs(selectedReport.endDate).format('YYYY-MM-DD')}`
-              : 'N/A'
-            }
-          </Descriptions.Item>
-          <Descriptions.Item label="Created At">
-            {selectedReport.createdAt ? dayjs(selectedReport.createdAt).format('YYYY-MM-DD HH:mm:ss') : 'N/A'}
-          </Descriptions.Item>
-          <Descriptions.Item label="File Size">
-            {selectedReport.fileSize ? `${(selectedReport.fileSize / 1024).toFixed(1)} KB` : 'N/A'}
-          </Descriptions.Item>
-          <Descriptions.Item label="File Path">
-            {selectedReport.filePath || 'N/A'}
-          </Descriptions.Item>
-          {selectedReport.errorMessage && (
-            <Descriptions.Item label="Error Message">
-              <Text type="danger">{selectedReport.errorMessage}</Text>
-            </Descriptions.Item>
-          )}
-        </Descriptions>
-
-        {selectedReport.status === 'GENERATING' && (
-          <div style={{ marginTop: 16 }}>
-            <Alert
-              message="Report is being generated"
-              description="Please check back later or refresh the page for updates."
-              type="info"
-              showIcon
-              icon={<ClockCircleOutlined />}
-            />
-            <Progress 
-              percent={undefined} 
-              status="active" 
-              style={{ marginTop: 12 }}
-            />
-          </div>
-        )}
-
-        {selectedReport.status === 'COMPLETED' && (
-          <div style={{ marginTop: 16 }}>
+  return (
+    <div style={{ padding: '24px' }}>
+      {/* Header */}
+      <Card>
+        <Row justify="space-between" align="middle">
+          <Col>
+            <Title level={3}>
+              <FileTextOutlined /> Report Management
+            </Title>
+            <Text type="secondary">
+              Manage and download your generated financial reports
+            </Text>
+          </Col>
+          <Col>
             <Button
               type="primary"
-              icon={<DownloadOutlined />}
-              onClick={() => handleDownload(selectedReport)}
-              block
+              icon={<ReloadOutlined />}
+              onClick={fetchReports}
+              loading={loading}
             >
-              Download Report
+              Refresh
             </Button>
-          </div>
-        )}
-      </Drawer>
-    );
-  };
+          </Col>
+        </Row>
+      </Card>
 
-  return (
-    <Card
-      title={
-        <Space>
-          <FileTextOutlined />
-          Report Management
-        </Space>
-      }
-      style={{ margin: 24 }}
-      extra={
-        <Button 
-          type="primary" 
-          icon={<ReloadOutlined />} 
-          onClick={() => { 
-            fetchReports(); 
-            fetchStatistics(); 
-          }}
-          loading={loading}
-        >
-          Refresh
-        </Button>
-      }
-    >
       {/* Statistics */}
       {renderStatistics()}
 
@@ -592,54 +475,25 @@ const ReportManagement = () => {
       {renderFilters()}
 
       {/* Reports Table */}
-      <Table
-        columns={columns}
-        dataSource={reports}
-        rowKey={(record) => record.reportId || record.id}
-        loading={loading}
-        pagination={{
-          total: reports.length,
-          pageSize: 10,
-          showSizeChanger: true,
-          showQuickJumper: true,
-          showTotal: (total, range) => 
-            `${range[0]}-${range[1]} of ${total} reports`,
-        }}
-        scroll={{ x: 1200 }}
-        locale={{
-          emptyText: loading ? (
-            <div style={{ textAlign: 'center', padding: '20px' }}>
-              <Spin size="large" />
-              <div style={{ marginTop: '16px' }}>Loading reports...</div>
-            </div>
-          ) : (
-            <div style={{ padding: '20px', textAlign: 'center' }}>
-              <FileTextOutlined style={{ fontSize: '48px', color: '#d9d9d9' }} />
-              <div style={{ marginTop: '16px' }}>
-                <Text type="secondary">No reports found</Text>
-              </div>
-              <div style={{ marginTop: '8px' }}>
-                <Text type="secondary" style={{ fontSize: '12px' }}>
-                  Generate your first report to see it here
-                </Text>
-              </div>
-              <div style={{ marginTop: '16px' }}>
-                <Button 
-                  type="primary" 
-                  onClick={fetchReports}
-                  icon={<ReloadOutlined />}
-                >
-                  Refresh
-                </Button>
-              </div>
-            </div>
-          )
-        }}
-      />
-
-      {/* Report Details Drawer */}
-      {renderReportDetails()}
-    </Card>
+      <Card title="Reports">
+        <Table
+          dataSource={reports}
+          columns={columns}
+          rowKey="reportId"
+          loading={loading}
+          pagination={{
+            pageSize: 20,
+            showSizeChanger: true,
+            showQuickJumper: true,
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} reports`,
+          }}
+          scroll={{ x: 1000 }}
+          locale={{
+            emptyText: loading ? <Spin /> : 'No reports found. Generate some reports first!'
+          }}
+        />
+      </Card>
+    </div>
   );
 };
 

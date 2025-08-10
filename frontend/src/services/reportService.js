@@ -1,8 +1,10 @@
 // frontend/src/services/reportService.js
+// FIXED ReportService with proper delete and management functionality
+
 import axios from 'axios';
 import AuthService from './authService';
 
-const API_BASE_URL = 'http://localhost:8085/api/reports';
+const API_BASE_URL = 'http://localhost:8085';
 
 /**
  * Get authentication header for API requests
@@ -15,7 +17,7 @@ const getAuthHeader = () => {
 };
 
 /**
- * Report Service - Frontend service for DDD-based report generation
+ * Report Service - Frontend service for DDD-based report management
  * 
  * Handles communication with the backend DDD report system
  */
@@ -32,12 +34,12 @@ class ReportService {
    */
   async generateReport(reportRequest) {
     try {
-      console.log('Sending report request:', reportRequest);
-      const response = await axios.post(`${API_BASE_URL}/generate`, reportRequest, getAuthHeader());
-      console.log('Report generation response:', response.data);
+      console.log('[ReportService] Sending report request:', reportRequest);
+      const response = await axios.post(`${API_BASE_URL}/api/reports/generate`, reportRequest, getAuthHeader());
+      console.log('[ReportService] Report generation response:', response.data);
       return response.data;
     } catch (error) {
-      console.error('Error generating report:', error);
+      console.error('[ReportService] Error generating report:', error);
       
       // Enhanced error handling
       if (error.response) {
@@ -62,10 +64,10 @@ class ReportService {
    */
   async getReport(reportId) {
     try {
-      const response = await axios.get(`${API_BASE_URL}/${reportId}`, getAuthHeader());
+      const response = await axios.get(`${API_BASE_URL}/api/reports/${reportId}`, getAuthHeader());
       return response.data;
     } catch (error) {
-      console.error('Error fetching report:', error);
+      console.error('[ReportService] Error fetching report:', error);
       
       if (error.response) {
         const errorMessage = error.response.data?.message || 
@@ -101,10 +103,14 @@ class ReportService {
         }
       });
 
-      const response = await axios.get(`${API_BASE_URL}?${params.toString()}`, getAuthHeader());
+      console.log('[ReportService] Fetching reports with params:', params.toString());
+      
+      const response = await axios.get(`${API_BASE_URL}/api/reports?${params.toString()}`, getAuthHeader());
+      
+      console.log('[ReportService] Get reports response:', response.data);
       return response.data;
     } catch (error) {
-      console.error('Error fetching reports:', error);
+      console.error('[ReportService] Error fetching reports:', error);
       
       if (error.response) {
         const errorMessage = error.response.data?.message || 
@@ -120,156 +126,19 @@ class ReportService {
   }
 
   /**
-   * Get recent reports
-   * @param {number} limit - Maximum number of reports to return
-   */
-  async getRecentReports(limit = 10) {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/recent?limit=${limit}`, getAuthHeader());
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching recent reports:', error);
-      
-      if (error.response) {
-        const errorMessage = error.response.data?.message || 
-                           error.response.data?.error || 
-                           `Server error: ${error.response.status}`;
-        throw new Error(errorMessage);
-      } else if (error.request) {
-        throw new Error('Unable to connect to the server. Please check if the backend is running.');
-      } else {
-        throw new Error(error.message || 'Failed to fetch recent reports');
-      }
-    }
-  }
-
-  /**
-   * Get reports by type
-   * @param {string} reportType - Report type
-   */
-  async getReportsByType(reportType) {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/by-type/${reportType}`, getAuthHeader());
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching reports by type:', error);
-      
-      if (error.response) {
-        const errorMessage = error.response.data?.message || 
-                           error.response.data?.error || 
-                           `Server error: ${error.response.status}`;
-        throw new Error(errorMessage);
-      } else if (error.request) {
-        throw new Error('Unable to connect to the server. Please check if the backend is running.');
-      } else {
-        throw new Error(error.message || 'Failed to fetch reports by type');
-      }
-    }
-  }
-
-  /**
-   * Download report file
-   * @param {number} reportId - Report ID
-   * @param {string} fileName - Optional custom file name
-   */// frontend/src/services/reportService.js 中的 downloadReport 函数
-  async downloadReport(reportId, fileName = null) {
-    try {
-      const authHeader = getAuthHeader();
-      const response = await axios.get(`${API_BASE_URL}/${reportId}/download`, {
-        responseType: 'blob',
-        ...authHeader
-      });
-
-      // 检查响应的 Content-Type
-      const contentType = response.headers['content-type'];
-      console.log('Content-Type:', contentType);
-
-      // 创建正确类型的 Blob
-      const blob = new Blob([response.data], { 
-        type: contentType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
-      });
-      
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-
-      // 设置文件名，确保有正确的扩展名
-      const contentDisposition = response.headers['content-disposition'];
-      let downloadFileName = fileName;
-      
-      if (!downloadFileName && contentDisposition) {
-        const fileNameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-        if (fileNameMatch) {
-          downloadFileName = fileNameMatch[1].replace(/['"]/g, '');
-        }
-      }
-      
-      if (!downloadFileName) {
-        downloadFileName = `report_${reportId}.xlsx`;
-      }
-
-      // 确保文件名有正确的扩展名
-      if (!downloadFileName.match(/\.(xlsx|xls)$/i)) {
-        downloadFileName += '.xlsx';
-      }
-
-      link.setAttribute('download', downloadFileName);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      return { success: true, fileName: downloadFileName };
-    } catch (error) {
-      console.error('Error downloading report:', error);
-      
-      if (error.response) {
-        const errorMessage = error.response.data?.message || 
-                          error.response.data?.error || 
-                          `Server error: ${error.response.status}`;
-        throw new Error(errorMessage);
-      } else if (error.request) {
-        throw new Error('Unable to connect to the server. Please check if the backend is running.');
-      } else {
-        throw new Error(error.message || 'Failed to download report');
-      }
-    }
-  }
-
-  /**
-   * Archive a report
-   * @param {number} reportId - Report ID
-   */
-  async archiveReport(reportId) {
-    try {
-      const response = await axios.post(`${API_BASE_URL}/${reportId}/archive`, {}, getAuthHeader());
-      return response.data;
-    } catch (error) {
-      console.error('Error archiving report:', error);
-      
-      if (error.response) {
-        const errorMessage = error.response.data?.message || 
-                           error.response.data?.error || 
-                           `Server error: ${error.response.status}`;
-        throw new Error(errorMessage);
-      } else if (error.request) {
-        throw new Error('Unable to connect to the server. Please check if the backend is running.');
-      } else {
-        throw new Error(error.message || 'Failed to archive report');
-      }
-    }
-  }
-
-  /**
-   * Delete a report
+   * FIXED: Delete a report
    * @param {number} reportId - Report ID
    */
   async deleteReport(reportId) {
     try {
-      const response = await axios.delete(`${API_BASE_URL}/${reportId}`, getAuthHeader());
+      console.log(`[ReportService] Deleting report ${reportId}`);
+      
+      const response = await axios.delete(`${API_BASE_URL}/api/reports/${reportId}`, getAuthHeader());
+      
+      console.log(`[ReportService] Delete response:`, response.data);
       return response.data;
     } catch (error) {
-      console.error('Error deleting report:', error);
+      console.error(`[ReportService] Delete failed for report ${reportId}:`, error);
       
       if (error.response) {
         const errorMessage = error.response.data?.message || 
@@ -285,14 +154,22 @@ class ReportService {
   }
 
   /**
-   * Get report statistics
+   * FIXED: Download a report file
+   * @param {number} reportId - Report ID
    */
-  async getReportStatistics() {
+  async downloadReport(reportId) {
     try {
-      const response = await axios.get(`${API_BASE_URL}/statistics`, getAuthHeader());
+      console.log(`[ReportService] Downloading report ${reportId}`);
+      
+      const response = await axios.get(`${API_BASE_URL}/api/reports/${reportId}/download`, {
+        ...getAuthHeader(),
+        responseType: 'blob'
+      });
+      
+      console.log(`[ReportService] Download successful for report ${reportId}`);
       return response.data;
     } catch (error) {
-      console.error('Error fetching report statistics:', error);
+      console.error(`[ReportService] Download failed for report ${reportId}:`, error);
       
       if (error.response) {
         const errorMessage = error.response.data?.message || 
@@ -302,127 +179,87 @@ class ReportService {
       } else if (error.request) {
         throw new Error('Unable to connect to the server. Please check if the backend is running.');
       } else {
-        throw new Error(error.message || 'Failed to fetch report statistics');
+        throw new Error(error.message || 'Failed to download report');
       }
     }
   }
 
   /**
-   * Get available report types
+   * Get recent reports
+   * @param {number} limit - Maximum number of reports to return
    */
-  getReportTypes() {
-    return [
-      { value: 'BALANCE_SHEET', label: 'Balance Sheet', description: 'Assets, Liabilities, and Equity' },
-      { value: 'INCOME_STATEMENT', label: 'Income Statement', description: 'Revenue and Expenses' },
-      { value: 'INCOME_EXPENSE', label: 'Income vs Expense Report', description: 'Detailed Income and Expense Analysis' },
-      { value: 'FINANCIAL_GROUPING', label: 'Financial Grouping Report', description: 'Transactions grouped by various criteria' }
-    ];
-  }
-
-  /**
-   * Get available report statuses
-   */
-  getReportStatuses() {
-    return [
-      { value: 'GENERATING', label: 'Generating', color: 'processing' },
-      { value: 'COMPLETED', label: 'Completed', color: 'success' },
-      { value: 'FAILED', label: 'Failed', color: 'error' },
-      { value: 'ARCHIVED', label: 'Archived', color: 'default' }
-    ];
-  }
-
-  /**
-   * Validate report generation request
-   * @param {Object} request - Report request to validate
-   */
-  validateReportRequest(request) {
-    const errors = [];
-
-    if (!request.reportType) {
-      errors.push('Report type is required');
-    }
-
-    if (!request.reportName || request.reportName.trim().length === 0) {
-      errors.push('Report name is required');
-    }
-
-    if (!request.startDate) {
-      errors.push('Start date is required');
-    }
-
-    if (!request.endDate) {
-      errors.push('End date is required');
-    }
-
-    if (request.startDate && request.endDate) {
-      const startDate = new Date(request.startDate);
-      const endDate = new Date(request.endDate);
-      
-      if (startDate > endDate) {
-        errors.push('Start date cannot be after end date');
-      }
-
-      if (endDate > new Date()) {
-        errors.push('End date cannot be in the future');
-      }
-    }
-
-    return {
-      isValid: errors.length === 0,
-      errors
-    };
-  }
-
-  /**
-   * Format report period for display
-   * @param {string} startDate - Start date
-   * @param {string} endDate - End date
-   */
-  formatReportPeriod(startDate, endDate) {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    
-    const formatOptions = { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
-    };
-    
-    return `${start.toLocaleDateString('en-US', formatOptions)} - ${end.toLocaleDateString('en-US', formatOptions)}`;
-  }
-
-  /**
-   * Test backend connectivity by making a simple request
-   */
-  async testConnection() {
+  async getRecentReports(limit = 10) {
     try {
-      // Use statistics endpoint instead of health for connectivity test
-      const response = await axios.get(`${API_BASE_URL}/statistics`, getAuthHeader());
-      return { success: true, data: response.data };
+      const response = await axios.get(`${API_BASE_URL}/api/reports/recent?limit=${limit}`, getAuthHeader());
+      return response.data;
     } catch (error) {
-      console.error('Backend connection test failed:', error);
+      console.error('[ReportService] Error fetching recent reports:', error);
       
       if (error.response) {
-        // Server is reachable but returned an error
-        return { 
-          success: false, 
-          error: `Server responded with ${error.response.status}: ${error.response.data?.message || error.response.statusText}`,
-          serverReachable: true
-        };
+        const errorMessage = error.response.data?.message || 
+                           error.response.data?.error || 
+                           `Server error: ${error.response.status}`;
+        throw new Error(errorMessage);
       } else if (error.request) {
-        // Server is not reachable
-        return { 
-          success: false, 
-          error: 'Cannot connect to server. Please check if backend is running on localhost:8085',
-          serverReachable: false
-        };
+        throw new Error('Unable to connect to the server. Please check if the backend is running.');
       } else {
-        return { 
-          success: false, 
-          error: error.message || 'Unknown connection error',
-          serverReachable: false
-        };
+        throw new Error(error.message || 'Failed to fetch recent reports');
       }
+    }
+  }
+
+  /**
+   * FIXED: Get report statistics
+   */
+  async getReportStatistics() {
+    try {
+      console.log('[ReportService] Fetching report statistics');
+      
+      const response = await axios.get(`${API_BASE_URL}/api/reports/statistics`, getAuthHeader());
+      
+      console.log('[ReportService] Statistics response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('[ReportService] Error fetching report statistics:', error);
+      // Don't throw error, return null so UI can generate basic statistics
+      return null;
+    }
+  }
+
+  /**
+   * Archive a report
+   * @param {number} reportId - Report ID
+   */
+  async archiveReport(reportId) {
+    try {
+      const response = await axios.post(`${API_BASE_URL}/api/reports/${reportId}/archive`, {}, getAuthHeader());
+      return response.data;
+    } catch (error) {
+      console.error('[ReportService] Error archiving report:', error);
+      
+      if (error.response) {
+        const errorMessage = error.response.data?.message || 
+                           error.response.data?.error || 
+                           `Server error: ${error.response.status}`;
+        throw new Error(errorMessage);
+      } else if (error.request) {
+        throw new Error('Unable to connect to the server. Please check if the backend is running.');
+      } else {
+        throw new Error(error.message || 'Failed to archive report');
+      }
+    }
+  }
+
+  /**
+   * Health check for report service
+   */
+  async healthCheck() {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/reports/health`, getAuthHeader());
+      return response.data;
+    } catch (error) {
+      console.error('[ReportService] Health check failed:', error);
+      throw new Error('Report service health check failed');
     }
   }
 }
