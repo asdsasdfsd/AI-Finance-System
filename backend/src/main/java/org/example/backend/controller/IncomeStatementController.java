@@ -1,4 +1,3 @@
-// backend/src/main/java/org/example/backend/controller/IncomeStatementController.java
 package org.example.backend.controller;
 
 import lombok.RequiredArgsConstructor;
@@ -14,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 
 /**
- * Income Statement Controller - Updated with Export Service
+ * Income Statement Controller - DDD Implementation
  * 
  * Provides REST endpoints for income statement reports
  */
@@ -38,110 +37,135 @@ public class IncomeStatementController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
         
         try {
-            log.info("Generating income statement for company {} from {} to {}", companyId, startDate, endDate);
+            log.info("Generating income statement for company {} from {} to {}", 
+                     companyId, startDate, endDate);
             
-            // Validate inputs
-            if (companyId == null || companyId <= 0) {
-                log.error("Invalid company ID: {}", companyId);
-                return ResponseEntity.badRequest().build();
-            }
-            if (startDate == null || endDate == null) {
-                log.error("Start date and end date cannot be null");
-                return ResponseEntity.badRequest().build();
-            }
             if (startDate.isAfter(endDate)) {
-                log.error("Start date cannot be after end date");
+                log.error("Invalid date range: start date {} is after end date {}", startDate, endDate);
                 return ResponseEntity.badRequest().build();
             }
             
             TenantId tenantId = TenantId.of(companyId);
-            IncomeStatementData data = incomeStatementDataService.getIncomeStatementData(tenantId, startDate, endDate);
+            IncomeStatementData data = incomeStatementDataService
+                    .getIncomeStatementDataByTenant(tenantId, startDate, endDate);
             
-            log.info("Income statement generated successfully for company {}", companyId);
+            log.info("Income statement generated successfully for tenant {}", tenantId.getValue());
             return ResponseEntity.ok(data);
             
-        } catch (IllegalArgumentException e) {
-            log.error("Invalid input for income statement generation: {}", e.getMessage());
-            return ResponseEntity.badRequest().build();
         } catch (Exception e) {
-            log.error("Failed to generate income statement for company {}: {}", 
-                     companyId, e.getMessage(), e);
+            log.error("Failed to generate income statement: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError().build();
         }
     }
 
     /**
-     * Export income statement as Excel file
-     * FIXED: Now properly implemented with actual Excel generation
+     * FIXED: Generate income statement data for frontend preview
      */
-    @GetMapping("/export")
-    public ResponseEntity<byte[]> exportIncomeStatement(
+    @GetMapping("/generate")
+    public ResponseEntity<?> generateIncomeStatementPreview(
             @RequestParam Integer companyId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-
+        
         try {
-            log.info("Exporting income statement for company {} from {} to {}", companyId, startDate, endDate);
+            log.info("Generating income statement preview for company {} from {} to {}", 
+                     companyId, startDate, endDate);
             
-            // Validate inputs
-            if (companyId == null || companyId <= 0) {
-                log.error("Invalid company ID for export: {}", companyId);
-                return ResponseEntity.badRequest().build();
-            }
-            if (startDate == null || endDate == null) {
-                log.error("Start date and end date cannot be null for export");
-                return ResponseEntity.badRequest().build();
-            }
             if (startDate.isAfter(endDate)) {
-                log.error("Start date cannot be after end date for export");
-                return ResponseEntity.badRequest().build();
+                return ResponseEntity.badRequest().body(
+                    java.util.Map.of("error", "Start date cannot be after end date")
+                );
             }
             
-            // DDD: Convert to value object
+            TenantId tenantId = TenantId.of(companyId);
+            IncomeStatementData data = incomeStatementDataService
+                    .getIncomeStatementDataByTenant(tenantId, startDate, endDate);
+            
+            // Convert to frontend-friendly format
+            java.util.List<java.util.Map<String, Object>> tableData = new java.util.ArrayList<>();
+            
+            // FIXED: Add revenues - using correct field name getRevenues()
+            if (data.getRevenues() != null) {
+                for (IncomeStatementData.RevenueItem revenue : data.getRevenues()) {
+                    java.util.Map<String, Object> row = new java.util.HashMap<>();
+                    row.put("key", "revenue_" + revenue.getName().hashCode());
+                    row.put("Account", revenue.getName());
+                    row.put("Amount", revenue.getAmount());
+                    row.put("Category", "Revenue");
+                    tableData.add(row);
+                }
+            }
+            
+            // FIXED: Add expenses - using Map structure from revenueByCategory pattern
+            if (data.getExpensesByCategory() != null) {
+                for (java.util.Map.Entry<String, java.math.BigDecimal> entry : data.getExpensesByCategory().entrySet()) {
+                    java.util.Map<String, Object> row = new java.util.HashMap<>();
+                    row.put("key", "expense_" + entry.getKey().hashCode());
+                    row.put("Account", entry.getKey());
+                    row.put("Amount", entry.getValue());
+                    row.put("Category", "Expense");
+                    tableData.add(row);
+                }
+            }
+            
+            // Add net income
+            if (data.getNetIncome() != null) {
+                java.util.Map<String, Object> row = new java.util.HashMap<>();
+                row.put("key", "net_income");
+                row.put("Account", "Net Income");
+                row.put("Amount", data.getNetIncome());
+                row.put("Category", "Net Income");
+                tableData.add(row);
+            }
+            
+            log.info("Income statement preview generated successfully with {} rows", tableData.size());
+            return ResponseEntity.ok(tableData);
+            
+        } catch (Exception e) {
+            log.error("Failed to generate income statement preview: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(
+                java.util.Map.of("error", "Failed to generate preview: " + e.getMessage())
+            );
+        }
+    }
+    /**
+     * Export income statement as Excel file
+     */
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> exportIncomeStatementExcel(
+            @RequestParam Integer companyId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        
+        try {
+            log.info("Exporting income statement for company {} from {} to {}", 
+                     companyId, startDate, endDate);
+            
             TenantId tenantId = TenantId.of(companyId);
             
-            // FIXED: Use the export service to generate actual Excel file
             byte[] excelData = incomeStatementExportService.exportIncomeStatement(tenantId, startDate, endDate);
             
-            // Validate generated data
-            if (excelData == null || excelData.length == 0) {
-                log.error("Generated Excel data is empty for company {}", companyId);
-                return ResponseEntity.internalServerError()
-                        .body("Failed to generate Excel file".getBytes());
-            }
-            
-            // Prepare response headers
-            String filename = String.format("Income_Statement_%s_%s_to_%s.xlsx", 
-                                           companyId, 
-                                           startDate.toString(), 
-                                           endDate.toString());
-            
             HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.parseMediaType(
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
-            headers.setContentDisposition(ContentDisposition.attachment().filename(filename).build());
-            headers.setContentLength(excelData.length);
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            headers.setContentDispositionFormData("attachment", 
+                String.format("Income_Statement_%d_%s_to_%s.xlsx", companyId, startDate, endDate));
             
-            log.info("Income statement exported successfully for company {}, file size: {} bytes", 
-                     companyId, excelData.length);
+            log.info("Income statement exported successfully for tenant {}", tenantId.getValue());
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(excelData);
             
-            return new ResponseEntity<>(excelData, headers, HttpStatus.OK);
-            
-        } catch (IllegalArgumentException e) {
-            log.error("Invalid input for income statement export: {}", e.getMessage());
-            return ResponseEntity.badRequest().build();
         } catch (Exception e) {
-            log.error("Failed to export income statement for company {}: {}", 
-                     companyId, e.getMessage(), e);
+            log.error("Failed to export income statement: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError().build();
         }
     }
 
     /**
-     * Health check endpoint for this controller
+     * Health check endpoint
      */
     @GetMapping("/health")
     public ResponseEntity<String> healthCheck() {
-        return ResponseEntity.ok("Income Statement Controller is running");
+        return ResponseEntity.ok("Income Statement Service is operational");
     }
 }

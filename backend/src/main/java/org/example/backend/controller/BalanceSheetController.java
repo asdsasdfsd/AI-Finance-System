@@ -151,6 +151,81 @@ public class BalanceSheetController {
     }
 
     /**
+     * FIXED: Generate balance sheet data for frontend preview
+     */
+    @GetMapping("/generate")
+    public ResponseEntity<?> generateBalanceSheetPreview(
+            @RequestParam Integer companyId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate) {
+        
+        try {
+            log.info("Generating balance sheet preview for company {} as of {}", companyId, asOfDate);
+            
+            TenantId tenantId = TenantId.of(companyId);
+            BalanceSheetDetailedResponse data = balanceSheetDataService.generateBalanceSheetByTenant(tenantId, asOfDate);
+            
+            // Convert to frontend-friendly format
+            java.util.List<java.util.Map<String, Object>> tableData = new java.util.ArrayList<>();
+            
+            // FIXED: Add assets - correct iteration over Map<String, List<AccountBalanceDTO>>
+            if (data.getAssets() != null) {
+                for (java.util.Map.Entry<String, java.util.List<org.example.backend.application.dto.AccountBalanceDTO>> entry : data.getAssets().entrySet()) {
+                    for (org.example.backend.application.dto.AccountBalanceDTO asset : entry.getValue()) {
+                        java.util.Map<String, Object> row = new java.util.HashMap<>();
+                        row.put("key", "asset_" + asset.getAccountName().hashCode());
+                        row.put("Account", asset.getAccountName());
+                        row.put("Amount", asset.getCurrentMonth());
+                        row.put("Type", "Asset");
+                        tableData.add(row);
+                    }
+                }
+            }
+            
+            // FIXED: Add liabilities - correct iteration
+            if (data.getLiabilities() != null) {
+                for (java.util.Map.Entry<String, java.util.List<org.example.backend.application.dto.AccountBalanceDTO>> entry : data.getLiabilities().entrySet()) {
+                    for (org.example.backend.application.dto.AccountBalanceDTO liability : entry.getValue()) {
+                        java.util.Map<String, Object> row = new java.util.HashMap<>();
+                        row.put("key", "liability_" + liability.getAccountName().hashCode());
+                        row.put("Account", liability.getAccountName());
+                        row.put("Amount", liability.getCurrentMonth());
+                        row.put("Type", "Liability");
+                        tableData.add(row);
+                    }
+                }
+            }
+            
+            // FIXED: Add equity - correct iteration
+            if (data.getEquity() != null) {
+                for (java.util.Map.Entry<String, java.util.List<org.example.backend.application.dto.AccountBalanceDTO>> entry : data.getEquity().entrySet()) {
+                    for (org.example.backend.application.dto.AccountBalanceDTO equity : entry.getValue()) {
+                        java.util.Map<String, Object> row = new java.util.HashMap<>();
+                        row.put("key", "equity_" + equity.getAccountName().hashCode());
+                        row.put("Account", equity.getAccountName());
+                        row.put("Amount", equity.getCurrentMonth());
+                        row.put("Type", "Equity");
+                        tableData.add(row);
+                    }
+                }
+            }
+            
+            log.info("Balance sheet preview generated successfully with {} rows", tableData.size());
+            return ResponseEntity.ok(tableData);
+            
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid input for balance sheet preview: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(
+                java.util.Map.of("error", "Invalid input: " + e.getMessage())
+            );
+        } catch (Exception e) {
+            log.error("Failed to generate balance sheet preview for company {}: {}", companyId, e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(
+                java.util.Map.of("error", "Failed to generate balance sheet preview: " + e.getMessage())
+            );
+        }
+    }
+
+    /**
      * Inner class for balance sheet summary - Fixed to remove unused field warnings
      */
     public static class BalanceSheetSummary {

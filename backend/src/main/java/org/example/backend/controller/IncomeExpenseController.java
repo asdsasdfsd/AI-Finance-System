@@ -139,4 +139,72 @@ public class IncomeExpenseController {
     public ResponseEntity<String> healthCheck() {
         return ResponseEntity.ok("Income Expense Controller is running");
     }
+
+        /**
+     * ADDED: Generate income expense data for frontend preview
+     */
+    @GetMapping("/generate")
+    public ResponseEntity<?> generateIncomeExpensePreview(
+            @RequestParam Integer companyId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        
+        try {
+            log.info("Generating income expense preview for company {} from {} to {}", 
+                     companyId, startDate, endDate);
+            
+            // Validate date range
+            if (startDate.isAfter(endDate)) {
+                return ResponseEntity.badRequest().body(
+                    java.util.Map.of("error", "Start date cannot be after end date")
+                );
+            }
+            
+            // Use as-of date logic for compatibility
+            LocalDate asOfDate = endDate;
+            TenantId tenantId = TenantId.of(companyId);
+            IncomeExpenseReportData data = incomeExpenseDataService
+                    .generateIncomeExpenseReportByTenant(tenantId, asOfDate);
+            
+            // Convert to frontend-friendly format
+            java.util.List<java.util.Map<String, Object>> tableData = new java.util.ArrayList<>();
+            
+            // Add income rows
+            if (data.getIncomeRows() != null) {
+                data.getIncomeRows().forEach(row -> {
+                    java.util.Map<String, Object> tableRow = new java.util.HashMap<>();
+                    tableRow.put("key", "income_" + Math.abs(row.hashCode()));
+                    tableRow.put("Description", row.getDescription());
+                    tableRow.put("Amount", row.getCurrentMonth());
+                    tableRow.put("Type", "INCOME");
+                    tableRow.put("Date", asOfDate.toString());
+                    tableRow.put("Category", row.getCategory());
+                    tableData.add(tableRow);
+                });
+            }
+            
+            // Add expense rows
+            if (data.getExpenseRows() != null) {
+                data.getExpenseRows().forEach(row -> {
+                    java.util.Map<String, Object> tableRow = new java.util.HashMap<>();
+                    tableRow.put("key", "expense_" + Math.abs(row.hashCode()));
+                    tableRow.put("Description", row.getDescription());
+                    tableRow.put("Amount", row.getCurrentMonth());
+                    tableRow.put("Type", "EXPENSE");
+                    tableRow.put("Date", asOfDate.toString());
+                    tableRow.put("Category", row.getCategory());
+                    tableData.add(tableRow);
+                });
+            }
+            
+            log.info("Income expense preview generated successfully with {} rows", tableData.size());
+            return ResponseEntity.ok(tableData);
+            
+        } catch (Exception e) {
+            log.error("Failed to generate income expense preview: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(
+                java.util.Map.of("error", "Failed to generate preview: " + e.getMessage())
+            );
+        }
+    }
 }
