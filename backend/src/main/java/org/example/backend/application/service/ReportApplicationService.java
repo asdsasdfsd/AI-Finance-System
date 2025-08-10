@@ -324,6 +324,11 @@ public class ReportApplicationService {
         ReportAggregate report = reportRepository.findByIdAndTenant(reportId, tenant)
                 .orElseThrow(() -> new IllegalArgumentException("Report not found"));
         
+        // Add status validation - prevent deletion of generating reports
+        if (report.getStatus() == ReportStatus.GENERATING) {
+            throw new IllegalStateException("Cannot delete report while generating");
+        }
+        
         // Delete physical file if exists
         if (report.getFilePath() != null) {
             reportGenerationService.deleteReportFile(report.getFilePath());

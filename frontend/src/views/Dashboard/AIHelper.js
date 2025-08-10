@@ -18,7 +18,13 @@ import {
   Tag,
   Spin,
   message,
-  Upload,
+  Row,
+  Col,
+  Statistic,
+  Timeline,
+  List,
+  Badge,
+  Progress,
 } from 'antd';
 import {
   AppstoreOutlined,
@@ -29,20 +35,26 @@ import {
   BarChartOutlined,
   DownloadOutlined,
   ExportOutlined,
+  CheckCircleOutlined,
+  ExclamationCircleOutlined,
+  InfoCircleOutlined,
+  BulbOutlined,
+  TrophyOutlined,
+  WarningOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import TransactionService from '../../services/transactionService';
 import ReportService from '../../services/reportService';
 import AIService from '../../services/aiService';
 
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
 const { TextArea } = Input;
 const { TabPane } = Tabs;
 const { RangePicker } = DatePicker;
 
 export default function AIHelper() {
-  const [result, setResult] = useState('');
+  const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [activeTab, setActiveTab] = useState('classify');
@@ -96,6 +108,520 @@ export default function AIHelper() {
     }
   };
 
+  // Enhanced AI result display component
+  const AIResultDisplay = ({ result }) => {
+    if (!result) return null;
+
+    // Handle different types of AI results
+    const renderFinancialQA = (data) => (
+      <Card>
+        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          <div>
+            <Title level={4}>
+              <QuestionCircleOutlined style={{ color: '#1890ff' }} /> Financial Q&A Result
+            </Title>
+            <Paragraph>
+              <Text strong>Question: </Text>
+              <Text italic>"{data.question}"</Text>
+            </Paragraph>
+          </div>
+          
+          <Alert
+            message="AI Answer"
+            description={
+              <div style={{ fontSize: '16px', lineHeight: '1.6' }}>
+                {data.answer?.answer || data.answer || 'No answer available'}
+              </div>
+            }
+            type={data.answer?.status === 'error' ? 'error' : 'info'}
+            showIcon
+          />
+          
+          <Row gutter={16}>
+            <Col span={8}>
+              <Statistic
+                title="Confidence"
+                value={data.answer?.confidence || 'Medium'}
+                prefix={<TrophyOutlined />}
+              />
+            </Col>
+            <Col span={8}>
+              <Statistic
+                title="Context Used"
+                value={data.context}
+                prefix={<DatabaseOutlined />}
+              />
+            </Col>
+            <Col span={8}>
+              <Statistic
+                title="Response Time"
+                value={dayjs(data.answer?.timestamp).format('HH:mm:ss')}
+                prefix={<InfoCircleOutlined />}
+              />
+            </Col>
+          </Row>
+        </Space>
+      </Card>
+    );
+
+    const renderClassification = (data) => (
+      <Card>
+        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          <Title level={4}>
+            <AppstoreOutlined style={{ color: '#52c41a' }} /> Transaction Classification
+          </Title>
+          
+          {data.classification && (
+            <div>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Card size="small" title="Primary Category">
+                    <Tag color="green" style={{ fontSize: '14px' }}>
+                      {data.classification.category || 'GENERAL_EXPENSE'}
+                    </Tag>
+                    <br />
+                    <Progress 
+                      percent={Math.round((data.classification.confidence || 0.5) * 100)} 
+                      size="small" 
+                      style={{ marginTop: 8 }}
+                    />
+                    <Text type="secondary">Confidence: {data.classification.confidence || 0.5}</Text>
+                  </Card>
+                </Col>
+                <Col span={12}>
+                  <Card size="small" title="Review Required">
+                    <Badge 
+                      status={data.classification.requireReview ? 'error' : 'success'} 
+                      text={data.classification.requireReview ? 'Yes' : 'No'}
+                    />
+                  </Card>
+                </Col>
+              </Row>
+              
+              {data.classification.reason && (
+                <Alert
+                  message="Classification Reason"
+                  description={data.classification.reason}
+                  type="info"
+                  showIcon
+                />
+              )}
+              
+              {data.classification.alternativeCategories && (
+                <div>
+                  <Text strong>Alternative Categories: </Text>
+                  {data.classification.alternativeCategories.map(cat => (
+                    <Tag key={cat} color="blue">{cat}</Tag>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </Space>
+      </Card>
+    );
+
+    const renderAnomalyDetection = (data) => {
+      const isArray = Array.isArray(data);
+      const anomalies = isArray ? data : [data];
+      
+      return (
+        <Card>
+          <Space direction="vertical" size="large" style={{ width: '100%' }}>
+            <Title level={4}>
+              <AlertOutlined style={{ color: '#faad14' }} /> Anomaly Detection Results
+            </Title>
+            
+            {isArray && (
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Statistic
+                    title="Total Analyzed"
+                    value={anomalies.length}
+                    prefix={<DatabaseOutlined />}
+                  />
+                </Col>
+                <Col span={8}>
+                  <Statistic
+                    title="Anomalies Found"
+                    value={anomalies.filter(a => a.anomaly?.anomalous || a.anomaly?.isAnomalous).length}
+                    prefix={<WarningOutlined />}
+                    valueStyle={{ color: '#cf1322' }}
+                  />
+                </Col>
+                <Col span={8}>
+                  <Statistic
+                    title="Normal Transactions"
+                    value={anomalies.filter(a => !(a.anomaly?.anomalous || a.anomaly?.isAnomalous)).length}
+                    prefix={<CheckCircleOutlined />}
+                    valueStyle={{ color: '#3f8600' }}
+                  />
+                </Col>
+              </Row>
+            )}
+            
+            <List
+              dataSource={anomalies}
+              renderItem={(item, index) => {
+                const anomaly = item.anomaly || item;
+                const isAnomalous = anomaly.anomalous || anomaly.isAnomalous;
+                
+                return (
+                  <List.Item>
+                    <Card
+                      size="small"
+                      style={{ width: '100%' }}
+                      title={
+                        <Space>
+                          {isAnomalous ? 
+                            <WarningOutlined style={{ color: '#faad14' }} /> : 
+                            <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                          }
+                          <Text>{item.transaction || `Transaction ${index + 1}`}</Text>
+                          <Tag color={isAnomalous ? 'red' : 'green'}>
+                            {isAnomalous ? 'ANOMALY' : 'NORMAL'}
+                          </Tag>
+                        </Space>
+                      }
+                    >
+                      <Row gutter={16}>
+                        <Col span={6}>
+                          <Text strong>Amount: </Text>
+                          <Text>{item.amount || 'N/A'}</Text>
+                        </Col>
+                        <Col span={6}>
+                          <Text strong>Score: </Text>
+                          <Text>{anomaly.anomalyScore || 'N/A'}</Text>
+                        </Col>
+                        <Col span={6}>
+                          <Text strong>Type: </Text>
+                          <Text>{anomaly.anomalyType || 'General'}</Text>
+                        </Col>
+                        <Col span={6}>
+                          <Progress 
+                            percent={Math.round((anomaly.anomalyScore || 0) * 100)} 
+                            size="small"
+                            strokeColor={isAnomalous ? '#ff4d4f' : '#52c41a'}
+                          />
+                        </Col>
+                      </Row>
+                      
+                      {anomaly.recommendations && anomaly.recommendations.length > 0 && (
+                        <div style={{ marginTop: 8 }}>
+                          <Text strong>Recommendations: </Text>
+                          <ul>
+                            {anomaly.recommendations.map((rec, i) => (
+                              <li key={i}><Text type="secondary">{rec}</Text></li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </Card>
+                  </List.Item>
+                );
+              }}
+            />
+          </Space>
+        </Card>
+      );
+    };
+
+    const renderReportInsights = (data) => (
+      <Card>
+        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          <Title level={4}>
+            <FileSearchOutlined style={{ color: '#722ed1' }} /> Report Insights
+          </Title>
+          
+          {data.insights && (
+            <>
+              <Alert
+                message="Executive Summary"
+                description={data.summary || 'AI analysis completed successfully'}
+                type="info"
+                showIcon
+              />
+              
+              <div>
+                <Title level={5}>
+                  <BulbOutlined /> Key Insights
+                </Title>
+                <Timeline>
+                  {(data.insights.insights || data.insights || []).map((insight, index) => (
+                    <Timeline.Item key={index} color="blue">
+                      <Text>{insight}</Text>
+                    </Timeline.Item>
+                  ))}
+                </Timeline>
+              </div>
+              
+              {data.recommendations && data.recommendations.length > 0 && (
+                <div>
+                  <Title level={5}>
+                    <TrophyOutlined /> Recommendations
+                  </Title>
+                  <List
+                    dataSource={data.recommendations}
+                    renderItem={item => (
+                      <List.Item>
+                        <List.Item.Meta
+                          avatar={<BulbOutlined style={{ color: '#1890ff' }} />}
+                          description={item}
+                        />
+                      </List.Item>
+                    )}
+                  />
+                </div>
+              )}
+            </>
+          )}
+        </Space>
+      </Card>
+    );
+
+    // Determine result type and render accordingly
+    if (result.question) {
+      return renderFinancialQA(result);
+    } else if (result.classification) {
+      return renderClassification(result);
+    } else if (Array.isArray(result) || result.anomaly) {
+      return renderAnomalyDetection(result);
+    } else if (result.insights) {
+      return renderReportInsights(result);
+    } else {
+      // Fallback to enhanced JSON display
+      return (
+        <Card>
+          <Title level={4}>
+            <InfoCircleOutlined /> AI Analysis Result
+          </Title>
+          <Alert
+            message="Raw AI Response"
+            description={
+              <pre style={{ 
+                background: '#f5f5f5', 
+                padding: '12px', 
+                borderRadius: '4px',
+                maxHeight: '300px',
+                overflow: 'auto'
+              }}>
+                {JSON.stringify(result, null, 2)}
+              </pre>
+            }
+            type="info"
+          />
+        </Card>
+      );
+    }
+  };
+
+  // Handle AI action selection
+  const handleAIAction = (action) => {
+    setActiveTab(action);
+    setModalVisible(true);
+  };
+
+  // Execute transaction classification
+  const executeClassification = async (values) => {
+    setLoading(true);
+    try {
+      const selectedTxns = transactions.filter(t => selectedTransactions.includes(t.transactionId));
+      
+      if (selectedTxns.length === 0) {
+        message.warning('Please select at least one transaction');
+        return;
+      }
+
+      const results = [];
+      
+      for (const txn of selectedTxns) {
+        try {
+          const res = await AIService.classifyTransaction({
+            description: txn.description,
+            amount: txn.amount,
+            currency: txn.currency || 'CNY',
+            transactionType: txn.transactionType,
+          });
+          
+          results.push({
+            transactionId: txn.transactionId,
+            transaction: txn.description,
+            classification: res.data || res
+          });
+        } catch (error) {
+          console.error(`Classification failed for transaction ${txn.transactionId}:`, error);
+          results.push({
+            transactionId: txn.transactionId,
+            transaction: txn.description,
+            error: error.message
+          });
+        }
+      }
+      
+      setResult(results);
+      setModalVisible(false);
+      message.success(`Classified ${selectedTxns.length} transactions`);
+    } catch (error) {
+      console.error('Transaction classification failed:', error);
+      setResult({ error: 'Transaction classification failed. Please check the backend service.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Execute financial Q&A with enhanced context
+  const executeFinancialQA = async (values) => {
+    setLoading(true);
+    try {
+      const selectedTxns = transactions.filter(t => selectedTransactions.includes(t.transactionId));
+      
+      // Enhanced context building
+      let context = '';
+      if (selectedTxns.length > 0) {
+        context = selectedTxns.map(t => 
+          `Date: ${t.transactionDate}, Description: ${t.description}, Amount: ${t.currency || 'CNY'} ${t.amount}, Type: ${t.transactionType}, Category: ${t.category || 'N/A'}`
+        ).join('\n');
+      } else {
+        // If no transactions selected, build context from all available data
+        context = `Total transactions available: ${transactions.length}. Recent transactions summary: ` +
+          transactions.slice(0, 5).map(t => 
+            `${t.description} (${t.amount})`
+          ).join(', ');
+      }
+
+      const res = await AIService.askFinancialQuestion({
+        question: values.question,
+        context: context,
+        companyId: 1, // TODO: Get from user context
+      });
+      
+      const result = {
+        question: values.question,
+        context: selectedTxns.length > 0 ? `${selectedTxns.length} selected transactions` : `${transactions.length} total transactions`,
+        answer: res.data || res
+      };
+      
+      setResult(result);
+      setModalVisible(false);
+      message.success('Financial question answered');
+    } catch (error) {
+      console.error('Financial Q&A failed:', error);
+      setResult({ 
+        question: values.question,
+        answer: { 
+          status: 'error', 
+          answer: 'Financial Q&A failed. Please check the backend service.',
+          confidence: 'low'
+        }
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Execute anomaly detection
+  const executeAnomalyDetection = async (values) => {
+    setLoading(true);
+    try {
+      const selectedTxns = transactions.filter(t => selectedTransactions.includes(t.transactionId));
+      
+      if (selectedTxns.length === 0) {
+        message.warning('Please select at least one transaction');
+        return;
+      }
+
+      const results = [];
+      let anomalyCount = 0;
+      
+      for (const txn of selectedTxns) {
+        try {
+          const res = await AIService.detectAnomaly({
+            description: txn.description,
+            amount: txn.amount,
+            currency: txn.currency || 'CNY',
+            transactionDate: txn.transactionDate,
+            transactionType: txn.transactionType,
+          });
+          
+          const anomalyResult = res.data || res;
+          results.push({
+            transactionId: txn.transactionId,
+            transaction: txn.description,
+            amount: txn.amount,
+            anomaly: anomalyResult
+          });
+          
+          if (anomalyResult.isAnomalous || anomalyResult.anomalous) {
+            anomalyCount++;
+          }
+        } catch (error) {
+          console.error(`Anomaly detection failed for transaction ${txn.transactionId}:`, error);
+          results.push({
+            transactionId: txn.transactionId,
+            transaction: txn.description,
+            error: error.message
+          });
+        }
+      }
+      
+      setResult(results);
+      setModalVisible(false);
+      message.success(`Analyzed ${selectedTxns.length} transactions, found ${anomalyCount} anomalies`);
+    } catch (error) {
+      console.error('Anomaly detection failed:', error);
+      setResult({ error: 'Anomaly detection failed. Please check the backend service.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Execute report insights
+  const executeReportInsights = async (values) => {
+    setLoading(true);
+    try {
+      const selectedReportList = reports.filter(r => selectedReports.includes(r.reportId));
+      
+      if (selectedReportList.length === 0) {
+        message.warning('Please select at least one report');
+        return;
+      }
+
+      const results = [];
+      
+      for (const report of selectedReportList) {
+        try {
+          const res = await AIService.reportInsight({
+            reportData: report.content || JSON.stringify(report),
+            reportType: report.reportType || 'FINANCIAL_REPORT',
+            reportId: report.reportId
+          });
+          
+          results.push({
+            reportId: report.reportId,
+            reportName: report.reportName,
+            insights: res.data || res
+          });
+        } catch (error) {
+          console.error(`Report insight failed for report ${report.reportId}:`, error);
+          results.push({
+            reportId: report.reportId,
+            reportName: report.reportName,
+            error: error.message
+          });
+        }
+      }
+      
+      setResult(results.length === 1 ? results[0] : results);
+      setModalVisible(false);
+      message.success(`Analyzed ${selectedReportList.length} reports`);
+    } catch (error) {
+      console.error('Report insights failed:', error);
+      setResult({ error: 'Report insights failed. Please check the backend service.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Export analysis results
   const exportAnalysisResults = (results, fileName) => {
     try {
@@ -114,6 +640,12 @@ export default function AIHelper() {
       console.error('Export error:', error);
       message.error('Failed to export analysis results');
     }
+  };
+
+  // Clear selections
+  const clearSelections = () => {
+    setSelectedTransactions([]);
+    setSelectedReports([]);
   };
 
   // Transaction selection columns
@@ -195,226 +727,12 @@ export default function AIHelper() {
       render: (type) => <Tag color="blue">{type}</Tag>,
     },
     {
-      title: 'Period',
-      width: 120,
-      render: (_, record) => {
-        if (record.startDate && record.endDate) {
-          return `${dayjs(record.startDate).format('MM/DD')} - ${dayjs(record.endDate).format('MM/DD')}`;
-        }
-        return '-';
-      },
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
+      title: 'Created',
+      dataIndex: 'createdAt',
       width: 100,
-      render: (status) => (
-        <Tag color={status === 'COMPLETED' ? 'green' : 'orange'}>
-          {status}
-        </Tag>
-      ),
+      render: (date) => dayjs(date).format('MM-DD'),
     },
   ];
-
-  // Handle AI analysis actions
-  const handleAIAction = (type) => {
-    setActiveTab(type);
-    setModalVisible(true);
-  };
-
-  // Execute classification analysis
-  const executeClassification = async (values) => {
-    setLoading(true);
-    try {
-      const selectedTxns = transactions.filter(t => selectedTransactions.includes(t.transactionId));
-      
-      if (selectedTxns.length === 0) {
-        message.warning('Please select at least one transaction');
-        return;
-      }
-
-      const results = [];
-      for (const txn of selectedTxns) {
-        try {
-          const res = await AIService.classifyTransaction({
-            description: txn.description,
-            amount: txn.amount,
-            currency: txn.currency || 'CNY',
-          });
-          results.push({
-            transactionId: txn.transactionId,
-            transaction: txn.description,
-            amount: txn.amount,
-            originalType: txn.transactionType,
-            classification: res.data || res
-          });
-        } catch (error) {
-          console.error(`Classification failed for transaction ${txn.transactionId}:`, error);
-          results.push({
-            transactionId: txn.transactionId,
-            transaction: txn.description,
-            error: error.message
-          });
-        }
-      }
-      
-      setResult(JSON.stringify(results, null, 2));
-      setModalVisible(false);
-      message.success(`Classified ${results.length} transactions`);
-    } catch (error) {
-      console.error('Classification failed:', error);
-      setResult('Classification failed. Please check the backend service.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Execute financial Q&A
-  const executeFinancialQA = async (values) => {
-    setLoading(true);
-    try {
-      const selectedTxns = transactions.filter(t => selectedTransactions.includes(t.transactionId));
-      const context = selectedTxns.map(t => 
-        `${t.transactionDate}: ${t.description} - ${t.currency || 'CNY'} ${t.amount} (${t.transactionType})`
-      ).join('\n');
-
-      const res = await AIService.askFinancialQuestion({
-        question: values.question,
-        context: context,
-        companyId: 1, // TODO: Get from user context
-      });
-      
-      const result = {
-        question: values.question,
-        context: `${selectedTxns.length} transactions`,
-        answer: res.data || res
-      };
-      
-      setResult(JSON.stringify(result, null, 2));
-      setModalVisible(false);
-      message.success('Financial question answered');
-    } catch (error) {
-      console.error('Financial Q&A failed:', error);
-      setResult('Financial Q&A failed. Please check the backend service.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Execute anomaly detection
-  const executeAnomalyDetection = async (values) => {
-    setLoading(true);
-    try {
-      const selectedTxns = transactions.filter(t => selectedTransactions.includes(t.transactionId));
-      
-      if (selectedTxns.length === 0) {
-        message.warning('Please select at least one transaction');
-        return;
-      }
-
-      const results = [];
-      let anomalyCount = 0;
-      
-      for (const txn of selectedTxns) {
-        try {
-          const res = await AIService.detectAnomaly({
-            description: txn.description,
-            amount: txn.amount,
-            currency: txn.currency || 'CNY',
-            transactionDate: txn.transactionDate,
-            transactionType: txn.transactionType,
-          });
-          
-          const anomalyResult = res.data || res;
-          results.push({
-            transactionId: txn.transactionId,
-            transaction: txn.description,
-            amount: txn.amount,
-            anomaly: anomalyResult
-          });
-          
-          if (anomalyResult.isAnomalous || anomalyResult.anomalous) {
-            anomalyCount++;
-          }
-        } catch (error) {
-          console.error(`Anomaly detection failed for transaction ${txn.transactionId}:`, error);
-          results.push({
-            transactionId: txn.transactionId,
-            transaction: txn.description,
-            error: error.message
-          });
-        }
-      }
-      
-      setResult(JSON.stringify(results, null, 2));
-      setModalVisible(false);
-      message.success(`Analyzed ${selectedTxns.length} transactions, found ${anomalyCount} anomalies`);
-    } catch (error) {
-      console.error('Anomaly detection failed:', error);
-      setResult('Anomaly detection failed. Please check the backend service.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Execute report insights
-  const executeReportInsights = async (values) => {
-    setLoading(true);
-    try {
-      const selectedReportData = reports.filter(r => selectedReports.includes(r.reportId));
-      
-      if (selectedReportData.length === 0) {
-        message.warning('Please select at least one report');
-        return;
-      }
-
-      const results = [];
-      for (const report of selectedReportData) {
-        try {
-          // Create report content summary for AI analysis
-          const reportContent = `Report: ${report.reportName}
-Type: ${report.reportType}
-Period: ${report.startDate} to ${report.endDate}
-Status: ${report.status}
-File Size: ${report.fileSize || 'Unknown'}`;
-          
-          const res = await AIService.reportInsight({
-            reportData: reportContent,
-            reportType: report.reportType,
-          });
-          
-          results.push({
-            reportId: report.reportId,
-            reportName: report.reportName,
-            reportType: report.reportType,
-            insights: res.data || res
-          });
-        } catch (error) {
-          console.error(`Report insight failed for report ${report.reportId}:`, error);
-          results.push({
-            reportId: report.reportId,
-            reportName: report.reportName,
-            error: error.message
-          });
-        }
-      }
-      
-      setResult(JSON.stringify(results, null, 2));
-      setModalVisible(false);
-      message.success(`Generated insights for ${results.length} reports`);
-    } catch (error) {
-      console.error('Report insights failed:', error);
-      setResult('Report insights failed. Please check the backend service.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Clear selections
-  const clearSelections = () => {
-    setSelectedTransactions([]);
-    setSelectedReports([]);
-  };
 
   return (
     <Card style={{ margin: 24 }}>
@@ -472,217 +790,188 @@ File Size: ${report.fileSize || 'Unknown'}`;
           <Space>
             <Button
               icon={<ExportOutlined />}
-              onClick={() => exportAnalysisResults(JSON.parse(result), 'ai_analysis')}
+              onClick={() => exportAnalysisResults(result, 'ai_analysis')}
             >
               Export Results
             </Button>
-            <Button onClick={() => setResult('')}>Clear</Button>
+            <Button onClick={() => setResult(null)}>Clear</Button>
           </Space>
         )}
       </div>
 
       {result ? (
-        <Card>
-          <pre style={{
-            background: '#f6f6f6',
-            padding: 16,
-            borderRadius: 4,
-            maxHeight: 500,
-            overflow: 'auto',
-            whiteSpace: 'pre-wrap',
-            fontSize: '12px',
-          }}>
-            {result}
-          </pre>
-        </Card>
+        <AIResultDisplay result={result} />
       ) : (
-        <Alert 
-          message="Select an AI analysis type above to begin" 
-          type="info" 
-          showIcon 
+        <Alert
+          message="No Analysis Results"
+          description="Click on the buttons above to start AI analysis"
+          type="info"
+          showIcon
         />
       )}
 
-      {/* AI Analysis Modal */}
+      {/* Modal for AI Actions */}
       <Modal
-        title={`AI Analysis - ${activeTab}`}
+        title="AI Analysis Configuration"
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
-        width={1000}
         footer={null}
-        destroyOnClose
+        width={1000}
       >
-        <Spin spinning={loadingData}>
-          <Tabs 
-            activeKey={activeTab} 
-            onChange={setActiveTab}
-            type="card"
-            items={[
-              {
-                key: 'classify',
-                label: 'Classify Transactions',
-                children: (
-                  <Form form={classifyForm} onFinish={executeClassification}>
-                    <div style={{ marginBottom: 16 }}>
-                      <Space>
-                        <Title level={5} style={{ margin: 0 }}>
-                          <DatabaseOutlined /> Select Transactions to Classify
-                        </Title>
-                        <Tag color="blue">Total: {transactions.length}</Tag>
-                        <Button size="small" onClick={clearSelections}>Clear Selection</Button>
-                      </Space>
-                    </div>
-                    <Table
-                      dataSource={transactions}
-                      columns={transactionColumns}
-                      rowKey="transactionId"
-                      size="small"
-                      scroll={{ y: 300 }}
-                      pagination={{ pageSize: 10, simple: true }}
-                    />
-                    <div style={{ marginTop: 16, textAlign: 'right' }}>
-                      <Space>
-                        <Text>Selected: {selectedTransactions.length}</Text>
-                        <Button 
-                          type="primary" 
-                          htmlType="submit" 
-                          loading={loading}
-                          disabled={selectedTransactions.length === 0}
-                        >
-                          Classify Selected
-                        </Button>
-                      </Space>
-                    </div>
-                  </Form>
-                )
-              },
-              {
-                key: 'question',
-                label: 'Financial Q&A',
-                children: (
-                  <Form form={questionForm} onFinish={executeFinancialQA} layout="vertical">
-                    <Form.Item
-                      name="question"
-                      label="Ask a Financial Question"
-                      rules={[{ required: true, message: 'Please enter your question' }]}
-                    >
-                      <TextArea 
-                        rows={3} 
-                        placeholder="e.g., What were my highest expense categories this month?"
-                      />
-                    </Form.Item>
-                    
-                    <div style={{ marginBottom: 16 }}>
-                      <Space>
-                        <Title level={5} style={{ margin: 0 }}>
-                          <DatabaseOutlined /> Select Transaction Context
-                        </Title>
-                        <Tag color="blue">Total: {transactions.length}</Tag>
-                        <Button size="small" onClick={clearSelections}>Clear Selection</Button>
-                      </Space>
-                    </div>
-                    <Table
-                      dataSource={transactions}
-                      columns={transactionColumns}
-                      rowKey="transactionId"
-                      size="small"
-                      scroll={{ y: 300 }}
-                      pagination={{ pageSize: 10, simple: true }}
-                    />
-                    <div style={{ marginTop: 16, textAlign: 'right' }}>
-                      <Space>
-                        <Text>Context: {selectedTransactions.length} transactions</Text>
-                        <Button 
-                          type="primary" 
-                          htmlType="submit" 
-                          loading={loading}
-                        >
-                          Ask AI
-                        </Button>
-                      </Space>
-                    </div>
-                  </Form>
-                )
-              },
-              {
-                key: 'anomaly',
-                label: 'Anomaly Detection',
-                children: (
-                  <Form form={anomalyForm} onFinish={executeAnomalyDetection}>
-                    <div style={{ marginBottom: 16 }}>
-                      <Space>
-                        <Title level={5} style={{ margin: 0 }}>
-                          <AlertOutlined /> Select Transactions to Analyze
-                        </Title>
-                        <Tag color="blue">Total: {transactions.length}</Tag>
-                        <Button size="small" onClick={clearSelections}>Clear Selection</Button>
-                      </Space>
-                    </div>
-                    <Table
-                      dataSource={transactions}
-                      columns={transactionColumns}
-                      rowKey="transactionId"
-                      size="small"
-                      scroll={{ y: 300 }}
-                      pagination={{ pageSize: 10, simple: true }}
-                    />
-                    <div style={{ marginTop: 16, textAlign: 'right' }}>
-                      <Space>
-                        <Text>Selected: {selectedTransactions.length}</Text>
-                        <Button 
-                          type="primary" 
-                          htmlType="submit" 
-                          loading={loading}
-                          disabled={selectedTransactions.length === 0}
-                        >
-                          Detect Anomalies
-                        </Button>
-                      </Space>
-                    </div>
-                  </Form>
-                )
-              },
-              {
-                key: 'insight',
-                label: 'Report Insights',
-                children: (
-                  <Form form={insightForm} onFinish={executeReportInsights}>
-                    <div style={{ marginBottom: 16 }}>
-                      <Space>
-                        <Title level={5} style={{ margin: 0 }}>
-                          <BarChartOutlined /> Select Reports to Analyze
-                        </Title>
-                        <Tag color="blue">Total: {reports.length}</Tag>
-                        <Button size="small" onClick={clearSelections}>Clear Selection</Button>
-                      </Space>
-                    </div>
-                    <Table
-                      dataSource={reports}
-                      columns={reportColumns}
-                      rowKey="reportId"
-                      size="small"
-                      scroll={{ y: 300 }}
-                      pagination={{ pageSize: 10, simple: true }}
-                    />
-                    <div style={{ marginTop: 16, textAlign: 'right' }}>
-                      <Space>
-                        <Text>Selected: {selectedReports.length}</Text>
-                        <Button 
-                          type="primary" 
-                          htmlType="submit" 
-                          loading={loading}
-                          disabled={selectedReports.length === 0}
-                        >
-                          Generate Insights
-                        </Button>
-                      </Space>
-                    </div>
-                  </Form>
-                )
-              }
-            ]}
-          />
-        </Spin>
+        <Tabs activeKey={activeTab} onChange={setActiveTab}>
+          <TabPane tab="Classify Transactions" key="classify">
+            <Form form={classifyForm} onFinish={executeClassification} layout="vertical">
+              <div style={{ marginBottom: 16 }}>
+                <Space>
+                  <Title level={5} style={{ margin: 0 }}>
+                    <DatabaseOutlined /> Select Transactions
+                  </Title>
+                  <Tag color="blue">Total: {transactions.length}</Tag>
+                  <Button size="small" onClick={clearSelections}>Clear Selection</Button>
+                </Space>
+              </div>
+              <Table
+                dataSource={transactions}
+                columns={transactionColumns}
+                rowKey="transactionId"
+                size="small"
+                scroll={{ y: 300 }}
+                pagination={{ pageSize: 10, simple: true }}
+              />
+              <div style={{ marginTop: 16, textAlign: 'right' }}>
+                <Space>
+                  <Text>Selected: {selectedTransactions.length} transactions</Text>
+                  <Button 
+                    type="primary" 
+                    htmlType="submit" 
+                    loading={loading}
+                    disabled={selectedTransactions.length === 0}
+                  >
+                    Classify Selected
+                  </Button>
+                </Space>
+              </div>
+            </Form>
+          </TabPane>
+
+          <TabPane tab="Financial Q&A" key="question">
+            <Form form={questionForm} onFinish={executeFinancialQA} layout="vertical">
+              <Form.Item
+                name="question"
+                label="Ask a Financial Question"
+                rules={[{ required: true, message: 'Please enter your question' }]}
+              >
+                <TextArea 
+                  rows={3} 
+                  placeholder="e.g., What were my highest expense categories this month? What's the total revenue this quarter?"
+                />
+              </Form.Item>
+              
+              <div style={{ marginBottom: 16 }}>
+                <Space>
+                  <Title level={5} style={{ margin: 0 }}>
+                    <DatabaseOutlined /> Select Transaction Context (Optional)
+                  </Title>
+                  <Tag color="blue">Total: {transactions.length}</Tag>
+                  <Button size="small" onClick={clearSelections}>Clear Selection</Button>
+                </Space>
+                <Text type="secondary" style={{ display: 'block', marginTop: 4 }}>
+                  Leave empty to analyze all available data, or select specific transactions for focused analysis
+                </Text>
+              </div>
+              <Table
+                dataSource={transactions}
+                columns={transactionColumns}
+                rowKey="transactionId"
+                size="small"
+                scroll={{ y: 300 }}
+                pagination={{ pageSize: 10, simple: true }}
+              />
+              <div style={{ marginTop: 16, textAlign: 'right' }}>
+                <Space>
+                  <Text>Context: {selectedTransactions.length > 0 ? `${selectedTransactions.length} selected transactions` : 'All available data'}</Text>
+                  <Button 
+                    type="primary" 
+                    htmlType="submit" 
+                    loading={loading}
+                  >
+                    Ask AI
+                  </Button>
+                </Space>
+              </div>
+            </Form>
+          </TabPane>
+
+          <TabPane tab="Anomaly Detection" key="anomaly">
+            <Form form={anomalyForm} onFinish={executeAnomalyDetection} layout="vertical">
+              <div style={{ marginBottom: 16 }}>
+                <Space>
+                  <Title level={5} style={{ margin: 0 }}>
+                    <DatabaseOutlined /> Select Transactions to Analyze
+                  </Title>
+                  <Tag color="blue">Total: {transactions.length}</Tag>
+                  <Button size="small" onClick={clearSelections}>Clear Selection</Button>
+                </Space>
+              </div>
+              <Table
+                dataSource={transactions}
+                columns={transactionColumns}
+                rowKey="transactionId"
+                size="small"
+                scroll={{ y: 300 }}
+                pagination={{ pageSize: 10, simple: true }}
+              />
+              <div style={{ marginTop: 16, textAlign: 'right' }}>
+                <Space>
+                  <Text>Selected: {selectedTransactions.length} transactions</Text>
+                  <Button 
+                    type="primary" 
+                    htmlType="submit" 
+                    loading={loading}
+                    disabled={selectedTransactions.length === 0}
+                  >
+                    Detect Anomalies
+                  </Button>
+                </Space>
+              </div>
+            </Form>
+          </TabPane>
+
+          <TabPane tab="Report Insights" key="insight">
+            <Form form={insightForm} onFinish={executeReportInsights} layout="vertical">
+              <div style={{ marginBottom: 16 }}>
+                <Space>
+                  <Title level={5} style={{ margin: 0 }}>
+                    <FileSearchOutlined /> Select Reports to Analyze
+                  </Title>
+                  <Tag color="blue">Total: {reports.length}</Tag>
+                  <Button size="small" onClick={clearSelections}>Clear Selection</Button>
+                </Space>
+              </div>
+              <Table
+                dataSource={reports}
+                columns={reportColumns}
+                rowKey="reportId"
+                size="small"
+                scroll={{ y: 300 }}
+                pagination={{ pageSize: 10, simple: true }}
+              />
+              <div style={{ marginTop: 16, textAlign: 'right' }}>
+                <Space>
+                  <Text>Selected: {selectedReports.length} reports</Text>
+                  <Button 
+                    type="primary" 
+                    htmlType="submit" 
+                    loading={loading}
+                    disabled={selectedReports.length === 0}
+                  >
+                    Generate Insights
+                  </Button>
+                </Space>
+              </div>
+            </Form>
+          </TabPane>
+        </Tabs>
       </Modal>
     </Card>
   );

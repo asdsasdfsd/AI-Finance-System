@@ -24,9 +24,10 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Simple Report Controller - Compatible with existing codebase
+ * Report Controller - Compatible with existing codebase and DDD architecture
  * 
  * Focus on core functionality with minimal dependencies
+ * Follows proper separation of concerns and HTTP layer responsibilities
  */
 @RestController
 @RequestMapping("/api/reports")
@@ -49,9 +50,67 @@ public class ReportController {
     }
     
     /**
-     * Generate a new report
+     * Generate a new report using GenerateReportRequest
      */
     @PostMapping("/generate")
+    public ResponseEntity<Map<String, Object>> generateReport(@RequestBody GenerateReportRequest request) {
+        try {
+            // Validate request
+            if (request.getReportType() == null) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "Report type is required",
+                    "timestamp", LocalDateTime.now()
+                ));
+            }
+            
+            if (request.getStartDate() == null || request.getEndDate() == null) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "Start date and end date are required",
+                    "timestamp", LocalDateTime.now()
+                ));
+            }
+            
+            // Convert request to command
+            GenerateReportCommand command = GenerateReportCommand.builder()
+                    .reportType(request.getReportType())
+                    .reportName(request.getReportName())
+                    .startDate(request.getStartDate())
+                    .endDate(request.getEndDate())
+                    .aiAnalysisEnabled(request.getAiAnalysisEnabled() != null ? request.getAiAnalysisEnabled() : false)
+                    .tenantId(1) // Default tenant for development
+                    .createdBy(1) // Default user for development
+                    .build();
+            
+            String reportId = reportApplicationService.generateReport(command);
+            
+            return ResponseEntity.ok(Map.of(
+                "status", "success",
+                "data", Map.of("reportId", reportId),
+                "message", "Report generation started successfully",
+                "timestamp", LocalDateTime.now()
+            ));
+            
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "status", "error",
+                "message", e.getMessage(),
+                "timestamp", LocalDateTime.now()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                "status", "error",
+                "message", "Failed to generate report. Please try again.",
+                "timestamp", LocalDateTime.now()
+            ));
+        }
+    }
+    
+    /**
+     * Generate a new report using GenerateReportCommand directly (for backward compatibility)
+     */
+    @PostMapping("/generate-direct")
     public ResponseEntity<Map<String, Object>> generateReport(@RequestBody GenerateReportCommand command) {
         try {
             // Set default tenant and user for development
@@ -105,34 +164,36 @@ public class ReportController {
             // Build query
             ReportListQuery.ReportListQueryBuilder queryBuilder = ReportListQuery.builder()
                 .tenantId(tenantId)
-                .pageNumber(page)
-                .pageSize(size);
+                .pageSize(page != null ? page : 0)
+                .pageSize(size != null ? size : 20);
             
-            // Parse parameters safely
+            // Parse report type
             if (reportType != null && !reportType.trim().isEmpty()) {
                 try {
-                    queryBuilder.reportType(ReportType.valueOf(reportType.toUpperCase()));
+                    queryBuilder.reportType(ReportType.valueOf(reportType));
                 } catch (IllegalArgumentException e) {
                     return ResponseEntity.badRequest().body(Map.of(
                         "status", "error",
-                        "message", "Invalid report type: " + reportType,
+                        "message", "Invalid report type. Valid types: " + java.util.Arrays.toString(ReportType.values()),
                         "timestamp", LocalDateTime.now()
                     ));
                 }
             }
             
+            // Parse status
             if (status != null && !status.trim().isEmpty()) {
                 try {
-                    queryBuilder.status(ReportStatus.valueOf(status.toUpperCase()));
+                    queryBuilder.status(ReportStatus.valueOf(status));
                 } catch (IllegalArgumentException e) {
                     return ResponseEntity.badRequest().body(Map.of(
                         "status", "error",
-                        "message", "Invalid status: " + status,
+                        "message", "Invalid status. Valid statuses: " + java.util.Arrays.toString(ReportStatus.values()),
                         "timestamp", LocalDateTime.now()
                     ));
                 }
             }
             
+            // Parse dates
             if (startDate != null && !startDate.trim().isEmpty()) {
                 try {
                     queryBuilder.startDate(LocalDate.parse(startDate));
@@ -208,7 +269,7 @@ public class ReportController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
                 "status", "error",
-                "message", "Failed to retrieve report: " + e.getMessage(),
+                "message", "Failed to retrieve report details: " + e.getMessage(),
                 "timestamp", LocalDateTime.now()
             ));
         }
@@ -223,95 +284,35 @@ public class ReportController {
             Integer tenantId = 1; // Default tenant for development
             
             Optional<ReportDTO> reportOpt = reportApplicationService.getReport(reportId, tenantId);
-            if (!reportOpt.isPresent()) {
+            
+            if (reportOpt.isEmpty()) {
                 return ResponseEntity.notFound().build();
             }
             
             ReportDTO report = reportOpt.get();
             
-            if (report.getStatus() != ReportStatus.COMPLETED || report.getFilePath() == null) {
-                return ResponseEntity.badRequest().build();
+            if (report.getFilePath() == null || report.getFilePath().trim().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
             }
             
             File file = new File(report.getFilePath());
             if (!file.exists()) {
-                return ResponseEntity.notFound().build();
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
             }
             
             Resource resource = new FileSystemResource(file);
-            String filename = generateFileName(report);
             
             return ResponseEntity.ok()
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                    .header(HttpHeaders.CONTENT_DISPOSITION, 
-                        "attachment; filename=\"" + filename + "\"")
-                    .body(resource);
-                    
+                .header(HttpHeaders.CONTENT_DISPOSITION, 
+                       "attachment; filename=\"" + report.getReportName() + "." + report.getFileFormat() + "\"")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(resource);
+                
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
-    
-    /**
-     * Archive a report
-     */
-    @PostMapping("/{reportId}/archive")
-    public ResponseEntity<Map<String, Object>> archiveReport(@PathVariable Integer reportId) {
-        try {
-            Integer tenantId = 1; // Default tenant for development
-            reportApplicationService.archiveReport(reportId, tenantId);
-            
-            return ResponseEntity.ok(Map.of(
-                "status", "success",
-                "message", "Report archived successfully",
-                "timestamp", LocalDateTime.now()
-            ));
-            
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of(
-                "status", "error",
-                "message", e.getMessage(),
-                "timestamp", LocalDateTime.now()
-            ));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-                "status", "error",
-                "message", "Failed to archive report: " + e.getMessage(),
-                "timestamp", LocalDateTime.now()
-            ));
-        }
-    }
-    
-    /**
-     * Delete a report
-     */
-    @DeleteMapping("/{reportId}")
-    public ResponseEntity<Map<String, Object>> deleteReport(@PathVariable Integer reportId) {
-        try {
-            Integer tenantId = 1; // Default tenant for development
-            reportApplicationService.deleteReport(reportId, tenantId);
-            
-            return ResponseEntity.ok(Map.of(
-                "status", "success",
-                "message", "Report deleted successfully",
-                "timestamp", LocalDateTime.now()
-            ));
-            
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of(
-                "status", "error",
-                "message", e.getMessage(),
-                "timestamp", LocalDateTime.now()
-            ));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-                "status", "error",
-                "message", "Failed to delete report: " + e.getMessage(),
-                "timestamp", LocalDateTime.now()
-            ));
-        }
-    }
-    
+
     /**
      * Get report statistics
      */
@@ -320,54 +321,89 @@ public class ReportController {
         try {
             Integer tenantId = 1; // Default tenant for development
             
-            ReportListQuery query = ReportListQuery.builder()
-                .tenantId(tenantId)
-                .build();
-            
-            List<ReportDTO> reports = reportApplicationService.getReports(query);
-            
-            // Calculate statistics
-            long totalReports = reports.size();
-            long completedReports = reports.stream().filter(r -> r.getStatus() == ReportStatus.COMPLETED).count();
-            long generatingReports = reports.stream().filter(r -> r.getStatus() == ReportStatus.GENERATING).count();
-            long failedReports = reports.stream().filter(r -> r.getStatus() == ReportStatus.FAILED).count();
-            
-            Map<String, Object> statistics = Map.of(
-                "totalReports", totalReports,
-                "completedReports", completedReports,
-                "generatingReports", generatingReports,
-                "failedReports", failedReports
-            );
+            ReportApplicationService.ReportStatistics stats = reportApplicationService.getReportStatistics(tenantId);
             
             return ResponseEntity.ok(Map.of(
                 "status", "success",
-                "data", statistics,
-                "message", "Statistics retrieved successfully",
+                "data", stats,
+                "message", "Report statistics retrieved successfully",
                 "timestamp", LocalDateTime.now()
             ));
             
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
                 "status", "error",
-                "message", "Failed to retrieve statistics: " + e.getMessage(),
+                "message", "Failed to retrieve report statistics: " + e.getMessage(),
                 "timestamp", LocalDateTime.now()
             ));
         }
     }
     
     /**
-     * Generate download filename
+     * GenerateReportRequest - Inner class for request binding
+     * 
+     * This class represents the HTTP request body structure for report generation
      */
-    private String generateFileName(ReportDTO report) {
-        String baseName = report.getReportType().name().toLowerCase();
-        String dateRange = "";
+    public static class GenerateReportRequest {
+        private ReportType reportType;
+        private String reportName;
+        private LocalDate startDate;
+        private LocalDate endDate;
+        private Boolean aiAnalysisEnabled;
         
-        if (report.getStartDate() != null && report.getEndDate() != null) {
-            dateRange = "_" + report.getStartDate() + "_to_" + report.getEndDate();
+        // Default constructor
+        public GenerateReportRequest() {}
+        
+        // Getters and setters
+        public ReportType getReportType() {
+            return reportType;
         }
         
-        return baseName + dateRange + ".xlsx";
+        public void setReportType(ReportType reportType) {
+            this.reportType = reportType;
+        }
+        
+        public String getReportName() {
+            return reportName;
+        }
+        
+        public void setReportName(String reportName) {
+            this.reportName = reportName;
+        }
+        
+        public LocalDate getStartDate() {
+            return startDate;
+        }
+        
+        public void setStartDate(LocalDate startDate) {
+            this.startDate = startDate;
+        }
+        
+        public LocalDate getEndDate() {
+            return endDate;
+        }
+        
+        public void setEndDate(LocalDate endDate) {
+            this.endDate = endDate;
+        }
+        
+        public Boolean getAiAnalysisEnabled() {
+            return aiAnalysisEnabled;
+        }
+        
+        public void setAiAnalysisEnabled(Boolean aiAnalysisEnabled) {
+            this.aiAnalysisEnabled = aiAnalysisEnabled;
+        }
+        
+        @Override
+        public String toString() {
+            return "GenerateReportRequest{" +
+                   "reportType=" + reportType +
+                   ", reportName='" + reportName + '\'' +
+                   ", startDate=" + startDate +
+                   ", endDate=" + endDate +
+                   ", aiAnalysisEnabled=" + aiAnalysisEnabled +
+                   '}';
+        }
     }
-
-    
 }

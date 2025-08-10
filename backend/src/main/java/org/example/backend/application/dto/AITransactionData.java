@@ -7,6 +7,9 @@ import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 import java.util.Map;
+
+import org.example.backend.model.Transaction.TransactionType;
+
 import java.math.BigDecimal;
 
 @Data

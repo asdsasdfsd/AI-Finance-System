@@ -204,7 +204,7 @@ class ReportApplicationServiceTest {
             reportApplicationService.generateReport(command);
         });
         
-        assertEquals("Tenant ID cannot be null", exception.getMessage());
+        assertEquals("Valid tenant ID is required", exception.getMessage());
     }
 
     @Test
@@ -225,7 +225,7 @@ class ReportApplicationServiceTest {
             reportApplicationService.generateReport(command);
         });
         
-        assertEquals("Report type cannot be null", exception.getMessage());
+        assertEquals("Report type is required", exception.getMessage());
     }
 
     @Test
@@ -246,7 +246,7 @@ class ReportApplicationServiceTest {
             reportApplicationService.generateReport(command);
         });
         
-        assertEquals("Report name cannot be empty", exception.getMessage());
+        assertEquals("Report name is required", exception.getMessage());
     }
 
     @Test
