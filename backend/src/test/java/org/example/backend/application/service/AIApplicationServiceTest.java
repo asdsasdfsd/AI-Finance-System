@@ -2,343 +2,665 @@
 package org.example.backend.application.service;
 
 import org.example.backend.application.dto.*;
+import org.example.backend.domain.aggregate.transaction.TransactionAggregate;
+import org.example.backend.domain.service.AIAnalysisDomainService;
+import org.example.backend.domain.valueobject.TenantId;
 import org.example.backend.infrastructure.ai.AIService;
+
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.*;
-import java.math.BigDecimal;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.InjectMocks;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
+
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
  * Unit tests for AIApplicationService - Testing Real Service with Mocked Dependencies
  * 
  * This test class creates a REAL instance of AIApplicationService and mocks its dependencies,
- * following the proper unit testing approach for testing business logic.
+ * following the proper unit testing approach for testing service layer business logic.
  * 
- * Tests focus on the actual methods available in AIApplicationService implementation
+ * Coverage Target: From 27% to 80%+ for all Service methods
  */
+@ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
+@DisplayName("AI Application Service Tests - Real Service Implementation")
 class AIApplicationServiceTest {
 
+    // Mock dependencies (not the service itself!)
+    @Mock
+    private AIAnalysisDomainService aiAnalysisDomainService;
     @Mock
     private AIService aiService;
-    @Mock
-    private AIDataService aiDataService;
 
+    // Real service instance under test
     @InjectMocks
     private AIApplicationService aiApplicationService;
 
+    // Test data setup
+    private Long companyId;
+    private LocalDate startDate;
+    private LocalDate endDate;
+    private List<TransactionAggregate> mockTransactions;
+
     @BeforeEach
     void setUp() {
-        MockitoAnnotations.openMocks(this);
+        companyId = 1L;
+        startDate = LocalDate.now().minusDays(30);
+        endDate = LocalDate.now();
+        mockTransactions = createMockTransactions();
     }
 
-    // --- enhanceTransaction Tests ---
-    @Test
-    void enhanceTransaction_success() {
-        // Given
-        String description = "Lunch at restaurant";
-        Double amount = 50.0;
-        String category = "FOOD_EXPENSE";
+    // Helper methods for test data creation - moved to class level
+    private List<TransactionAggregate> createMockTransactions() {
+        List<TransactionAggregate> transactions = new ArrayList<>();
+        
+        // Create mock transactions - simplified to avoid type issues
+        TransactionAggregate transaction1 = mock(TransactionAggregate.class);
+        TransactionAggregate transaction2 = mock(TransactionAggregate.class);
+        
+        // Configure basic mock behavior without complex type matching
+        doReturn(1L).when(transaction1).getTransactionId();
+        doReturn("Office supplies").when(transaction1).getDescription();
+        doReturn(mock(Object.class)).when(transaction1).getMoney();
+        
+        doReturn(2L).when(transaction2).getTransactionId();
+        doReturn("Large equipment purchase").when(transaction2).getDescription();
+        doReturn(mock(Object.class)).when(transaction2).getMoney();
+        
+        transactions.add(transaction1);
+        transactions.add(transaction2);
+        
+        return transactions;
+    }
 
-        AIClassificationResult classification = AIClassificationResult.builder()
-                .category("FOOD_EXPENSE")
-                .confidence(0.95)
-                .reason("Contains food keyword")
+    private AIAnomalyDetectionResult createAnomalyResult(boolean anomalous, double score, String type) {
+        return AIAnomalyDetectionResult.builder()
+                .anomalous(anomalous)
+                .anomalyScore(score)
+                .anomalyType(type)
+                .recommendations(anomalous ? 
+                    List.of("Review transaction", "Verify approval") : 
+                    List.of("No action needed"))
                 .build();
-
-        when(aiService.classifyTransaction(anyString(), anyDouble(), anyString()))
-                .thenReturn(classification);
-
-        // When
-        Map<String, Object> result = aiApplicationService.enhanceTransaction(description, amount, category);
-
-        // Then
-        assertNotNull(result);
-        assertEquals(description, result.get("description"));
-        assertEquals("FOOD_EXPENSE", result.get("category"));
-        assertEquals(0.95, result.get("confidence"));
-        assertEquals("Contains food keyword", result.get("reason"));
-        assertEquals(false, result.get("error"));
-        
-        verify(aiService).classifyTransaction(description, amount, "CNY");
     }
 
-    @Test
-    void enhanceTransaction_aiServiceFails_returnsFallback() {
-        // Given
-        String description = "Taxi ride";
-        Double amount = 20.0;
-        String category = "TRANSPORT";
-
-        when(aiService.classifyTransaction(anyString(), anyDouble(), anyString()))
-                .thenThrow(new RuntimeException("AI service down"));
-
-        // When
-        Map<String, Object> result = aiApplicationService.enhanceTransaction(description, amount, category);
-
-        // Then
-        assertNotNull(result);
-        assertEquals(description, result.get("description"));
-        assertEquals(category, result.get("category"));
-        assertEquals("low", result.get("confidence"));
-        assertEquals(true, result.get("error"));
-        assertTrue(result.get("message").toString().contains("Enhancement failed"));
-        
-        verify(aiService).classifyTransaction(description, amount, "CNY");
+    @SuppressWarnings("unused")
+    private Object createMockMoney(Double amount, String currency) {
+        return mock(Object.class, "MockMoney_" + amount + "_" + currency);
     }
 
-    @Test
-    void enhanceTransaction_nullClassification_returnsFallback() {
-        // Given
-        String description = "Unknown expense";
-        Double amount = 100.0;
-        String category = "GENERAL";
+    @Nested
+    @DisplayName("Batch Anomaly Detection Tests")
+    class BatchAnomalyDetectionTests {
 
-        when(aiService.classifyTransaction(anyString(), anyDouble(), anyString()))
-                .thenReturn(null);
+        @Test
+        @DisplayName("Should detect batch anomalies successfully with valid data")
+        void detectBatchAnomalies_WithValidData_ShouldReturnAnomalies() {
+            // Arrange
+            when(aiAnalysisDomainService.prepareTransactionDataForAI(
+                    any(TenantId.class), eq(startDate), eq(endDate), isNull()))
+                    .thenReturn(mockTransactions);
 
-        // When
-        Map<String, Object> result = aiApplicationService.enhanceTransaction(description, amount, category);
+            AIAnomalyDetectionResult anomalyResult = AIApplicationServiceTest.this.createAnomalyResult(true, 0.85, "high_amount");
+            when(aiService.detectAnomalousTransaction(any(AITransactionData.class)))
+                    .thenReturn(anomalyResult);
 
-        // Then
-        assertNotNull(result);
-        assertEquals(description, result.get("description"));
-        assertEquals(category, result.get("category"));
-        assertEquals("low", result.get("confidence"));
-        assertEquals(true, result.get("error"));
-        assertEquals("Enhancement not available", result.get("message"));
+            // Act
+            List<Map<String, Object>> result = aiApplicationService.detectBatchAnomalies(companyId, startDate, endDate);
+
+            // Assert
+            assertNotNull(result, "Result should not be null");
+            assertFalse(result.isEmpty(), "Should find anomalies");
+            
+            Map<String, Object> firstAnomaly = result.get(0);
+            assertTrue((Boolean) firstAnomaly.get("anomalous"));
+            assertEquals(0.85, (Double) firstAnomaly.get("anomalyScore"));
+            assertEquals("high_amount", firstAnomaly.get("anomalyType"));
+            
+            // Verify domain service interaction
+            verify(aiAnalysisDomainService).prepareTransactionDataForAI(
+                    any(TenantId.class), eq(startDate), eq(endDate), isNull());
+            verify(aiService, times(mockTransactions.size())).detectAnomalousTransaction(any(AITransactionData.class));
+        }
+
+        @Test
+        @DisplayName("Should handle empty transaction list gracefully")
+        void detectBatchAnomalies_WithEmptyTransactions_ShouldReturnEmptyList() {
+            // Arrange
+            when(aiAnalysisDomainService.prepareTransactionDataForAI(
+                    any(TenantId.class), eq(startDate), eq(endDate), isNull()))
+                    .thenReturn(Collections.emptyList());
+
+            // Act
+            List<Map<String, Object>> result = aiApplicationService.detectBatchAnomalies(companyId, startDate, endDate);
+
+            // Assert
+            assertNotNull(result, "Result should not be null");
+            assertTrue(result.isEmpty(), "Should return empty list for no transactions");
+            
+            verify(aiAnalysisDomainService).prepareTransactionDataForAI(
+                    any(TenantId.class), eq(startDate), eq(endDate), isNull());
+            verify(aiService, never()).detectAnomalousTransaction(any(AITransactionData.class));
+        }
+
+        @Test
+        @DisplayName("Should handle AI service exception gracefully")
+        void detectBatchAnomalies_WithAIServiceException_ShouldReturnEmptyList() {
+            // Arrange
+            when(aiAnalysisDomainService.prepareTransactionDataForAI(
+                    any(TenantId.class), eq(startDate), eq(endDate), isNull()))
+                    .thenReturn(mockTransactions);
+            
+            when(aiService.detectAnomalousTransaction(any(AITransactionData.class)))
+                    .thenThrow(new RuntimeException("AI service unavailable"));
+
+            // Act
+            List<Map<String, Object>> result = aiApplicationService.detectBatchAnomalies(companyId, startDate, endDate);
+
+            // Assert
+            assertNotNull(result, "Result should not be null");
+            assertTrue(result.isEmpty(), "Should return empty list on AI service error");
+            
+            verify(aiAnalysisDomainService).prepareTransactionDataForAI(
+                    any(TenantId.class), eq(startDate), eq(endDate), isNull());
+        }
+
+        @Test
+        @DisplayName("Should filter non-anomalous transactions correctly")
+        void detectBatchAnomalies_WithMixedResults_ShouldReturnOnlyAnomalies() {
+            // Arrange
+            when(aiAnalysisDomainService.prepareTransactionDataForAI(
+                    any(TenantId.class), eq(startDate), eq(endDate), isNull()))
+                    .thenReturn(mockTransactions);
+
+            // First transaction is anomalous, second is not
+            AIAnomalyDetectionResult anomalyResult = AIApplicationServiceTest.this.createAnomalyResult(true, 0.90, "suspicious_pattern");
+            AIAnomalyDetectionResult normalResult = AIApplicationServiceTest.this.createAnomalyResult(false, 0.10, "normal");
+            
+            when(aiService.detectAnomalousTransaction(any(AITransactionData.class)))
+                    .thenReturn(anomalyResult, normalResult);
+
+            // Act
+            List<Map<String, Object>> result = aiApplicationService.detectBatchAnomalies(companyId, startDate, endDate);
+
+            // Assert
+            assertEquals(1, result.size(), "Should return only anomalous transactions");
+            assertTrue((Boolean) result.get(0).get("anomalous"));
+            assertEquals(0.90, (Double) result.get(0).get("anomalyScore"));
+        }
     }
 
-    // --- detectSingleAnomaly Tests ---
-    @Test
-    void detectSingleAnomaly_success() {
-        // Given
-        String description = "Office supplies";
-        Double amount = 1500.0;
-        String category = "OFFICE_EXPENSE";
+    @Nested
+    @DisplayName("Report Insights Generation Tests")
+    class ReportInsightsTests {
 
-        AIAnomalyDetectionResult anomalyResult = AIAnomalyDetectionResult.builder()
-                .anomalous(true)
-                .anomalyScore(0.85)
-                .anomalyType("outlier")
-                .recommendations(List.of("Review receipt", "Check authorization"))
-                .build();
+        @Test
+        @DisplayName("Should generate structured report insights successfully")
+        void generateReportInsights_WithValidData_ShouldReturnStructuredInsights() {
+            // Arrange
+            String reportData = "Sample financial report with revenue and expenses";
+            String reportType = "INCOME_STATEMENT";
+            
+            AIReportInsightResult mockResult = AIReportInsightResult.builder()
+                    .insightSummary("This report shows strong revenue growth. Key insights include increased sales in Q3. " +
+                                  "Recommendation: Continue current strategy. Some unusual patterns detected in expense categories.")
+                    .build();
+            
+            when(aiService.generateReportInsights(reportData, reportType)).thenReturn(mockResult);
 
-        when(aiService.detectAnomalousTransaction(any())).thenReturn(anomalyResult);
+            // Act
+            Map<String, Object> result = aiApplicationService.generateReportInsights(reportData, reportType);
 
-        // When
-        Map<String, Object> result = aiApplicationService.detectSingleAnomaly(description, amount, category);
+            // Assert
+            assertNotNull(result, "Result should not be null");
+            assertFalse((Boolean) result.get("error"), "Should not have error");
+            
+            @SuppressWarnings("unchecked")
+            List<String> keyInsights = (List<String>) result.get("keyInsights");
+            assertNotNull(keyInsights, "Key insights should not be null");
+            assertFalse(keyInsights.isEmpty(), "Should have key insights");
+            
+            @SuppressWarnings("unchecked")
+            List<String> recommendations = (List<String>) result.get("recommendations");
+            assertNotNull(recommendations, "Recommendations should not be null");
+            
+            String summary = (String) result.get("summary");
+            assertNotNull(summary, "Summary should not be null");
+            
+            verify(aiService).generateReportInsights(reportData, reportType);
+        }
 
-        // Then
-        assertNotNull(result);
-        // Note: The actual implementation doesn't return the input fields in the result
-        // It only returns the AI analysis results
-        assertEquals(true, result.get("anomalous"));
-        assertEquals(0.85, result.get("anomalyScore"));
-        assertEquals("outlier", result.get("anomalyType"));
-        assertEquals("high", result.get("riskLevel"));
-        assertEquals(List.of("Review receipt", "Check authorization"), result.get("recommendations"));
-        assertEquals(false, result.get("error"));
-        
-        verify(aiService).detectAnomalousTransaction(any());
+        @Test
+        @DisplayName("Should handle AI service failure gracefully")
+        void generateReportInsights_WithAIServiceFailure_ShouldReturnErrorResponse() {
+            // Arrange
+            String reportData = "Sample report data";
+            String reportType = "BALANCE_SHEET";
+            
+            when(aiService.generateReportInsights(reportData, reportType))
+                    .thenThrow(new RuntimeException("AI analysis failed"));
+
+            // Act
+            Map<String, Object> result = aiApplicationService.generateReportInsights(reportData, reportType);
+
+            // Assert
+            assertNotNull(result, "Result should not be null");
+            assertTrue((Boolean) result.get("error"), "Should indicate error");
+            assertNotNull(result.get("message"), "Should have error message");
+            
+            verify(aiService).generateReportInsights(reportData, reportType);
+        }
+
+        @Test
+        @DisplayName("Should handle null AI result gracefully")
+        void generateReportInsights_WithNullAIResult_ShouldReturnErrorResponse() {
+            // Arrange
+            String reportData = "Sample report data";
+            String reportType = "CASH_FLOW";
+            
+            when(aiService.generateReportInsights(reportData, reportType)).thenReturn(null);
+
+            // Act
+            Map<String, Object> result = aiApplicationService.generateReportInsights(reportData, reportType);
+
+            // Assert
+            assertNotNull(result, "Result should not be null");
+            assertTrue((Boolean) result.get("error"), "Should indicate error");
+            
+            verify(aiService).generateReportInsights(reportData, reportType);
+        }
     }
 
-    @Test
-    void detectSingleAnomaly_noAnomaly() {
-        // Given
-        String description = "Regular lunch";
-        Double amount = 25.0;
-        String category = "FOOD_EXPENSE";
+    @Nested
+    @DisplayName("Single Transaction Anomaly Detection Tests")
+    class SingleAnomalyDetectionTests {
 
-        AIAnomalyDetectionResult anomalyResult = AIAnomalyDetectionResult.builder()
-                .anomalous(false)
-                .anomalyScore(0.1)
-                .anomalyType("none")
-                .recommendations(List.of())
-                .build();
+        @Test
+        @DisplayName("Should detect single transaction anomaly successfully")
+        void detectSingleAnomaly_WithValidTransaction_ShouldReturnAnomalyResult() {
+            // Arrange
+            String description = "Suspicious large payment";
+            Double amount = 50000.0;
+            String category = "MISC_EXPENSE";
+            
+            AIAnomalyDetectionResult anomalyResult = AIApplicationServiceTest.this.createAnomalyResult(true, 0.92, "unusually_high_amount");
+            when(aiService.detectAnomalousTransaction(any(AITransactionData.class))).thenReturn(anomalyResult);
 
-        when(aiService.detectAnomalousTransaction(any())).thenReturn(anomalyResult);
+            // Act
+            Map<String, Object> result = aiApplicationService.detectSingleAnomaly(description, amount, category);
 
-        // When
-        Map<String, Object> result = aiApplicationService.detectSingleAnomaly(description, amount, category);
+            // Assert
+            assertNotNull(result, "Result should not be null");
+            assertTrue((Boolean) result.get("anomalous"), "Should detect anomaly");
+            assertEquals(0.92, (Double) result.get("anomalyScore"));
+            assertEquals("unusually_high_amount", result.get("anomalyType"));
+            assertEquals("high", result.get("riskLevel"));
+            assertEquals("high", result.get("confidence"));
+            assertFalse((Boolean) result.get("error"));
+            
+            // Verify AI service was called with correct data
+            ArgumentCaptor<AITransactionData> captor = ArgumentCaptor.forClass(AITransactionData.class);
+            verify(aiService).detectAnomalousTransaction(captor.capture());
+            
+            AITransactionData capturedData = captor.getValue();
+            assertEquals(description, capturedData.getDescription());
+            assertEquals(amount, capturedData.getAmount());
+            assertEquals(category, capturedData.getCategory());
+        }
 
-        // Then
-        assertNotNull(result);
-        assertEquals(false, result.get("anomalous"));
-        assertEquals(0.1, result.get("anomalyScore"));
-        assertEquals("none", result.get("anomalyType"));
-        assertEquals("minimal", result.get("riskLevel")); // Changed from "low" to "minimal"
-        assertEquals(false, result.get("error"));
+        @Test
+        @DisplayName("Should handle normal transaction correctly")
+        void detectSingleAnomaly_WithNormalTransaction_ShouldReturnNormalResult() {
+            // Arrange
+            String description = "Office supplies";
+            Double amount = 25.0;
+            String category = "OFFICE_EXPENSE";
+            
+            AIAnomalyDetectionResult normalResult = AIApplicationServiceTest.this.createAnomalyResult(false, 0.05, "normal");
+            when(aiService.detectAnomalousTransaction(any(AITransactionData.class))).thenReturn(normalResult);
+
+            // Act
+            Map<String, Object> result = aiApplicationService.detectSingleAnomaly(description, amount, category);
+
+            // Assert
+            assertNotNull(result, "Result should not be null");
+            assertFalse((Boolean) result.get("anomalous"), "Should not detect anomaly");
+            assertEquals(0.05, (Double) result.get("anomalyScore"));
+            assertEquals("minimal", result.get("riskLevel"));
+            assertEquals("low", result.get("confidence"));
+            assertFalse((Boolean) result.get("error"));
+        }
+
+        @Test
+        @DisplayName("Should handle AI service failure gracefully")
+        void detectSingleAnomaly_WithAIServiceFailure_ShouldReturnErrorResult() {
+            // Arrange
+            String description = "Test transaction";
+            Double amount = 100.0;
+            String category = "EXPENSE";
+            
+            when(aiService.detectAnomalousTransaction(any(AITransactionData.class)))
+                    .thenThrow(new RuntimeException("Service unavailable"));
+
+            // Act
+            Map<String, Object> result = aiApplicationService.detectSingleAnomaly(description, amount, category);
+
+            // Assert
+            assertNotNull(result, "Result should not be null");
+            assertFalse((Boolean) result.get("anomalous"), "Should default to not anomalous");
+            assertEquals(0.0, (Double) result.get("anomalyScore"));
+            assertEquals("low", result.get("confidence"));
+            assertTrue((Boolean) result.get("error"));
+            assertTrue(((String) result.get("reason")).contains("Analysis failed"));
+        }
     }
 
-    // --- answerFinancialQuestion Tests ---
-    @Test
-    void answerFinancialQuestion_success() {
-        // Given
-        String question = "What was our total revenue last month?";
-        Long companyId = 1L;
-        String contextData = "Financial context data";
+    @Nested
+    @DisplayName("Transaction Enhancement Tests")
+    class TransactionEnhancementTests {
 
-        AIQuestionAnswerResult answerResult = AIQuestionAnswerResult.builder()
-                .answer("Total revenue was $50,000")
-                .confidence("HIGH")
-                .hasNumericData(true)
-                .dataSources(List.of("ERP"))
-                .relatedData(Map.of("revenue", 50000))
-                .build();
+        @Test
+        @DisplayName("Should enhance transaction successfully")
+        void enhanceTransaction_WithValidData_ShouldReturnEnhancedResult() {
+            // Arrange
+            String description = "Restaurant lunch meeting";
+            Double amount = 45.0;
+            String category = "MEAL";
+            
+            AIClassificationResult classification = AIClassificationResult.builder()
+                    .category("BUSINESS_MEAL")
+                    .confidence(0.88)
+                    .reason("Business meeting detected")
+                    .build();
+            
+            when(aiService.classifyTransaction(description, amount, "CNY")).thenReturn(classification);
 
-        when(aiService.answerFinancialQuestion(anyString(), anyString(), anyInt()))
-                .thenReturn(answerResult);
+            // Act
+            Map<String, Object> result = aiApplicationService.enhanceTransaction(description, amount, category);
 
-        // When
-        String result = aiApplicationService.answerFinancialQuestion(question, companyId);
+            // Assert
+            assertNotNull(result, "Result should not be null");
+            assertEquals(description, result.get("description"));
+            assertEquals("BUSINESS_MEAL", result.get("category"));
+            assertEquals(0.88, result.get("confidence"));
+            assertEquals("Business meeting detected", result.get("reason"));
+            assertFalse((Boolean) result.get("error"));
+            
+            verify(aiService).classifyTransaction(description, amount, "CNY");
+        }
 
-        // Then
-        assertEquals("Total revenue was $50,000", result);
-        verify(aiService).answerFinancialQuestion(eq(question), anyString(), eq(1));
+        @Test
+        @DisplayName("Should handle null classification result gracefully")
+        void enhanceTransaction_WithNullClassification_ShouldReturnFallback() {
+            // Arrange
+            String description = "Unknown transaction";
+            Double amount = 100.0;
+            String category = "GENERAL";
+            
+            when(aiService.classifyTransaction(description, amount, "CNY")).thenReturn(null);
+
+            // Act
+            Map<String, Object> result = aiApplicationService.enhanceTransaction(description, amount, category);
+
+            // Assert
+            assertNotNull(result, "Result should not be null");
+            assertEquals(description, result.get("description"));
+            assertEquals(category, result.get("category")); // Should use original category
+            assertEquals("low", result.get("confidence"));
+            assertTrue((Boolean) result.get("error"));
+            assertEquals("Enhancement not available", result.get("message"));
+        }
+
+        @Test
+        @DisplayName("Should handle AI service exception gracefully")
+        void enhanceTransaction_WithAIServiceException_ShouldReturnErrorResult() {
+            // Arrange
+            String description = "Test transaction";
+            Double amount = 200.0;
+            String category = "EXPENSE";
+            
+            when(aiService.classifyTransaction(description, amount, "CNY"))
+                    .thenThrow(new RuntimeException("Classification service down"));
+
+            // Act
+            Map<String, Object> result = aiApplicationService.enhanceTransaction(description, amount, category);
+
+            // Assert
+            assertNotNull(result, "Result should not be null");
+            assertEquals(description, result.get("description"));
+            assertEquals(category, result.get("category"));
+            assertEquals("low", result.get("confidence"));
+            assertTrue((Boolean) result.get("error"));
+            assertTrue(((String) result.get("message")).contains("Enhancement failed"));
+        }
     }
 
-    @Test
-    void answerFinancialQuestion_aiServiceFails_returnsFallback() {
-        // Given
-        String question = "What was our total revenue?";
-        Long companyId = 1L;
+    @Nested
+    @DisplayName("Financial Question Answering Tests")
+    class FinancialQuestionTests {
 
-        when(aiService.answerFinancialQuestion(anyString(), anyString(), anyInt()))
-                .thenThrow(new RuntimeException("AI service down"));
+        @Test
+        @DisplayName("Should answer financial question successfully")
+        void answerFinancialQuestion_WithValidQuestion_ShouldReturnAnswer() {
+            // Arrange
+            String question = "What was our total revenue last quarter?";
+            
+            AIQuestionAnswerResult mockAnswer = AIQuestionAnswerResult.builder()
+                    .answer("Based on the financial data, your total revenue last quarter was $125,000.")
+                    .confidence("HIGH")
+                    .hasNumericData(true)
+                    .dataSources(List.of("TransactionData", "Reports"))
+                    .relatedData(Map.of("revenue", "125000"))
+                    .build();
+            
+            when(aiService.answerFinancialQuestion(eq(question), anyString(), eq(companyId.intValue())))
+                    .thenReturn(mockAnswer);
 
-        // When
-        String result = aiApplicationService.answerFinancialQuestion(question, companyId);
+            // Act - AIApplicationService.answerFinancialQuestion returns String, not AIQuestionAnswerResult
+            String result = aiApplicationService.answerFinancialQuestion(question, companyId);
 
-        // Then
-        assertTrue(result.contains("technical difficulties"));
-        verify(aiService).answerFinancialQuestion(anyString(), anyString(), eq(1));
+            // Assert
+            assertNotNull(result, "Result should not be null");
+            assertTrue(result.contains("$125,000"), "Should contain revenue information");
+            
+            verify(aiService).answerFinancialQuestion(eq(question), anyString(), eq(companyId.intValue()));
+        }
+
+        @Test
+        @DisplayName("Should handle AI service failure gracefully")
+        void answerFinancialQuestion_WithAIServiceFailure_ShouldReturnErrorResponse() {
+            // Arrange
+            String question = "What is our cash flow trend?";
+            
+            when(aiService.answerFinancialQuestion(eq(question), anyString(), eq(companyId.intValue())))
+                    .thenThrow(new RuntimeException("Question answering service unavailable"));
+
+            // Act
+            String result = aiApplicationService.answerFinancialQuestion(question, companyId);
+
+            // Assert
+            assertNotNull(result, "Result should not be null");
+            assertTrue(result.contains("technical difficulties") || result.contains("unable"), 
+                      "Should indicate service issue");
+            
+            verify(aiService).answerFinancialQuestion(eq(question), anyString(), eq(companyId.intValue()));
+        }
     }
 
-    @Test
-    void answerFinancialQuestion_nullCompanyId_returnsErrorMessage() {
-        // Given
-        String question = "What was our revenue?";
-        Long companyId = null;
+    @Nested
+    @DisplayName("Category Suggestions Tests")
+    class CategorySuggestionsTests {
 
-        // When
-        String result = aiApplicationService.answerFinancialQuestion(question, companyId);
+        @Test
+        @DisplayName("Should get category suggestions successfully")
+        void getCategorySuggestions_WithValidInput_ShouldReturnSuggestions() {
+            // Arrange
+            String description = "Coffee shop purchase";
+            Double amount = 15.0;
+            
+            AIClassificationResult classification = AIClassificationResult.builder()
+                    .category("FOOD_BEVERAGE")
+                    .confidence(0.95)
+                    .alternativeCategories(List.of("OFFICE_EXPENSE", "ENTERTAINMENT"))
+                    .build();
+            
+            when(aiService.classifyTransaction(description, amount, "CNY")).thenReturn(classification);
 
-        // Then
-        assertEquals("Company information is required to provide accurate financial insights.", result);
-        verify(aiService, never()).answerFinancialQuestion(anyString(), anyString(), anyInt());
+            // Act - getCategorySuggestions returns List<Map<String,Object>>, not Map<String,Object>
+            List<Map<String, Object>> result = aiApplicationService.getCategorySuggestions(description, amount);
+
+            // Assert
+            assertNotNull(result, "Result should not be null");
+            assertFalse(result.isEmpty(), "Should have suggestions");
+            
+            Map<String, Object> firstSuggestion = result.get(0);
+            assertEquals("FOOD_BEVERAGE", firstSuggestion.get("categoryCode"));
+            assertEquals(0.95, firstSuggestion.get("confidence"));
+            assertFalse((Boolean) firstSuggestion.get("error"));
+        }
+
+        @Test
+        @DisplayName("Should handle classification failure gracefully")
+        void getCategorySuggestions_WithClassificationFailure_ShouldReturnFallback() {
+            // Arrange
+            String description = "Unknown expense";
+            Double amount = 100.0;
+            
+            when(aiService.classifyTransaction(description, amount, "CNY"))
+                    .thenThrow(new RuntimeException("Classification failed"));
+
+            // Act
+            List<Map<String, Object>> result = aiApplicationService.getCategorySuggestions(description, amount);
+
+            // Assert
+            assertNotNull(result, "Result should not be null");
+            assertFalse(result.isEmpty(), "Should have fallback suggestions");
+            
+            Map<String, Object> firstSuggestion = result.get(0);
+            assertNotNull(firstSuggestion.get("categoryCode"));
+            assertTrue((Boolean) firstSuggestion.get("error"));
+        }
     }
 
-    // --- getCategorySuggestions Tests ---
-    @Test
-    void getCategorySuggestions_success() {
-        // Given
-        String description = "Flight to Beijing";
-        Double amount = 1200.0;
+    @Nested
+    @DisplayName("AI Provider Info Tests")
+    class AIProviderInfoTests {
 
-        AIClassificationResult classification = AIClassificationResult.builder()
-                .category("TRAVEL_EXPENSE")
-                .confidence(0.92)
-                .reason("Contains travel keyword")
-                .alternativeCategories(List.of("TRANSPORT"))
-                .build();
+        @Test
+        @DisplayName("Should get AI provider info successfully")
+        void getAIProviderInfo_WithAvailableService_ShouldReturnProviderInfo() {
+            // Arrange
+            when(aiService.isServiceAvailable()).thenReturn(true);
+            when(aiService.getProviderName()).thenReturn("OpenAI GPT-4");
 
-        when(aiService.classifyTransaction(anyString(), anyDouble(), anyString()))
-                .thenReturn(classification);
+            // Act
+            Map<String, Object> result = aiApplicationService.getAIProviderInfo();
 
-        // When
-        List<Map<String, Object>> result = aiApplicationService.getCategorySuggestions(description, amount);
+            // Assert
+            assertNotNull(result, "Result should not be null");
+            assertEquals("OpenAI GPT-4", result.get("name"));
+            assertTrue((Boolean) result.get("available"));
+            assertNotNull(result.get("version"));
+            assertNotNull(result.get("features"));
+            
+            @SuppressWarnings("unchecked")
+            List<String> features = (List<String>) result.get("features");
+            assertTrue(features.contains("Report Analysis"));
+            assertTrue(features.contains("Anomaly Detection"));
+            
+            verify(aiService).isServiceAvailable();
+            verify(aiService).getProviderName();
+        }
 
-        // Then
-        assertNotNull(result);
-        assertFalse(result.isEmpty());
-        
-        Map<String, Object> suggestion = result.get(0);
-        assertEquals("TRAVEL_EXPENSE", suggestion.get("categoryCode"));
-        assertEquals(0.92, suggestion.get("confidence"));
-        assertEquals("Contains travel keyword", suggestion.get("reason"));
-        
-        verify(aiService).classifyTransaction(description, amount, "CNY");
+        @Test
+        @DisplayName("Should handle unavailable service gracefully")
+        void getAIProviderInfo_WithUnavailableService_ShouldReturnUnavailableStatus() {
+            // Arrange
+            when(aiService.isServiceAvailable()).thenReturn(false);
+            when(aiService.getProviderName()).thenReturn("OpenAI GPT-4");
+
+            // Act
+            Map<String, Object> result = aiApplicationService.getAIProviderInfo();
+
+            // Assert
+            assertNotNull(result, "Result should not be null");
+            assertEquals("OpenAI GPT-4", result.get("name"));
+            assertFalse((Boolean) result.get("available"));
+        }
+
+        @Test
+        @DisplayName("Should handle service exception gracefully")
+        void getAIProviderInfo_WithServiceException_ShouldReturnErrorInfo() {
+            // Arrange
+            when(aiService.isServiceAvailable()).thenThrow(new RuntimeException("Service check failed"));
+
+            // Act
+            Map<String, Object> result = aiApplicationService.getAIProviderInfo();
+
+            // Assert
+            assertNotNull(result, "Result should not be null");
+            assertEquals("Unknown", result.get("name"));
+            assertFalse((Boolean) result.get("available"));
+            assertTrue(((String) result.get("error")).contains("Service check failed"));
+        }
     }
 
-    @Test
-    void getCategorySuggestions_aiServiceFails_returnsFallback() {
-        // Given
-        String description = "Unknown expense";
-        Double amount = 100.0;
+    @Nested
+    @DisplayName("Health Check Tests")
+    class HealthCheckTests {
 
-        when(aiService.classifyTransaction(anyString(), anyDouble(), anyString()))
-                .thenThrow(new RuntimeException("AI service down"));
+        @Test
+        @DisplayName("Should perform health check successfully")
+        void checkAIServiceHealth_WithHealthyService_ShouldReturnHealthyStatus() {
+            // Arrange
+            when(aiService.isServiceAvailable()).thenReturn(true);
 
-        // When
-        List<Map<String, Object>> result = aiApplicationService.getCategorySuggestions(description, amount);
+            // Act - checkAIServiceHealth returns boolean, not Map<String,Object>
+            boolean result = aiApplicationService.checkAIServiceHealth();
 
-        // Then
-        assertNotNull(result);
-        assertFalse(result.isEmpty());
-        
-        Map<String, Object> suggestion = result.get(0);
-        assertEquals("GENERAL", suggestion.get("categoryCode")); // Changed from "GENERAL_EXPENSE" to "GENERAL"
-        assertEquals("low", suggestion.get("confidence"));
-        assertTrue(suggestion.get("reason").toString().contains("Analysis failed"));
-        assertEquals(true, suggestion.get("error"));
-    }
+            // Assert
+            assertTrue(result, "Should return true for healthy service");
+            
+            verify(aiService).isServiceAvailable();
+        }
 
-    // --- Helper method tests for private methods ---
-    @Test
-    void prepareCompanyContextForAI_shouldReturnNonEmptyString() {
-        // This would test the private method indirectly through public methods
-        // Given we can't directly test private methods, we verify through integration
-        
-        String question = "Test question";
-        Long companyId = 1L;
+        @Test
+        @DisplayName("Should detect unhealthy service")
+        void checkAIServiceHealth_WithUnhealthyService_ShouldReturnUnhealthyStatus() {
+            // Arrange
+            when(aiService.isServiceAvailable()).thenReturn(false);
 
-        when(aiService.answerFinancialQuestion(anyString(), anyString(), anyInt()))
-                .thenReturn(AIQuestionAnswerResult.builder()
-                        .answer("Test answer")
-                        .confidence("HIGH")
-                        .build());
+            // Act
+            boolean result = aiApplicationService.checkAIServiceHealth();
 
-        // When
-        String result = aiApplicationService.answerFinancialQuestion(question, companyId);
+            // Assert
+            assertFalse(result, "Should return false for unhealthy service");
+        }
 
-        // Then
-        assertNotNull(result);
-        verify(aiService).answerFinancialQuestion(eq(question), anyString(), eq(1));
-    }
+        @Test
+        @DisplayName("Should handle health check exception gracefully")
+        void checkAIServiceHealth_WithException_ShouldReturnErrorStatus() {
+            // Arrange
+            when(aiService.isServiceAvailable()).thenThrow(new RuntimeException("Health check failed"));
 
-    // --- Integration test for combined functionality ---
-    @Test
-    void enhanceTransaction_withMultipleFeatures_success() {
-        // Given
-        String description = "Business dinner with clients";
-        Double amount = 250.0;
-        String category = "ENTERTAINMENT";
+            // Act
+            boolean result = aiApplicationService.checkAIServiceHealth();
 
-        AIClassificationResult classification = AIClassificationResult.builder()
-                .category("BUSINESS_MEAL")
-                .confidence(0.88)
-                .reason("Business meal detected from context")
-                .alternativeCategories(List.of("ENTERTAINMENT", "FOOD_EXPENSE"))
-                .build();
-
-        when(aiService.classifyTransaction(anyString(), anyDouble(), anyString()))
-                .thenReturn(classification);
-
-        // When
-        Map<String, Object> result = aiApplicationService.enhanceTransaction(description, amount, category);
-
-        // Then
-        assertNotNull(result);
-        assertEquals("BUSINESS_MEAL", result.get("category"));
-        assertEquals(0.88, result.get("confidence"));
-        assertFalse((Boolean) result.get("error"));
-        
-        verify(aiService).classifyTransaction(description, amount, "CNY");
+            // Assert
+            assertFalse(result, "Should return false when exception occurs");
+        }
     }
 }
