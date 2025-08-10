@@ -4,6 +4,7 @@ package org.example.backend.application.service;
 import org.example.backend.application.dto.GenerateReportCommand;
 import org.example.backend.application.dto.ReportDTO;
 import org.example.backend.application.dto.ReportListQuery;
+import org.example.backend.application.dto.IncomeExpenseReportData;
 import org.example.backend.domain.aggregate.report.ReportAggregate;
 import org.example.backend.domain.aggregate.report.ReportAggregateRepository;
 import org.example.backend.domain.valueobject.TenantId;
@@ -15,6 +16,7 @@ import org.example.backend.infrastructure.report.ReportGenerationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.scheduling.annotation.Async;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -32,6 +34,8 @@ import java.util.stream.Collectors;
  * 2. Coordinate between domain aggregates and infrastructure services
  * 3. Handle report lifecycle management for Balance Sheet, Income Statement, etc.
  * 4. Provide unified interface for all financial reports
+ * 
+ * Note: Removed AI analysis functionality - focuses purely on report generation
  */
 @Slf4j
 @Service
@@ -62,66 +66,137 @@ public class ReportApplicationService {
     
     /**
      * Generate a new financial report - supports all four report types
+     * Removed AI analysis functionality
      */
-
     public String generateReport(GenerateReportCommand command) {
-    validateGenerateReportCommand(command);
-    
-    TenantId tenantId = TenantId.of(command.getTenantId());
-    
-    // 修改重复检查逻辑 - 只检查正在生成的报表，允许重新生成已完成的报表
-    if (reportRepository.existsGeneratingReport(tenantId, command.getReportType(), 
-                                              command.getStartDate(), command.getEndDate())) {
-        throw new IllegalArgumentException(
-            "A report with the same parameters is currently being generated. Please wait for it to complete.");
-    }
-    
-    // 可选：删除已存在的相同报表（如果需要覆盖）
-    List<ReportAggregate> existingReports = reportRepository.findByMultipleCriteria(
-        tenantId, command.getReportType(), ReportStatus.COMPLETED, 
-        command.getStartDate(), command.getEndDate());
-    
-    if (!existingReports.isEmpty()) {
-        // 可以选择删除旧报表或者给报表加上时间戳后缀
-        for (ReportAggregate existingReport : existingReports) {
-            if (existingReport.getFilePath() != null) {
-                reportGenerationService.deleteReportFile(existingReport.getFilePath());
+        validateGenerateReportCommand(command);
+        
+        TenantId tenantId = TenantId.of(command.getTenantId());
+        
+        // Check for currently generating reports
+        if (reportRepository.existsGeneratingReport(tenantId, command.getReportType(), 
+                                                  command.getStartDate(), command.getEndDate())) {
+            throw new IllegalArgumentException(
+                "A report with the same parameters is currently being generated. Please wait for it to complete.");
+        }
+        
+        // Delete existing completed reports (if any)
+        List<ReportAggregate> existingReports = reportRepository.findByMultipleCriteria(
+            tenantId, command.getReportType(), ReportStatus.COMPLETED, 
+            command.getStartDate(), command.getEndDate());
+        
+        if (!existingReports.isEmpty()) {
+            for (ReportAggregate existingReport : existingReports) {
+                if (existingReport.getFilePath() != null) {
+                    reportGenerationService.deleteReportFile(existingReport.getFilePath());
+                }
+                reportRepository.delete(existingReport);
             }
-            reportRepository.delete(existingReport);
+        }
+        
+        // Create new report aggregate - without AI analysis
+        ReportAggregate report = ReportAggregate.create(
+            command.getReportType(),
+            command.getReportName() + " - " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")),
+            command.getStartDate(),
+            command.getEndDate(),
+            tenantId,
+            command.getCreatedBy()
+        );
+        
+        // Note: Removed AI analysis enablement
+        
+        // Save report
+        ReportAggregate savedReport = reportRepository.save(report);
+        
+        // Publish generation started event
+        domainEventPublisher.publish(new ReportGenerationStartedEvent(
+            savedReport.getReportId(),
+            savedReport.getReportType(),
+            savedReport.getTenantId().getValue(),
+            savedReport.getCreatedBy()
+        ));
+        
+        // Start async report generation
+        generateReportAsync(savedReport);
+        
+        return savedReport.getReportId().toString();
+    } 
+    
+    /**
+     * Async report generation - removed AI processing
+     */
+    @Async
+    private void generateReportAsync(ReportAggregate report) {
+        try {
+            String filePath = null;
+            Long fileSize = null;
+            String contentData = null;
+            String contentFormat = "JSON";
+            
+            // Generate reports based on type - using correct non-deprecated methods
+            switch (report.getReportType()) {
+                case INCOME_STATEMENT:
+                    var incomeData = incomeStatementDataService.getIncomeStatementDataByTenant(
+                        report.getTenantId(), 
+                        report.getStartDate(), 
+                        report.getEndDate()
+                    );
+                    filePath = reportGenerationService.generateIncomeStatement(incomeData, report.getTenantId().getValue());
+                    contentData = "{\"reportType\": \"INCOME_STATEMENT\", \"generated\": true}";
+                    break;
+                    
+                case BALANCE_SHEET:
+                    var balanceData = balanceSheetDataService.generateBalanceSheetByTenant(
+                        report.getTenantId(), 
+                        report.getEndDate()
+                    );
+                    filePath = reportGenerationService.generateBalanceSheet(balanceData, report.getTenantId().getValue());
+                    contentData = "{\"reportType\": \"BALANCE_SHEET\", \"generated\": true}";
+                    break;
+                    
+                case INCOME_EXPENSE:
+                    // FIXED: Use correct method and explicit type declaration
+                    IncomeExpenseReportData expenseData = incomeExpenseDataService.generateIncomeExpenseReportByTenant(
+                        report.getTenantId(), 
+                        report.getEndDate()
+                    );
+                    filePath = reportGenerationService.generateIncomeExpense(expenseData, report.getTenantId().getValue());
+                    contentData = "{\"reportType\": \"INCOME_EXPENSE\", \"generated\": true}";
+                    break;
+                    
+                case FINANCIAL_GROUPING:
+                    var groupingData = financialGroupingDataService.getFinancialGroupingDataByTenant(
+                        report.getTenantId(), 
+                        report.getStartDate(), 
+                        report.getEndDate()
+                    );
+                    filePath = reportGenerationService.generateFinancialGrouping(groupingData, report.getTenantId().getValue());
+                    contentData = "{\"reportType\": \"FINANCIAL_GROUPING\", \"generated\": true}";
+                    break;
+                    
+                default:
+                    throw new IllegalArgumentException("Unsupported report type: " + report.getReportType());
+            }
+            
+            // Calculate file size
+            if (filePath != null) {
+                fileSize = reportGenerationService.getFileSize(filePath);
+            }
+            
+            // Complete generation without AI processing
+            report.completeGeneration(filePath, fileSize, contentData, contentFormat);
+            
+            reportRepository.save(report);
+            
+        } catch (Exception e) {
+            log.error("Report generation failed for report {}: {}", report.getReportId(), e.getMessage(), e);
+            
+            report.failGeneration("Generation failed: " + e.getMessage());
+            reportRepository.save(report);
         }
     }
     
-    // 创建新的报表聚合
-    ReportAggregate report = ReportAggregate.create(
-        command.getReportType(),
-        command.getReportName() + " - " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")),
-        command.getStartDate(),
-        command.getEndDate(),
-        tenantId,
-        command.getCreatedBy()
-    );
-    
-    // 启用AI分析（如果请求）
-    if (Boolean.TRUE.equals(command.getAiAnalysisEnabled())) {
-        report.enableAIAnalysis();
-    }
-    
-    // 保存报表
-    ReportAggregate savedReport = reportRepository.save(report);
-    
-    // 发布生成开始事件
-    domainEventPublisher.publish(new ReportGenerationStartedEvent(
-        savedReport.getReportId(),
-        savedReport.getReportType(),
-        savedReport.getTenantId().getValue(),
-        savedReport.getCreatedBy()
-    ));
-    
-    // 开始异步报表生成
-    generateReportAsync(savedReport);
-    
-    return savedReport.getReportId().toString();
-} 
     /**
      * Get report details by ID
      */
@@ -144,60 +219,25 @@ public class ReportApplicationService {
         
         if (query.hasFilters()) {
             reports = reportRepository.findByMultipleCriteria(
-                tenantId,
-                query.getReportType(),
+                tenantId, 
+                query.getReportType(), 
                 query.getStatus(),
-                query.getStartDate(),
+                query.getStartDate(), 
                 query.getEndDate()
             );
         } else {
             reports = reportRepository.findByTenantIdOrderByCreatedAtDesc(tenantId);
         }
         
-        // Apply pagination if specified
-        if (query.getPageSize() != null && query.getPageNumber() != null) {
-            int start = query.getPageNumber() * query.getPageSize();
-            int end = Math.min(start + query.getPageSize(), reports.size());
-            reports = reports.subList(start, end);
-        }
-        
         return reports.stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
     
     /**
-     * Get recent reports for tenant
+     * Archive a report
      */
-    @Transactional(readOnly = true)
-    public List<ReportDTO> getRecentReports(Integer tenantId, int limit) {
-        TenantId tenant = TenantId.of(tenantId);
-        LocalDateTime since = LocalDateTime.now().minusDays(30); // Last 30 days
-        
-        List<ReportAggregate> reports = reportRepository.findByTenantAndCreatedSince(tenant, since);
-        
-        return reports.stream()
-                .limit(limit)
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-    }
-    
-    /**
-     * Get reports by type
-     */
-    @Transactional(readOnly = true)
-    public List<ReportDTO> getReportsByType(Integer tenantId, ReportType reportType) {
-        TenantId tenant = TenantId.of(tenantId);
-        
-        return reportRepository.findByTenantIdAndReportTypeOrderByCreatedAtDesc(tenant, reportType)
-                .stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-    }
-    
-    /**
-     * Archive a completed report
-     */
+    @Transactional
     public void archiveReport(Integer reportId, Integer tenantId) {
         TenantId tenant = TenantId.of(tenantId);
         
@@ -209,19 +249,16 @@ public class ReportApplicationService {
     }
     
     /**
-     * Delete a failed or cancelled report
+     * Delete a report
      */
+    @Transactional
     public void deleteReport(Integer reportId, Integer tenantId) {
         TenantId tenant = TenantId.of(tenantId);
         
         ReportAggregate report = reportRepository.findByIdAndTenant(reportId, tenant)
                 .orElseThrow(() -> new IllegalArgumentException("Report not found"));
         
-        if (report.getStatus() == ReportStatus.GENERATING) {
-            throw new IllegalStateException("Cannot delete report while generating");
-        }
-        
-        // Delete file if exists
+        // Delete physical file if exists
         if (report.getFilePath() != null) {
             reportGenerationService.deleteReportFile(report.getFilePath());
         }
@@ -230,188 +267,21 @@ public class ReportApplicationService {
     }
     
     /**
-     * Get report generation statistics
+     * Download a report
      */
     @Transactional(readOnly = true)
-    public ReportStatistics getReportStatistics(Integer tenantId) {
+    public byte[] downloadReport(Integer reportId, Integer tenantId) {
         TenantId tenant = TenantId.of(tenantId);
         
-        long totalReports = reportRepository.countByTenantAndStatus(tenant, null);
-        long completedReports = reportRepository.countByTenantAndStatus(tenant, ReportStatus.COMPLETED);
-        long failedReports = reportRepository.countByTenantAndStatus(tenant, ReportStatus.FAILED);
-        long generatingReports = reportRepository.countByTenantAndStatus(tenant, ReportStatus.GENERATING);
+        ReportAggregate report = reportRepository.findByIdAndTenant(reportId, tenant)
+                .orElseThrow(() -> new IllegalArgumentException("Report not found"));
         
-        return ReportStatistics.builder()
-                .totalReports(totalReports)
-                .completedReports(completedReports)
-                .failedReports(failedReports)
-                .generatingReports(generatingReports)
-                .totalFileSize(reportRepository.getTotalFileSizeByTenant(tenant))
-                .build();
-    }
-    
-    // ========== Private Helper Methods ==========
-        
-    /**
-     * Generate report asynchronously - Enhanced to support all report types
-     */
-    private void generateReportAsync(ReportAggregate report) {
-        // In a real implementation, this would use @Async or a message queue
-        try {
-            String filePath = null;
-            Long fileSize = null;
-            String contentData = null;
-            String contentFormat = "JSON";
-            
-            // Generate different report types using DDD services
-            switch (report.getReportType()) {
-                case INCOME_STATEMENT:
-                    var incomeData = incomeStatementDataService.getIncomeStatementData(
-                        report.getTenantId(), 
-                        report.getStartDate(), 
-                        report.getEndDate()
-                    );
-                    filePath = reportGenerationService.generateIncomeStatement(incomeData, report.getTenantId().getValue());
-                    // Convert to structured data for AI analysis
-                    contentData = convertIncomeStatementToJson(incomeData);
-                    break;
-                    
-                case BALANCE_SHEET:
-                    var balanceData = balanceSheetDataService.generateBalanceSheet(
-                        report.getTenantId().getValue(), 
-                        report.getEndDate()
-                    );
-                    filePath = reportGenerationService.generateBalanceSheet(balanceData, report.getTenantId().getValue());
-                    contentData = convertBalanceSheetToJson(balanceData);
-                    break;
-                    
-                case INCOME_EXPENSE:
-                    var expenseData = incomeExpenseDataService.generateIncomeExpenseReport(
-                        report.getTenantId(), 
-                        report.getEndDate()
-                    );
-                    filePath = reportGenerationService.generateIncomeExpense(expenseData, report.getTenantId().getValue());
-                    contentData = convertIncomeExpenseToJson(expenseData);
-                    break;
-                    
-                case FINANCIAL_GROUPING:
-                    var groupingData = financialGroupingDataService.getFinancialGroupingDataByTenant(
-                        report.getTenantId(), 
-                        report.getStartDate(), 
-                        report.getEndDate()
-                    );
-                    filePath = reportGenerationService.generateFinancialGrouping(groupingData, report.getTenantId().getValue());
-                    contentData = convertFinancialGroupingToJson(groupingData);
-                    break;
-                    
-                default:
-                    throw new IllegalArgumentException("Unsupported report type: " + report.getReportType());
-            }
-            
-            // Calculate file size
-            if (filePath != null) {
-                fileSize = reportGenerationService.getFileSize(filePath);
-            }
-            
-            // Complete generation with content data - Fixed method call
-            report.completeGeneration(filePath, fileSize, contentData, contentFormat);
-            
-            reportRepository.save(report);
-            
-        } catch (Exception e) {
-            // Use System.out.println instead of log since @Slf4j is not available
-            System.err.println("Report generation failed for report " + report.getReportId() + ": " + e.getMessage());
-            
-            report.failGeneration("Generation failed: " + e.getMessage());
-            reportRepository.save(report);
+        if (report.getStatus() != ReportStatus.COMPLETED) {
+            throw new IllegalStateException("Report is not ready for download");
         }
-    }
-
-    // Helper methods to convert data to JSON format for AI analysis
-    private String convertIncomeStatementToJson(Object incomeData) {
-        // Simple JSON conversion - in production use Jackson or similar
-        return String.format("{\"reportType\": \"INCOME_STATEMENT\", \"data\": \"%s\"}", 
-                            incomeData.toString().replace("\"", "\\\""));
-    }
-
-    private String convertBalanceSheetToJson(Object balanceData) {
-        return String.format("{\"reportType\": \"BALANCE_SHEET\", \"data\": \"%s\"}", 
-                            balanceData.toString().replace("\"", "\\\""));
-    }
-
-    private String convertIncomeExpenseToJson(Object expenseData) {
-        return String.format("{\"reportType\": \"INCOME_EXPENSE\", \"data\": \"%s\"}", 
-                            expenseData.toString().replace("\"", "\\\""));
-    }
-
-    private String convertFinancialGroupingToJson(Object groupingData) {
-        return String.format("{\"reportType\": \"FINANCIAL_GROUPING\", \"data\": \"%s\"}", 
-                            groupingData.toString().replace("\"", "\\\""));
-    }
-
-    /**
-     * Check if similar report already exists
-     */
-    private boolean isDuplicateReport(TenantId tenantId, GenerateReportCommand command) {
-        return reportRepository.existsSimilarReport(
-            tenantId,
-            command.getReportType(),
-            command.getStartDate(),
-            command.getEndDate()
-        );
-    }
-    
-    /**
-     * Prepare data for AI analysis
-     */
-    private String prepareAIAnalysisData(ReportAggregate report) {
-        // This would prepare structured data for AI analysis
-        return String.format("""
-            {
-                "reportId": %d,
-                "reportType": "%s",
-                "period": {
-                    "startDate": "%s",
-                    "endDate": "%s"
-                },
-                "companyId": %d,
-                "filePath": "%s",
-                "analysisEnabled": true
-            }
-            """, 
-            report.getReportId(),
-            report.getReportType(),
-            report.getStartDate(),
-            report.getEndDate(),
-            report.getTenantId().getValue(),
-            report.getFilePath()
-        );
-    }
-    
-    /**
-     * Convert aggregate to DTO
-     */
-    private ReportDTO convertToDTO(ReportAggregate report) {
-        return ReportDTO.builder()
-                .reportId(report.getReportId())
-                .reportName(report.getReportName())
-                .reportType(report.getReportType())
-                .status(report.getStatus())
-                .startDate(report.getStartDate())
-                .endDate(report.getEndDate())
-                .filePath(report.getFilePath())
-                .fileFormat(report.getFileFormat())
-                .fileSize(report.getFileSize())
-                .fileSizeFormatted(report.getFileSizeFormatted())
-                .aiAnalysisEnabled(report.getAiAnalysisEnabled())
-                .aiAnalysisStatus(report.getAiAnalysisStatus())
-                .createdBy(report.getCreatedBy())
-                .createdAt(report.getCreatedAt())
-                .completedAt(report.getCompletedAt())
-                .updatedAt(report.getUpdatedAt())
-                .errorMessage(report.getErrorMessage())
-                .periodDescription(report.getPeriodDescription())
-                .build();
+        
+        // File download implementation would go here
+        throw new UnsupportedOperationException("File download feature not yet implemented");
     }
     
     /**
@@ -421,106 +291,48 @@ public class ReportApplicationService {
         if (command == null) {
             throw new IllegalArgumentException("Generate report command cannot be null");
         }
-        
-        if (command.getTenantId() == null) {
-            throw new IllegalArgumentException("Tenant ID cannot be null");
-        }
-        
         if (command.getReportType() == null) {
-            throw new IllegalArgumentException("Report type cannot be null");
+            throw new IllegalArgumentException("Report type is required");
         }
-        
         if (command.getReportName() == null || command.getReportName().trim().isEmpty()) {
-            throw new IllegalArgumentException("Report name cannot be empty");
+            throw new IllegalArgumentException("Report name is required");
         }
-        
-        if (command.getStartDate() == null || command.getEndDate() == null) {
-            throw new IllegalArgumentException("Start date and end date cannot be null");
+        if (command.getTenantId() == null || command.getTenantId() <= 0) {
+            throw new IllegalArgumentException("Valid tenant ID is required");
         }
-        
+        if (command.getStartDate() == null) {
+            throw new IllegalArgumentException("Start date is required");
+        }
+        if (command.getEndDate() == null) {
+            throw new IllegalArgumentException("End date is required");
+        }
         if (command.getStartDate().isAfter(command.getEndDate())) {
             throw new IllegalArgumentException("Start date cannot be after end date");
-        }
-        
-        if (command.getCreatedBy() == null) {
-            throw new IllegalArgumentException("Creator user ID cannot be null");
         }
     }
     
     /**
-     * Report Statistics Inner Class
+     * Convert domain aggregate to DTO
      */
-    public static class ReportStatistics {
-        private final long totalReports;
-        private final long completedReports;
-        private final long failedReports;
-        private final long generatingReports;
-        private final long totalFileSize;
-        
-        private ReportStatistics(Builder builder) {
-            this.totalReports = builder.totalReports;
-            this.completedReports = builder.completedReports;
-            this.failedReports = builder.failedReports;
-            this.generatingReports = builder.generatingReports;
-            this.totalFileSize = builder.totalFileSize;
-        }
-        
-        public static Builder builder() {
-            return new Builder();
-        }
-        
-        // Getters
-        public long getTotalReports() { return totalReports; }
-        public long getCompletedReports() { return completedReports; }
-        public long getFailedReports() { return failedReports; }
-        public long getGeneratingReports() { return generatingReports; }
-        public long getTotalFileSize() { return totalFileSize; }
-        
-        public double getSuccessRate() {
-            return totalReports > 0 ? (double) completedReports / totalReports * 100 : 0;
-        }
-        
-        public String getTotalFileSizeFormatted() {
-            if (totalFileSize < 1024) return totalFileSize + " B";
-            if (totalFileSize < 1024 * 1024) return String.format("%.1f KB", totalFileSize / 1024.0);
-            return String.format("%.1f MB", totalFileSize / (1024.0 * 1024.0));
-        }
-        
-        public static class Builder {
-            private long totalReports;
-            private long completedReports;
-            private long failedReports;
-            private long generatingReports;
-            private long totalFileSize;
-            
-            public Builder totalReports(long totalReports) {
-                this.totalReports = totalReports;
-                return this;
-            }
-            
-            public Builder completedReports(long completedReports) {
-                this.completedReports = completedReports;
-                return this;
-            }
-            
-            public Builder failedReports(long failedReports) {
-                this.failedReports = failedReports;
-                return this;
-            }
-            
-            public Builder generatingReports(long generatingReports) {
-                this.generatingReports = generatingReports;
-                return this;
-            }
-            
-            public Builder totalFileSize(long totalFileSize) {
-                this.totalFileSize = totalFileSize;
-                return this;
-            }
-            
-            public ReportStatistics build() {
-                return new ReportStatistics(this);
-            }
-        }
+    private ReportDTO convertToDTO(ReportAggregate report) {
+        return ReportDTO.builder()
+                .reportId(report.getReportId())
+                .reportType(report.getReportType())
+                .reportName(report.getReportName())
+                .startDate(report.getStartDate())
+                .endDate(report.getEndDate())
+                .status(report.getStatus())
+                .filePath(report.getFilePath())
+                .fileFormat(report.getFileFormat())
+                .fileSize(report.getFileSize())
+                .createdAt(report.getCreatedAt())
+                .completedAt(report.getCompletedAt())
+                .updatedAt(report.getUpdatedAt())
+                .createdBy(report.getCreatedBy())
+                .errorMessage(report.getErrorMessage())
+                .periodDescription(report.getPeriodDescription())
+                .aiAnalysisEnabled(false) // Always false since AI is removed
+                .aiAnalysisStatus("DISABLED") // Always disabled
+                .build();
     }
 }
