@@ -1,106 +1,74 @@
 // frontend/src/views/Dashboard/ReportManagement.js
-
 import React, { useState, useEffect } from 'react';
 import {
-  Card, Table, Button, Space, Tag, Select, DatePicker, Input,
-  message, Modal, Tooltip, Progress, Typography, Row, Col, 
-  Statistic, Descriptions, Drawer, Alert, Spin, Divider, Empty
+  Card,
+  Table,
+  Button,
+  Space,
+  Tag,
+  Tooltip,
+  message,
+  Modal,
+  Drawer,
+  Typography,
+  Progress,
+  Alert,
+  Spin,
+  Empty,
+  Row,
+  Col,
+  Statistic
 } from 'antd';
 import {
-  FileTextOutlined, DownloadOutlined, DeleteOutlined, 
-  AlertOutlined, ReloadOutlined, SearchOutlined,
-  EyeOutlined, ClockCircleOutlined, CheckCircleOutlined,
-  ExclamationCircleOutlined, FileExcelOutlined, InfoCircleOutlined,
-  CalendarOutlined, UserOutlined, FolderOutlined, PlusOutlined
+  EyeOutlined,
+  DownloadOutlined,
+  DeleteOutlined,
+  BulbOutlined,
+  FileTextOutlined,
+  ReloadOutlined,
+  ExclamationCircleOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import ReportService from '../../services/reportService';
+import AIService from '../../services/aiService';
+import AuthService from '../../services/authService';
+import ReportInsightsDisplay from '../../components/ReportInsightsDisplay';
 
-const { RangePicker } = DatePicker;
 const { Title, Text } = Typography;
-const { Option } = Select;
-const { Search } = Input;
+const { confirm } = Modal;
 
 /**
- * Fixed Report Management Component - Fully functional
- * 
- * Features:
- * - Compatible with backend DDD API
- * - Proper error handling and loading states
- * - View report details with drawer
- * - Download reports with progress feedback
- * - Archive/Delete with confirmation
- * - Filter and search functionality
- * - Statistics dashboard with fallback
+ * Enhanced Report Management with AI Insights Integration
  */
 const ReportManagement = () => {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [insightsLoading, setInsightsLoading] = useState(false);
   const [statistics, setStatistics] = useState(null);
   const [selectedReport, setSelectedReport] = useState(null);
-  const [detailsVisible, setDetailsVisible] = useState(false);
-  const [serviceStatus, setServiceStatus] = useState('unknown');
-  const [filters, setFilters] = useState({
-    reportType: null,
-    status: null,
-    dateRange: null,
-    searchTerm: ''
-  });
-
-  // Get static options from service
-  const reportTypes = ReportService.getReportTypes();
-  const reportStatuses = ReportService.getReportStatuses();
+  const [reportInsights, setReportInsights] = useState({});
+  const [insightsDrawerVisible, setInsightsDrawerVisible] = useState(false);
+  const [previewDrawerVisible, setPreviewDrawerVisible] = useState(false);
+  
+  const currentUser = AuthService.getCurrentUser();
 
   useEffect(() => {
-    checkServiceHealth();
     fetchReports();
     fetchStatistics();
   }, []);
 
-  // Separate effect for filter changes to avoid infinite loops
-  useEffect(() => {
-    const delayedFetch = setTimeout(() => {
-      fetchReports();
-    }, 500);
-    
-    return () => clearTimeout(delayedFetch);
-  }, [filters]);
-
-  /**
-   * Check if backend service is running
-   */
-  const checkServiceHealth = async () => {
-    try {
-      const health = await ReportService.healthCheck();
-      setServiceStatus(health.status === 'success' ? 'healthy' : 'unhealthy');
-    } catch (error) {
-      setServiceStatus('unhealthy');
-    }
-  };
-
-  /**
-   * Fetch reports with filters
-   */
+  // Fetch reports list
   const fetchReports = async () => {
     setLoading(true);
     try {
-      const filterParams = {
-        page: 0,
-        size: 100,
-        ...filters,
-        startDate: filters.dateRange?.[0]?.format('YYYY-MM-DD'),
-        endDate: filters.dateRange?.[1]?.format('YYYY-MM-DD')
-      };
-      delete filterParams.dateRange; // Remove dateRange as we've converted it
-
-      console.log('Fetching reports with params:', filterParams);
+      console.log('Fetching reports...');
       
-      const response = await ReportService.getReports(filterParams);
+      const response = await ReportService.getReports({});
       console.log('Reports response:', response);
       
       // Handle different response formats from backend
       let reportData = [];
-      if (response && response.status === 'success' && response.data) {
+      if (response && response.data) {
         reportData = Array.isArray(response.data) ? response.data : [];
       } else if (Array.isArray(response)) {
         reportData = response;
@@ -113,6 +81,8 @@ const ReportManagement = () => {
       
       if (reportData.length === 0) {
         console.log('No reports found - this may be normal if no reports have been generated yet');
+      } else {
+        message.success(`Found ${reportData.length} reports`);
       }
       
     } catch (error) {
@@ -124,337 +94,178 @@ const ReportManagement = () => {
     }
   };
 
-  /**
-   * Fetch statistics with fallback
-   */
+  // Fetch statistics
   const fetchStatistics = async () => {
     try {
-      const response = await ReportService.getReportStatistics();
-      if (response && response.status === 'success' && response.data) {
-        setStatistics(response.data);
-      } else {
-        // Generate basic statistics from current reports
-        const stats = generateBasicStatistics(reports);
-        setStatistics(stats);
-      }
-    } catch (error) {
-      console.error('Error fetching statistics:', error);
-      // Generate basic statistics from current reports
-      const stats = generateBasicStatistics(reports);
+      const stats = await ReportService.getReportStatistics?.();
       setStatistics(stats);
-    }
-  };
-
-  /**
-   * Generate basic statistics from reports data as fallback
-   */
-  const generateBasicStatistics = (reportsData) => {
-    const total = reportsData.length;
-    const completed = reportsData.filter(r => r.status === 'COMPLETED').length;
-    const generating = reportsData.filter(r => r.status === 'GENERATING').length;
-    const failed = reportsData.filter(r => r.status === 'FAILED').length;
-    const archived = reportsData.filter(r => r.status === 'ARCHIVED').length;
-    
-    return {
-      totalReports: total,
-      completedReports: completed,
-      generatingReports: generating,
-      failedReports: failed,
-      archivedReports: archived
-    };
-  };
-
-  /**
-   * Handle view report details
-   */
-  const handleViewDetails = async (report) => {
-    try {
-      setSelectedReport(report);
-      setDetailsVisible(true);
-      
-      // Try to fetch full report details
-      try {
-        const response = await ReportService.getReport(report.reportId);
-        if (response && response.status === 'success' && response.data) {
-          setSelectedReport(response.data);
-        }
-      } catch (detailError) {
-        console.warn('Could not fetch detailed report info:', detailError);
-        // Continue with basic report data
-      }
     } catch (error) {
-      console.error('Error viewing report details:', error);
-      message.error('Failed to view report details: ' + error.message);
+      console.log('Statistics not available:', error.message);
     }
   };
 
-  /**
-   * Handle download report
-   */
-  const handleDownload = async (report) => {
-    if (report.status !== 'COMPLETED') {
-      message.warning('This report is not ready for download yet. Status: ' + report.status);
-      return;
-    }
-
-    const loadingMessage = message.loading('Downloading report...', 0);
-    
+  // Generate AI insights for a report
+  const generateInsights = async (report) => {
+    setInsightsLoading(true);
     try {
-      const result = await ReportService.downloadReport(report.reportId, report.reportName);
-      loadingMessage();
+      console.log('Generating insights for report:', report);
       
-      if (result && result.success) {
-        message.success('Report downloaded successfully: ' + result.fileName);
+      // Create report content summary for AI analysis
+      const reportContent = `Report Name: ${report.reportName}
+Report Type: ${report.reportType}
+Period: ${report.startDate || 'N/A'} to ${report.endDate || 'N/A'}
+Status: ${report.status}
+File Size: ${report.fileSize || 'Unknown'}
+Created: ${report.createdAt}
+Company ID: ${report.companyId}`;
+
+      const result = await AIService.reportInsight({
+        reportData: reportContent,
+        reportType: report.reportType
+      });
+
+      console.log('AI insights result:', result);
+
+      if (result.success) {
+        setReportInsights(prev => ({
+          ...prev,
+          [report.reportId]: result.data
+        }));
+        
+        setSelectedReport(report);
+        setInsightsDrawerVisible(true);
+        
+        message.success('AI insights generated successfully');
       } else {
-        message.success('Report download completed');
+        throw new Error(result.error || 'Failed to generate insights');
       }
+      
     } catch (error) {
-      loadingMessage();
-      console.error('Download error:', error);
+      console.error('Failed to generate insights:', error);
+      message.error('Failed to generate insights: ' + error.message);
+      
+      // Show error insights
+      setReportInsights(prev => ({
+        ...prev,
+        [report.reportId]: {
+          summary: 'Analysis failed',
+          insights: ['Unable to generate insights at this time'],
+          recommendations: ['Please check the report data and try again'],
+          confidence: 'low',
+          analysisDate: new Date().toISOString(),
+          status: 'error',
+          error: true,
+          errorMessage: error.message
+        }
+      }));
+      
+      setSelectedReport(report);
+      setInsightsDrawerVisible(true);
+    } finally {
+      setInsightsLoading(false);
+    }
+  };
+
+  // View report details
+  const viewReport = async (report) => {
+    try {
+      console.log('Viewing report:', report);
+      setSelectedReport(report);
+      setPreviewDrawerVisible(true);
+    } catch (error) {
+      console.error('Failed to load report:', error);
+      message.error('Failed to load report details');
+    }
+  };
+
+  // Download report
+  const downloadReport = async (report) => {
+    try {
+      console.log('Downloading report:', report);
+      
+      const response = await ReportService.downloadReport(report.reportId);
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${report.reportName}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      message.success('Report downloaded successfully');
+    } catch (error) {
+      console.error('Download failed:', error);
       message.error('Failed to download report: ' + error.message);
     }
   };
 
-  /**
-   * Handle archive report
-   */
-  const handleArchive = async (reportId) => {
-    try {
-      const response = await ReportService.archiveReport(reportId);
-      if (response && response.status === 'success') {
-        message.success('Report archived successfully');
-        fetchReports();
-        fetchStatistics();
-      } else {
-        message.error('Failed to archive report');
-      }
-    } catch (error) {
-      console.error('Archive error:', error);
-      message.error('Failed to archive report: ' + error.message);
-    }
-  };
-
-  /**
-   * Handle delete report with confirmation
-   */
-  const handleDelete = (report) => {
-    Modal.confirm({
+  // Delete report
+  const deleteReport = (report) => {
+    confirm({
       title: 'Delete Report',
-      content: `Are you sure you want to delete "${report.reportName}"? This action cannot be undone.`,
+      icon: <ExclamationCircleOutlined />,
+      content: `Are you sure you want to delete "${report.reportName}"?`,
       okText: 'Delete',
       okType: 'danger',
       cancelText: 'Cancel',
       onOk: async () => {
         try {
-          const response = await ReportService.deleteReport(report.reportId);
-          if (response && response.status === 'success') {
-            message.success('Report deleted successfully');
-            fetchReports();
-            fetchStatistics();
-          } else {
-            message.error('Failed to delete report');
-          }
+          await ReportService.deleteReport(report.reportId);
+          message.success('Report deleted successfully');
+          fetchReports(); // Refresh list
         } catch (error) {
-          console.error('Delete error:', error);
+          console.error('Delete failed:', error);
           message.error('Failed to delete report: ' + error.message);
         }
-      },
+      }
     });
   };
 
-  /**
-   * Reset all filters
-   */
-  const handleResetFilters = () => {
-    setFilters({
-      reportType: null,
-      status: null,
-      dateRange: null,
-      searchTerm: ''
-    });
-  };
+  // Report status configuration
+  const reportStatuses = [
+    { value: 'GENERATING', label: 'Generating', color: 'processing' },
+    { value: 'COMPLETED', label: 'Completed', color: 'success' },
+    { value: 'FAILED', label: 'Failed', color: 'error' },
+    { value: 'ARCHIVED', label: 'Archived', color: 'default' }
+  ];
 
-  /**
-   * Render service status alert
-   */
-  const renderServiceStatus = () => {
-    if (serviceStatus === 'unhealthy') {
-      return (
-        <Alert
-          message="Backend Service Unavailable"
-          description="The report service is not responding. Please check if the backend server is running on localhost:8085."
-          type="error"
-          showIcon
-          style={{ marginBottom: 16 }}
-          action={
-            <Button size="small" onClick={checkServiceHealth}>
-              <ReloadOutlined /> Retry
-            </Button>
-          }
-        />
-      );
-    }
-    return null;
-  };
-
-  /**
-   * Render statistics cards
-   */
-  const renderStatistics = () => {
-    const stats = statistics || generateBasicStatistics(reports);
-    
-    return (
-      <Row gutter={16} style={{ marginBottom: 24 }}>
-        <Col span={6}>
-          <Card size="small">
-            <Statistic
-              title="Total Reports"
-              value={stats.totalReports || 0}
-              prefix={<FileTextOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card size="small">
-            <Statistic
-              title="Completed"
-              value={stats.completedReports || 0}
-              prefix={<CheckCircleOutlined style={{ color: '#52c41a' }} />}
-              valueStyle={{ color: '#52c41a' }}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card size="small">
-            <Statistic
-              title="Generating"
-              value={stats.generatingReports || 0}
-              prefix={<ClockCircleOutlined style={{ color: '#1890ff' }} />}
-              valueStyle={{ color: '#1890ff' }}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card size="small">
-            <Statistic
-              title="Failed"
-              value={stats.failedReports || 0}
-              prefix={<ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />}
-              valueStyle={{ color: '#ff4d4f' }}
-            />
-          </Card>
-        </Col>
-      </Row>
-    );
-  };
-
-  /**
-   * Render filters
-   */
-  const renderFilters = () => (
-    <Card size="small" style={{ marginBottom: 16 }}>
-      <Row gutter={16} align="middle">
-        <Col span={5}>
-          <Select
-            placeholder="Filter by Type"
-            allowClear
-            style={{ width: '100%' }}
-            value={filters.reportType}
-            onChange={(value) => setFilters(prev => ({ ...prev, reportType: value }))}
-          >
-            {reportTypes.map(type => (
-              <Option key={type.value} value={type.value}>
-                {type.label}
-              </Option>
-            ))}
-          </Select>
-        </Col>
-        <Col span={5}>
-          <Select
-            placeholder="Filter by Status"
-            allowClear
-            style={{ width: '100%' }}
-            value={filters.status}
-            onChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
-          >
-            {reportStatuses.map(status => (
-              <Option key={status.value} value={status.value}>
-                {status.label}
-              </Option>
-            ))}
-          </Select>
-        </Col>
-        <Col span={6}>
-          <RangePicker
-            style={{ width: '100%' }}
-            value={filters.dateRange}
-            onChange={(dates) => setFilters(prev => ({ ...prev, dateRange: dates }))}
-            placeholder={['Start Date', 'End Date']}
-          />
-        </Col>
-        <Col span={5}>
-          <Search
-            placeholder="Search reports..."
-            value={filters.searchTerm}
-            onChange={(e) => setFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
-            onSearch={(value) => setFilters(prev => ({ ...prev, searchTerm: value }))}
-          />
-        </Col>
-        <Col span={3}>
-          <Space>
-            <Button onClick={handleResetFilters}>
-              Reset
-            </Button>
-            <Button type="primary" onClick={fetchReports} icon={<ReloadOutlined />}>
-              Refresh
-            </Button>
-          </Space>
-        </Col>
-      </Row>
-    </Card>
-  );
-
-  /**
-   * Get status tag color
-   */
-  const getStatusColor = (status) => {
+  const getStatusIcon = (status) => {
     switch (status) {
-      case 'COMPLETED': return 'green';
-      case 'GENERATING': return 'blue';
-      case 'FAILED': return 'red';
-      case 'ARCHIVED': return 'orange';
-      case 'PENDING': return 'default';
-      default: return 'default';
+      case 'GENERATING': return <Spin size="small" />;
+      case 'COMPLETED': return <FileTextOutlined style={{ color: '#52c41a' }} />;
+      case 'FAILED': return <ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />;
+      case 'ARCHIVED': return <FileTextOutlined style={{ color: '#d9d9d9' }} />;
+      default: return <FileTextOutlined />;
     }
   };
 
-  /**
-   * Format file size
-   */
-  const formatFileSize = (size) => {
-    if (!size) return '-';
-    if (size < 1024) return `${size} B`;
-    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-    return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-  };
+  // Report type configuration
+  const reportTypes = [
+    { value: 'BALANCE_SHEET', label: 'Balance Sheet' },
+    { value: 'INCOME_STATEMENT', label: 'Income Statement' },
+    { value: 'INCOME_EXPENSE', label: 'Income vs Expense' },
+    { value: 'CASH_FLOW', label: 'Cash Flow' },
+    { value: 'FINANCIAL_GROUPING', label: 'Financial Grouping' }
+  ];
 
-  /**
-   * Table columns definition
-   */
+  // Table columns
   const columns = [
     {
       title: 'Report Name',
       dataIndex: 'reportName',
       key: 'reportName',
-      width: 250,
-      render: (text, record) => (
-        <div>
-          <div style={{ fontWeight: 500 }}>{text}</div>
+      width: 300,
+      render: (name, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{name}</Text>
           <Text type="secondary" style={{ fontSize: '12px' }}>
             ID: {record.reportId}
           </Text>
-        </div>
-      ),
+        </Space>
+      )
     },
     {
       title: 'Type',
@@ -462,24 +273,9 @@ const ReportManagement = () => {
       key: 'reportType',
       width: 150,
       render: (type) => {
-        const typeInfo = reportTypes.find(t => t.value === type);
-        return (
-          <Tag color="blue">
-            {typeInfo ? typeInfo.label : type}
-          </Tag>
-        );
-      },
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      width: 120,
-      render: (status) => (
-        <Tag color={getStatusColor(status)}>
-          {status}
-        </Tag>
-      ),
+        const reportType = reportTypes.find(t => t.value === type);
+        return reportType ? reportType.label : type;
+      }
     },
     {
       title: 'Period',
@@ -487,27 +283,80 @@ const ReportManagement = () => {
       width: 200,
       render: (_, record) => {
         if (record.startDate && record.endDate) {
-          return `${record.startDate} to ${record.endDate}`;
-        }
-        if (record.endDate) {
-          return `As of ${record.endDate}`;
+          return `${dayjs(record.startDate).format('MM-DD')} to ${dayjs(record.endDate).format('MM-DD')}`;
+        } else if (record.endDate) {
+          return dayjs(record.endDate).format('YYYY-MM-DD');
         }
         return '-';
-      },
+      }
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      width: 120,
+      render: (status) => {
+        const statusConfig = reportStatuses.find(s => s.value === status);
+        return (
+          <Space>
+            {getStatusIcon(status)}
+            <Tag color={statusConfig?.color}>
+              {statusConfig?.label || status}
+            </Tag>
+          </Space>
+        );
+      }
+    },
+    {
+      title: 'Progress',
+      key: 'progress',
+      width: 100,
+      render: (_, record) => {
+        if (record.status === 'GENERATING') {
+          return <Progress percent={50} size="small" status="active" showInfo={false} />;
+        } else if (record.status === 'COMPLETED') {
+          return <Progress percent={100} size="small" status="success" showInfo={false} />;
+        } else if (record.status === 'FAILED') {
+          return <Progress percent={100} size="small" status="exception" showInfo={false} />;
+        }
+        return '-';
+      }
     },
     {
       title: 'Created',
       dataIndex: 'createdAt',
       key: 'createdAt',
       width: 150,
-      render: (date) => date ? dayjs(date).format('MMM DD, HH:mm') : '-',
+      render: (date) => dayjs(date).format('MM-DD HH:mm')
     },
     {
-      title: 'File Size',
-      dataIndex: 'fileSize',
+      title: 'Size',
+      dataIndex: 'fileSizeFormatted',
       key: 'fileSize',
-      width: 100,
-      render: formatFileSize,
+      width: 80,
+      render: (size, record) => size || (record.fileSize ? `${Math.round(record.fileSize / 1024)}KB` : '-')
+    },
+    {
+      title: 'AI Insights',
+      key: 'insights',
+      width: 120,
+      render: (_, record) => {
+        const hasInsights = reportInsights[record.reportId];
+        return (
+          <Space>
+            <Button
+              type={hasInsights ? "default" : "primary"}
+              icon={<BulbOutlined />}
+              size="small"
+              loading={insightsLoading}
+              onClick={() => generateInsights(record)}
+              disabled={record.status !== 'COMPLETED'}
+            >
+              {hasInsights ? 'View' : 'Generate'}
+            </Button>
+          </Space>
+        );
+      }
     },
     {
       title: 'Actions',
@@ -516,121 +365,95 @@ const ReportManagement = () => {
       render: (_, record) => (
         <Space>
           <Tooltip title="View Details">
-            <Button
-              type="text"
-              icon={<EyeOutlined />}
-              onClick={() => handleViewDetails(record)}
+            <Button 
+              icon={<EyeOutlined />} 
+              size="small"
+              onClick={() => viewReport(record)}
             />
           </Tooltip>
-          
-          {record.status === 'COMPLETED' && (
-            <Tooltip title="Download">
-              <Button
-                type="text"
-                icon={<DownloadOutlined />}
-                onClick={() => handleDownload(record)}
-              />
-            </Tooltip>
-          )}
-          
-          {record.status === 'COMPLETED' && (
-            <Tooltip title="Archive">
-              <Button
-                type="text"
-                icon={<FolderOutlined />}
-                onClick={() => handleArchive(record.reportId)}
-              />
-            </Tooltip>
-          )}
-          
-          {(record.status === 'FAILED' || record.status === 'ARCHIVED') && (
-            <Tooltip title="Delete">
-              <Button
-                type="text"
-                danger
-                icon={<DeleteOutlined />}
-                onClick={() => handleDelete(record)}
-              />
-            </Tooltip>
-          )}
+          <Tooltip title="Download">
+            <Button 
+              icon={<DownloadOutlined />} 
+              size="small"
+              onClick={() => downloadReport(record)}
+              disabled={record.status !== 'COMPLETED'}
+            />
+          </Tooltip>
+          <Tooltip title="Delete">
+            <Button 
+              icon={<DeleteOutlined />} 
+              size="small" 
+              danger
+              onClick={() => deleteReport(record)}
+            />
+          </Tooltip>
         </Space>
-      ),
-    },
+      )
+    }
   ];
 
-  /**
-   * Render report details drawer
-   */
-  const renderReportDetails = () => {
-    if (!selectedReport) return null;
-
-    return (
-      <Drawer
-        title="Report Details"
-        open={detailsVisible}
-        onClose={() => setDetailsVisible(false)}
-        width={600}
-      >
-        <Descriptions column={1} bordered>
-          <Descriptions.Item label="Report Name">
-            {selectedReport.reportName || 'Unnamed Report'}
-          </Descriptions.Item>
-          <Descriptions.Item label="Report Type">
-            <Tag color="blue">
-              {reportTypes.find(t => t.value === selectedReport.reportType)?.label || selectedReport.reportType}
-            </Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="Status">
-            <Tag color={getStatusColor(selectedReport.status)}>
-              {selectedReport.status}
-            </Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="Report Period">
-            {selectedReport.startDate && selectedReport.endDate
-              ? `${selectedReport.startDate} to ${selectedReport.endDate}`
-              : selectedReport.endDate 
-              ? `As of ${selectedReport.endDate}`
-              : 'Not specified'}
-          </Descriptions.Item>
-          <Descriptions.Item label="Created At">
-            {selectedReport.createdAt 
-              ? dayjs(selectedReport.createdAt).format('YYYY-MM-DD HH:mm:ss')
-              : 'Unknown'}
-          </Descriptions.Item>
-          <Descriptions.Item label="File Path">
-            {selectedReport.filePath || 'Not available'}
-          </Descriptions.Item>
-          <Descriptions.Item label="File Size">
-            {formatFileSize(selectedReport.fileSize)}
-          </Descriptions.Item>
-          <Descriptions.Item label="AI Analysis">
-            {selectedReport.aiAnalysisEnabled ? 'Enabled' : 'Disabled'}
-          </Descriptions.Item>
-        </Descriptions>
-        
-        {selectedReport.status === 'COMPLETED' && (
-          <div style={{ marginTop: 16 }}>
-            <Button 
-              type="primary" 
-              icon={<DownloadOutlined />}
-              onClick={() => handleDownload(selectedReport)}
-            >
-              Download Report
-            </Button>
-          </div>
-        )}
-      </Drawer>
-    );
-  };
-
   return (
-    <div>
-      <Title level={2}>Report Management</Title>
-      
-      {renderServiceStatus()}
-      {renderStatistics()}
-      {renderFilters()}
-      
+    <div style={{ padding: '24px' }}>
+      {/* Header */}
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Title level={2}>Report Management</Title>
+          <Space>
+            <Button 
+              icon={<ReloadOutlined />} 
+              onClick={fetchReports}
+              loading={loading}
+            >
+              Refresh
+            </Button>
+          </Space>
+        </div>
+      </div>
+
+      {/* Statistics Cards */}
+      {statistics && (
+        <Row gutter={16} style={{ marginBottom: '24px' }}>
+          <Col span={6}>
+            <Card>
+              <Statistic 
+                title="Total Reports" 
+                value={statistics.totalReports || 0} 
+                prefix={<FileTextOutlined />}
+              />
+            </Card>
+          </Col>
+          <Col span={6}>
+            <Card>
+              <Statistic 
+                title="Completed" 
+                value={statistics.completedReports || 0} 
+                valueStyle={{ color: '#3f8600' }}
+              />
+            </Card>
+          </Col>
+          <Col span={6}>
+            <Card>
+              <Statistic 
+                title="Processing" 
+                value={statistics.processingReports || 0} 
+                valueStyle={{ color: '#1890ff' }}
+              />
+            </Card>
+          </Col>
+          <Col span={6}>
+            <Card>
+              <Statistic 
+                title="With AI Insights" 
+                value={Object.keys(reportInsights).length} 
+                valueStyle={{ color: '#722ed1' }}
+                prefix={<BulbOutlined />}
+              />
+            </Card>
+          </Col>
+        </Row>
+      )}
+
+      {/* Reports Table */}
       <Card>
         <Table
           columns={columns}
@@ -641,31 +464,159 @@ const ReportManagement = () => {
             pageSize: 10,
             showSizeChanger: true,
             showQuickJumper: true,
-            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} reports`,
+            showTotal: (total) => `Total ${total} reports`
           }}
           locale={{
             emptyText: (
               <Empty
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description={
-                  <span>
-                    No reports found
-                    <br />
-                    <Button 
-                      type="link" 
-                      onClick={() => window.location.href = '/dashboard/financial-reports'}
-                    >
-                      Generate your first report
-                    </Button>
-                  </span>
-                }
+                description="No reports found"
               />
-            ),
+            )
           }}
         />
       </Card>
-      
-      {renderReportDetails()}
+
+      {/* AI Insights Drawer */}
+      <Drawer
+        title={
+          <Space>
+            <BulbOutlined />
+            <span>AI Analysis Insights</span>
+            {selectedReport && (
+              <Tag color="blue">{selectedReport.reportType}</Tag>
+            )}
+          </Space>
+        }
+        width={800}
+        open={insightsDrawerVisible}
+        onClose={() => setInsightsDrawerVisible(false)}
+        extra={
+          <Space>
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={() => selectedReport && generateInsights(selectedReport)}
+              loading={insightsLoading}
+            >
+              Refresh
+            </Button>
+          </Space>
+        }
+      >
+        {selectedReport && (
+          <>
+            {/* Report Info */}
+            <Alert
+              message={`Report: ${selectedReport.reportName}`}
+              description={`Type: ${selectedReport.reportType} | Status: ${selectedReport.status} | Created: ${dayjs(selectedReport.createdAt).format('YYYY-MM-DD HH:mm')}`}
+              type="info"
+              style={{ marginBottom: 16 }}
+            />
+            
+            {/* AI Insights Display */}
+            <ReportInsightsDisplay
+              insights={reportInsights[selectedReport.reportId]}
+              loading={insightsLoading}
+              onRefresh={() => generateInsights(selectedReport)}
+              reportName={selectedReport.reportName}
+              reportType={selectedReport.reportType}
+            />
+          </>
+        )}
+      </Drawer>
+
+      {/* Report Preview Drawer */}
+      <Drawer
+        title={
+          <Space>
+            <FileTextOutlined />
+            <span>Report Details</span>
+          </Space>
+        }
+        width={600}
+        open={previewDrawerVisible}
+        onClose={() => setPreviewDrawerVisible(false)}
+      >
+        {selectedReport && (
+          <div>
+            <Space direction="vertical" style={{ width: '100%' }} size="middle">
+              <Card title="Basic Information" size="small">
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Text strong>Report Name:</Text>
+                    <div>{selectedReport.reportName}</div>
+                  </Col>
+                  <Col span={12}>
+                    <Text strong>Type:</Text>
+                    <div>
+                      <Tag color="blue">
+                        {reportTypes.find(t => t.value === selectedReport.reportType)?.label || selectedReport.reportType}
+                      </Tag>
+                    </div>
+                  </Col>
+                  <Col span={12}>
+                    <Text strong>Status:</Text>
+                    <div>
+                      <Space>
+                        {getStatusIcon(selectedReport.status)}
+                        <Tag color={reportStatuses.find(s => s.value === selectedReport.status)?.color}>
+                          {reportStatuses.find(s => s.value === selectedReport.status)?.label || selectedReport.status}
+                        </Tag>
+                      </Space>
+                    </div>
+                  </Col>
+                  <Col span={12}>
+                    <Text strong>File Size:</Text>
+                    <div>{selectedReport.fileSizeFormatted || (selectedReport.fileSize ? `${Math.round(selectedReport.fileSize / 1024)}KB` : 'Unknown')}</div>
+                  </Col>
+                </Row>
+              </Card>
+
+              <Card title="Time Information" size="small">
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Text strong>Created At:</Text>
+                    <div>{dayjs(selectedReport.createdAt).format('YYYY-MM-DD HH:mm:ss')}</div>
+                  </Col>
+                  <Col span={12}>
+                    <Text strong>Period:</Text>
+                    <div>
+                      {selectedReport.startDate && selectedReport.endDate
+                        ? `${dayjs(selectedReport.startDate).format('YYYY-MM-DD')} to ${dayjs(selectedReport.endDate).format('YYYY-MM-DD')}`
+                        : selectedReport.endDate
+                        ? dayjs(selectedReport.endDate).format('YYYY-MM-DD')
+                        : 'Not specified'}
+                    </div>
+                  </Col>
+                </Row>
+              </Card>
+
+              <Card title="Actions" size="small">
+                <Space>
+                  <Button
+                    type="primary"
+                    icon={<BulbOutlined />}
+                    onClick={() => {
+                      setPreviewDrawerVisible(false);
+                      generateInsights(selectedReport);
+                    }}
+                    disabled={selectedReport.status !== 'COMPLETED'}
+                  >
+                    Generate AI Insights
+                  </Button>
+                  <Button
+                    icon={<DownloadOutlined />}
+                    onClick={() => downloadReport(selectedReport)}
+                    disabled={selectedReport.status !== 'COMPLETED'}
+                  >
+                    Download Report
+                  </Button>
+                </Space>
+              </Card>
+            </Space>
+          </div>
+        )}
+      </Drawer>
     </div>
   );
 };

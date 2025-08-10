@@ -2,181 +2,424 @@
 import axios from 'axios';
 import AuthService from './authService';
 
-const API_BASE_URL = 'http://localhost:8085/api/ai';
+const API_BASE_URL = process.env.REACT_APP_API_URL ? 
+  `${process.env.REACT_APP_API_URL}/api/ai` : 
+  'http://localhost:8085/api/ai';
 
-// Get authentication headers (optional, supports both login/no-login scenarios)
+// Get auth header helper
 const getAuthHeader = () => {
-  const user = AuthService.getCurrentUser && AuthService.getCurrentUser();
-  return user && user.token
-    ? { headers: { Authorization: `Bearer ${user.token}` } }
-    : {};
+  const user = AuthService.getCurrentUser();
+  return user && user.token ? 
+    { headers: { Authorization: `Bearer ${user.token}` } } : 
+    {};
 };
 
 const AIService = {
-  // Enhanced transaction
-  classifyTransaction: async (data) => {
-    return (await axios.post(`${API_BASE_URL}/enhance-transaction`, data, getAuthHeader())).data;
-  },
-  // Financial Q&A
-  askFinancialQuestion: async (data) => {
-    return (await axios.post(`${API_BASE_URL}/ask-financial-question`, data, getAuthHeader())).data;
-  },
-  // Category suggestions
-  categorySuggestions: async (data) => {
-    return (await axios.post(`${API_BASE_URL}/category-suggestions`, data, getAuthHeader())).data;
-  },
-  // Single anomaly detection - FIXED: Added missing function
-  detectAnomaly: async (data) => {
-    return (await axios.post(`${API_BASE_URL}/detect-anomaly`, data, getAuthHeader())).data;
-  },
-  // Batch anomaly detection
-  detectAnomalies: async (params) => {
-    return (await axios.get(`${API_BASE_URL}/detect-anomalies`, { ...getAuthHeader(), params })).data;
-  },
-  // Smart report insights
+  /**
+   * Enhanced report insights with better error handling and response formatting
+   */
   reportInsight: async (params) => {
-    return (await axios.get(`${API_BASE_URL}/report-insights`, { ...getAuthHeader(), params })).data;
+    try {
+      console.log('Requesting report insights with params:', params);
+      
+      const response = await axios.get(`${API_BASE_URL}/report-insights`, { 
+        ...getAuthHeader(), 
+        params 
+      });
+      
+      console.log('Raw AI response:', response.data);
+      
+      // Handle different response formats
+      if (response.data && typeof response.data === 'object') {
+        // Already structured response
+        return {
+          success: true,
+          data: response.data
+        };
+      } else {
+        // Fallback for string responses
+        return {
+          success: true,
+          data: {
+            summary: 'Analysis completed',
+            insights: [response.data || 'No insights available'],
+            confidence: 'medium',
+            analysisDate: new Date().toISOString(),
+            status: 'completed'
+          }
+        };
+      }
+    } catch (error) {
+      console.error('Report insight request failed:', error);
+      
+      // Return structured error response
+      return {
+        success: false,
+        error: error.message,
+        data: {
+          summary: 'Analysis failed',
+          insights: ['Unable to generate insights at this time'],
+          recommendations: ['Please check your connection and try again'],
+          confidence: 'low',
+          analysisDate: new Date().toISOString(),
+          status: 'error',
+          error: true,
+          errorMessage: error.message
+        }
+      };
+    }
   },
-  // Financial analysis
+
+  /**
+   * Enhanced transaction classification
+   */
+  classifyTransaction: async (data) => {
+    try {
+      console.log('Classifying transaction:', data);
+      
+      const response = await axios.post(`${API_BASE_URL}/enhance-transaction`, data, getAuthHeader());
+      
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Transaction classification failed:', error);
+      return {
+        success: false,
+        error: error.message,
+        data: {
+          status: 'error',
+          enhancement: {
+            description: data.description,
+            confidence: 'low',
+            error: true
+          }
+        }
+      };
+    }
+  },
+
+  /**
+   * Enhanced financial Q&A
+   */
+  askFinancialQuestion: async (data) => {
+    try {
+      console.log('Asking financial question:', data);
+      
+      const response = await axios.post(`${API_BASE_URL}/ask-financial-question`, data, getAuthHeader());
+      
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Financial Q&A failed:', error);
+      return {
+        success: false,
+        error: error.message,
+        data: {
+          status: 'error',
+          answer: 'Unable to process your question at this time. Please try again later.',
+          confidence: 'low'
+        }
+      };
+    }
+  },
+
+  /**
+   * Enhanced category suggestions
+   */
+  categorySuggestions: async (data) => {
+    try {
+      console.log('Getting category suggestions:', data);
+      
+      const response = await axios.post(`${API_BASE_URL}/category-suggestions`, data, getAuthHeader());
+      
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Category suggestions failed:', error);
+      return {
+        success: false,
+        error: error.message,
+        data: {
+          status: 'error',
+          suggestions: [{
+            categoryCode: 'GENERAL',
+            categoryName: 'General Expense',
+            chineseName: '一般费用',
+            confidence: 'low',
+            reason: 'Default category due to service error',
+            error: true
+          }]
+        }
+      };
+    }
+  },
+
+  /**
+   * Enhanced single anomaly detection
+   */
+  detectAnomaly: async (data) => {
+    try {
+      console.log('Detecting anomaly:', data);
+      
+      const response = await axios.post(`${API_BASE_URL}/detect-anomaly`, data, getAuthHeader());
+      
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Anomaly detection failed:', error);
+      return {
+        success: false,
+        error: error.message,
+        data: {
+          status: 'error',
+          result: {
+            anomalous: false,
+            anomalyScore: 0.0,
+            confidence: 'low',
+            reason: 'Analysis failed: ' + error.message,
+            error: true
+          }
+        }
+      };
+    }
+  },
+
+  /**
+   * Enhanced batch anomaly detection
+   */
+  detectAnomalies: async (params) => {
+    try {
+      console.log('Detecting batch anomalies:', params);
+      
+      const response = await axios.get(`${API_BASE_URL}/detect-anomalies`, { 
+        ...getAuthHeader(), 
+        params 
+      });
+      
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Batch anomaly detection failed:', error);
+      return {
+        success: false,
+        error: error.message,
+        data: {
+          status: 'error',
+          anomalies: [],
+          totalCount: 0
+        }
+      };
+    }
+  },
+
+  /**
+   * Enhanced financial analysis
+   */
   analyze: async (data) => {
-    return (await axios.post(`${API_BASE_URL}/analyze`, data, getAuthHeader())).data;
+    try {
+      console.log('Starting financial analysis:', data);
+      
+      const response = await axios.post(`${API_BASE_URL}/analyze`, data, getAuthHeader());
+      
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Financial analysis failed:', error);
+      return {
+        success: false,
+        error: error.message,
+        data: {
+          status: 'error',
+          summary: 'Analysis temporarily unavailable',
+          insights: ['Please try again later']
+        }
+      };
+    }
   },
-  // Smart recommendations
+
+  /**
+   * Enhanced smart recommendations
+   */
   recommend: async (data) => {
-    return (await axios.post(`${API_BASE_URL}/recommend`, data, getAuthHeader())).data;
+    try {
+      console.log('Getting smart recommendations:', data);
+      
+      const response = await axios.post(`${API_BASE_URL}/recommend`, data, getAuthHeader());
+      
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Smart recommendations failed:', error);
+      return {
+        success: false,
+        error: error.message,
+        data: {
+          status: 'error',
+          recommendations: ['Service temporarily unavailable']
+        }
+      };
+    }
   },
-  // Health check
+
+  /**
+   * Health check
+   */
   healthCheck: async () => {
-    return (await axios.get(`${API_BASE_URL}/health`, getAuthHeader())).data;
+    try {
+      const response = await axios.get(`${API_BASE_URL}/health`, getAuthHeader());
+      
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('AI health check failed:', error);
+      return {
+        success: false,
+        error: error.message,
+        data: {
+          status: 'unhealthy',
+          service: 'AI Analysis Service',
+          error: error.message
+        }
+      };
+    }
   },
-  // AI provider info
+
+  /**
+   * AI provider info
+   */
   providerName: async () => {
-    return (await axios.get(`${API_BASE_URL}/provider`, getAuthHeader())).data;
+    try {
+      const response = await axios.get(`${API_BASE_URL}/provider`, getAuthHeader());
+      
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Failed to get AI provider info:', error);
+      return {
+        success: false,
+        error: error.message,
+        data: {
+          status: 'error',
+          provider: {
+            name: 'Unknown',
+            version: 'Unknown',
+            available: false
+          }
+        }
+      };
+    }
   }
 };
 
-// Export all methods
-export const classifyTransaction = AIService.classifyTransaction;
-export const askFinancialQuestion = AIService.askFinancialQuestion;
-export const categorySuggestions = AIService.categorySuggestions;
-export const detectAnomaly = AIService.detectAnomaly;  // FIXED: Added missing export
-export const detectAnomalies = AIService.detectAnomalies;
-export const reportInsight = AIService.reportInsight;
-export const analyze = AIService.analyze;
-export const recommend = AIService.recommend;
-export const healthCheck = AIService.healthCheck;
-export const providerName = AIService.providerName;
-
-// Enhanced AI response formatting for better user experience
+/**
+ * Enhanced AI response formatting for better user experience
+ */
 export function formatAIResult(result) {
-  // Single Anomaly Detection Result - NEW: Better formatting
-  if (result.anomalous !== undefined || result.isAnomalous !== undefined) {
-    const isAnomalous = result.anomalous || result.isAnomalous;
-    return `【Anomaly Detection Result】
-▶ Status: ${isAnomalous ? '⚠️ ANOMALOUS' : '✅ Normal'}
-▶ Anomaly Score: ${result.anomalyScore || 'N/A'}
-▶ Risk Level: ${result.riskLevel || (result.anomalyScore > 0.7 ? 'High' : result.anomalyScore > 0.4 ? 'Medium' : 'Low')}
-▶ Type: ${result.anomalyType || 'General'}
-▶ Confidence: ${result.confidence || 'Medium'}
-${result.reason ? `▶ Reason: ${result.reason}` : ''}
-${result.recommendations && result.recommendations.length > 0 ? 
-  `▶ Recommendations:\n${result.recommendations.map(r => '  • ' + r).join('\n')}` : ''}`;
+  // Handle structured insights response
+  if (result && typeof result === 'object') {
+    // Report Insights with structured format
+    if (result.insights && Array.isArray(result.insights)) {
+      let formatted = `【AI Analysis Results】\n\n`;
+      
+      if (result.summary) {
+        formatted += `📋 Summary:\n${result.summary}\n\n`;
+      }
+      
+      if (result.insights.length > 0) {
+        formatted += `💡 Key Insights:\n`;
+        result.insights.forEach((insight, index) => {
+          formatted += `${index + 1}. ${insight}\n`;
+        });
+        formatted += '\n';
+      }
+      
+      if (result.anomalies && result.anomalies.length > 0) {
+        formatted += `⚠️ Anomalies:\n`;
+        result.anomalies.forEach((anomaly, index) => {
+          formatted += `${index + 1}. ${anomaly}\n`;
+        });
+        formatted += '\n';
+      }
+      
+      if (result.recommendations && result.recommendations.length > 0) {
+        formatted += `🎯 Recommendations:\n`;
+        result.recommendations.forEach((rec, index) => {
+          formatted += `${index + 1}. ${rec}\n`;
+        });
+        formatted += '\n';
+      }
+      
+      if (result.confidence) {
+        formatted += `📊 Confidence: ${result.confidence.toUpperCase()}\n`;
+      }
+      
+      if (result.analysisDate) {
+        formatted += `🕒 Analysis Date: ${new Date(result.analysisDate).toLocaleString()}\n`;
+      }
+      
+      return formatted;
+    }
+    
+    // Single Anomaly Detection Result
+    if (result.anomalous !== undefined || result.isAnomalous !== undefined) {
+      const isAnomalous = result.anomalous || result.isAnomalous;
+      let formatted = `【Anomaly Detection Result】\n`;
+      formatted += `▶ Status: ${isAnomalous ? '⚠️ ANOMALOUS' : '✅ Normal'}\n`;
+      formatted += `▶ Anomaly Score: ${result.anomalyScore || 'N/A'}\n`;
+      formatted += `▶ Risk Level: ${result.riskLevel || (result.anomalyScore > 0.7 ? 'High' : result.anomalyScore > 0.4 ? 'Medium' : 'Low')}\n`;
+      formatted += `▶ Type: ${result.anomalyType || 'General'}\n`;
+      formatted += `▶ Confidence: ${result.confidence || 'Medium'}\n`;
+      if (result.reason) {
+        formatted += `▶ Reason: ${result.reason}\n`;
+      }
+      if (result.recommendations && result.recommendations.length > 0) {
+        formatted += `▶ Recommendations: ${result.recommendations.join(', ')}\n`;
+      }
+      return formatted;
+    }
+    
+    // Batch Anomaly Detection Results
+    if (result.anomalies && Array.isArray(result.anomalies)) {
+      let formatted = `【Batch Anomaly Detection Results】\n`;
+      formatted += `▶ Total Analyzed: ${result.totalCount || result.anomalies.length}\n`;
+      formatted += `▶ Anomalies Found: ${result.anomalies.filter(a => a.anomalous || a.isAnomalous).length}\n\n`;
+      
+      if (result.anomalies.length > 0) {
+        formatted += `📋 Detected Anomalies:\n`;
+        result.anomalies
+          .filter(item => item.anomalous || item.isAnomalous)
+          .forEach((item, index) => {
+            formatted += `${index + 1}. ${item.description || 'Transaction'}\n`;
+            formatted += `   Amount: ${item.amount || 'N/A'}\n`;
+            formatted += `   Score: ${item.anomalyScore || 'N/A'}\n`;
+            formatted += `   Type: ${item.anomalyType || 'General'}\n\n`;
+          });
+      } else {
+        formatted += `✅ No anomalies detected.\n`;
+      }
+      
+      return formatted;
+    }
   }
-
-  // Enhanced Transaction
-  if (result.aiClassification && result.anomalyDetection) {
-    const c = result.aiClassification;
-    const a = result.anomalyDetection;
-    return `【AI Enhanced Transaction Result】
-▶ Category: ${c.category} (Confidence: ${c.confidence})
-▶ Reason: ${c.reason}
-▶ Alternative Categories: ${(c.alternativeCategories || []).join(', ')}
-▶ Require Review: ${c.requireReview ? 'Yes' : 'No'}
-
-▶ Anomaly Detection: ${a.anomalous ? '⚠️ Abnormal' : '✅ Normal'}
-▶ Anomaly Score: ${a.anomalyScore}
-▶ Type: ${a.anomalyType}
-▶ Recommendations: ${(a.recommendations || []).join(', ')}
-
-AI Enhancement Time: ${result.enhancementTimestamp}`;
-  }
-
-  // Financial Analysis
-  if (result.summary && result.highlights && result.suggestions) {
-    return `【AI Financial Analysis】
-▶ Summary:
-${result.summary}
-
-▶ Key Highlights:
-${(result.highlights || []).map(h => '✓ ' + h).join('\n')}
-
-▶ Risk Factors:
-${(result.risks || []).map(r => '⚠️ ' + r).join('\n')}
-
-▶ Recommendations:
-${(result.suggestions || []).map(s => '💡 ' + s).join('\n')}
-
-▶ Analysis Confidence: ${result.confidence || 'Medium'}`;
-  }
-
-  // Q&A
-  if (result.answer && result.confidence) {
-    return `【AI Financial Q&A】
-▶ Answer: ${result.answer}
-▶ Confidence: ${result.confidence}
-▶ Has Numeric Data: ${result.hasNumericData ? 'Yes' : 'No'}
-▶ Data Sources: ${(result.dataSources || []).join(', ')}
-${result.relatedData ? '▶ Related Data: ' + JSON.stringify(result.relatedData, null, 2) : ''}`;
-  }
-
-  // Recommendations
-  if (result.recommendations && result.reasoning !== undefined) {
-    return `【AI Recommendations】
-${(result.recommendations || []).map(r => '💡 ' + r).join('\n')}
-
-▶ Reasoning: ${result.reasoning}
-▶ Confidence: ${result.confidence}`;
-  }
-
-  // Category Suggestions
-  if (Array.isArray(result) && result[0] && result[0].categoryCode) {
-    return result.map(
-      item =>
-        `【Category Suggestion】
-▶ Code: ${item.categoryCode}
-▶ Name: ${item.categoryName}
-▶ Chinese Name: ${item.chineseName}
-▶ Confidence: ${item.confidence}
-▶ Reason: ${item.reason}\n`
-    ).join('\n');
-  }
-
-  // Batch Anomaly Detection
-  if (Array.isArray(result) && result[0] && result[0].description && result[0].anomalyScore !== undefined) {
-    return result.map(
-      item =>
-        `【Transaction Anomaly Analysis】
-▶ Description: ${item.description}
-▶ Amount: ${item.amount}
-▶ Date: ${item.transactionDate}
-▶ Category: ${item.category}
-▶ Status: ${item.anomalyScore > 0.5 ? '⚠️ Suspicious' : '✅ Normal'}
-▶ Anomaly Score: ${item.anomalyScore}
-▶ Type: ${item.anomalyType}
-▶ Recommendations: ${(item.recommendations || []).join(', ')}\n`
-    ).join('\n');
-  }
-
-  // Report Insights
-  if (result.insights && Array.isArray(result.insights)) {
-    return `【Report Insights】
-${result.insights.map(insight => '📊 ' + insight).join('\n')}
-
-${result.summary ? `▶ Summary: ${result.summary}` : ''}
-${result.trends ? `▶ Trends: ${result.trends.join(', ')}` : ''}
-${result.recommendations ? `▶ Recommendations:\n${result.recommendations.map(r => '💡 ' + r).join('\n')}` : ''}`;
-  }
-
+  
   // Default: enhanced JSON formatting
   if (typeof result === 'object') {
     try {
@@ -188,5 +431,17 @@ ${result.recommendations ? `▶ Recommendations:\n${result.recommendations.map(r
   
   return String(result);
 }
+
+// Export all methods for compatibility
+export const classifyTransaction = AIService.classifyTransaction;
+export const askFinancialQuestion = AIService.askFinancialQuestion;
+export const categorySuggestions = AIService.categorySuggestions;
+export const detectAnomaly = AIService.detectAnomaly;
+export const detectAnomalies = AIService.detectAnomalies;
+export const reportInsight = AIService.reportInsight;
+export const analyze = AIService.analyze;
+export const recommend = AIService.recommend;
+export const healthCheck = AIService.healthCheck;
+export const providerName = AIService.providerName;
 
 export default AIService;

@@ -263,4 +263,9 @@ public class TransactionStatus {
     public String toString() {
         return status.getDisplayName() + " (" + status.getCode() + ")";
     }
+
+    public static Object completed() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'completed'");
+    }
 }
