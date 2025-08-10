@@ -233,6 +233,72 @@ public class ReportApplicationService {
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
+
+        /**
+     * Get recent reports with limit
+     * 
+     * @param tenantId The tenant ID
+     * @param limit Maximum number of reports to return
+     * @return List of recent reports ordered by creation date
+     */
+    @Transactional(readOnly = true)
+    public List<ReportDTO> getRecentReports(Integer tenantId, int limit) {
+        TenantId tenant = TenantId.of(tenantId);
+        
+        // Calculate datetime threshold for "recent" (e.g., last 30 days)
+        LocalDateTime since = LocalDateTime.now().minusDays(30);
+        
+        List<ReportAggregate> reports = reportRepository.findByTenantAndCreatedSince(tenant, since);
+        
+        return reports.stream()
+                .map(this::convertToDTO)
+                .limit(limit)
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * Get reports filtered by type
+     * 
+     * @param tenantId The tenant ID
+     * @param reportType The report type to filter by
+     * @return List of reports of the specified type ordered by creation date
+     */
+    @Transactional(readOnly = true)
+    public List<ReportDTO> getReportsByType(Integer tenantId, ReportType reportType) {
+        TenantId tenant = TenantId.of(tenantId);
+        
+        List<ReportAggregate> reports = reportRepository.findByTenantIdAndReportTypeOrderByCreatedAtDesc(tenant, reportType);
+        
+        return reports.stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * Get comprehensive report statistics for a tenant
+     * 
+     * @param tenantId The tenant ID
+     * @return Report statistics including counts and file sizes
+     */
+    @Transactional(readOnly = true)
+    public ReportStatistics getReportStatistics(Integer tenantId) {
+        TenantId tenant = TenantId.of(tenantId);
+        
+        long totalReports = reportRepository.countByTenantAndStatus(tenant, null);
+        long completedReports = reportRepository.countByTenantAndStatus(tenant, ReportStatus.COMPLETED);
+        long failedReports = reportRepository.countByTenantAndStatus(tenant, ReportStatus.FAILED);
+        long generatingReports = reportRepository.countByTenantAndStatus(tenant, ReportStatus.GENERATING);
+        long totalFileSize = reportRepository.getTotalFileSizeByTenant(tenant);
+        
+        return ReportStatistics.builder()
+                .totalReports(totalReports)
+                .completedReports(completedReports)
+                .failedReports(failedReports)
+                .generatingReports(generatingReports)
+                .totalFileSize(totalFileSize)
+                .build();
+    }
+
     
     /**
      * Archive a report
@@ -334,5 +400,43 @@ public class ReportApplicationService {
                 .aiAnalysisEnabled(false) // Always false since AI is removed
                 .aiAnalysisStatus("DISABLED") // Always disabled
                 .build();
+    }
+
+        /**
+     * Inner class for report statistics
+     */
+    @lombok.Data
+    @lombok.Builder
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
+    public static class ReportStatistics {
+        private long totalReports;
+        private long completedReports;
+        private long failedReports;
+        private long generatingReports;
+        private long totalFileSize;
+        
+        /**
+         * Get formatted file size
+         * @return Formatted file size string
+         */
+        public String getTotalFileSizeFormatted() {
+            return formatFileSize(totalFileSize);
+        }
+        
+        /**
+         * Format file size in human readable format
+         */
+        private String formatFileSize(long sizeInBytes) {
+            if (sizeInBytes < 1024) {
+                return sizeInBytes + " B";
+            } else if (sizeInBytes < 1024 * 1024) {
+                return String.format("%.1f KB", sizeInBytes / 1024.0);
+            } else if (sizeInBytes < 1024 * 1024 * 1024) {
+                return String.format("%.1f MB", sizeInBytes / (1024.0 * 1024.0));
+            } else {
+                return String.format("%.1f GB", sizeInBytes / (1024.0 * 1024.0 * 1024.0));
+            }
+        }
     }
 }

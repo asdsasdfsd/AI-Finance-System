@@ -174,10 +174,10 @@ public interface ReportAggregateRepository extends JpaRepository<ReportAggregate
     // ========== Statistics Queries ==========
     
     /**
-     * Count reports by status for tenant
+     * Count reports by status for tenant (null status means count all reports)
      */
     @Query("SELECT COUNT(r) FROM ReportAggregate r WHERE r.tenantId = :tenantId " +
-           "AND r.status = :status")
+           "AND (:status IS NULL OR r.status = :status)")
     long countByTenantAndStatus(@Param("tenantId") TenantId tenantId, 
                               @Param("status") ReportStatus status);
     
