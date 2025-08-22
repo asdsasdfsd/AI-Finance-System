@@ -182,7 +182,7 @@ public interface TransactionAggregateRepository extends JpaRepository<Transactio
                                                                          LocalDate startDate,
                                                                          LocalDate endDate,
                                                                          TransactionStatus.Status status) {
-        int statusValue = status.ordinal();
+        int statusValue = status.getCode();
         return findByTenantIdAndDateRangeAndStatus(tenantId.getValue(), startDate, endDate, statusValue);
     }
     

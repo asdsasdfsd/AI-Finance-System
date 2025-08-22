@@ -351,6 +351,9 @@ class UnifiedReportService {
   }
 
   convertFinancialGroupingData(data) {
+    console.log('[UnifiedReportService] Converting financial grouping data:', data);
+    
+    // Handle direct array format (legacy)
     if (Array.isArray(data)) {
       return data.map(item => ({
         key: `grouping_${item.id || Math.random()}`,
@@ -360,6 +363,81 @@ class UnifiedReportService {
         Percentage: item.percentage || '0%'
       }));
     }
+    
+    // Handle object structure from backend (actual controller response)
+    if (data && typeof data === 'object') {
+      const result = [];
+      
+      // Process categoryGrouping array (based on actual backend field names)
+      if (data.categoryGrouping && Array.isArray(data.categoryGrouping)) {
+        console.log('[UnifiedReportService] Processing categoryGrouping:', data.categoryGrouping.length, 'items');
+        data.categoryGrouping.forEach((item, index) => {
+          result.push({
+            key: `category_${item.id || index}`,
+            Type: 'Category',
+            Name: item.category || `Category ${index + 1}`,  // Ensure name is never empty
+            Amount: this.formatCurrency(item.totalAmount || 0),
+            Count: item.transactionCount || 0,
+            Percentage: this.formatPercentage(item.percentage),
+            CategoryType: item.type || 'Unknown'
+          });
+        });
+      }
+      
+      // Process departmentGrouping array (based on actual backend field names) 
+      if (data.departmentGrouping && Array.isArray(data.departmentGrouping)) {
+        console.log('[UnifiedReportService] Processing departmentGrouping:', data.departmentGrouping.length, 'items');
+        data.departmentGrouping.forEach((item, index) => {
+          result.push({
+            key: `department_${item.id || index}`,
+            Type: 'Department',
+            Name: item.department || `Department ${index + 1}`,  // Ensure name is never empty
+            Amount: this.formatCurrency(item.actualSpent || item.totalAmount || 0),
+            Count: item.transactionCount || 0,
+            Budget: this.formatCurrency(item.budgetAllocated || 0),
+            Utilization: this.formatPercentage(item.budgetUtilization)
+          });
+        });
+      }
+      
+      // Process transactionTypeGrouping array (based on actual backend field names)
+      if (data.transactionTypeGrouping && Array.isArray(data.transactionTypeGrouping)) {
+        console.log('[UnifiedReportService] Processing transactionTypeGrouping:', data.transactionTypeGrouping.length, 'items');
+        data.transactionTypeGrouping.forEach((item, index) => {
+          result.push({
+            key: `type_${item.id || index}`,
+            Type: 'Transaction Type',
+            Name: item.transactionType || `Type ${index + 1}`,  // Ensure name is never empty
+            Amount: this.formatCurrency(item.totalAmount || 0),
+            Count: item.transactionCount || 0,
+            Percentage: this.formatPercentage(item.percentage),
+            Average: this.formatCurrency(item.averageAmount || 0)
+          });
+        });
+      }
+      
+      // Process monthlyTrend array (backend uses 'monthlyTrend' not 'monthlyGrouping')
+      if (data.monthlyTrend && Array.isArray(data.monthlyTrend)) {
+        console.log('[UnifiedReportService] Processing monthlyTrend:', data.monthlyTrend.length, 'items');
+        data.monthlyTrend.forEach((item, index) => {
+          result.push({
+            key: `month_${item.id || index}`,
+            Type: 'Monthly',
+            Name: item.month || `Month ${index + 1}`,  // Ensure name is never empty
+            Amount: this.formatCurrency(item.totalAmount || 0),
+            Count: item.transactionCount || 0,
+            Income: this.formatCurrency(item.totalIncome || 0),     // backend uses 'totalIncome'
+            Expense: this.formatCurrency(item.totalExpenses || 0), // backend uses 'totalExpenses'
+            Net: this.formatCurrency(item.netIncome || 0)          // backend uses 'netIncome'
+          });
+        });
+      }
+      
+      console.log('[UnifiedReportService] Financial grouping conversion result:', result.length, 'items');
+      return result;
+    }
+    
+    console.log('[UnifiedReportService] No valid financial grouping data found');
     return [];
   }
 
@@ -381,6 +459,27 @@ class UnifiedReportService {
     
     return results;
   }
+
+  // Helper method to format currency values
+formatCurrency(value) {
+  if (typeof value === 'number') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    return parseFloat(value) || 0;
+  }
+  return 0;
+}
+
+// Helper method to format percentage values
+formatPercentage(value) {
+  if (!value) return '0%';
+  if (typeof value === 'string' && value.includes('%')) {
+    return value;
+  }
+  const num = parseFloat(value) || 0;
+  return `${num.toFixed(1)}%`;
+}
 }
 
 export default new UnifiedReportService();

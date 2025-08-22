@@ -520,6 +520,7 @@ Company ID: ${report.companyId}`;
               onRefresh={() => generateInsights(selectedReport)}
               reportName={selectedReport.reportName}
               reportType={selectedReport.reportType}
+              
             />
           </>
         )}

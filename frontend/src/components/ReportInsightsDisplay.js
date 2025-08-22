@@ -40,12 +40,17 @@ const ReportInsightsDisplay = ({
   loading = false, 
   onRefresh = null,
   reportName = '',
-  reportType = ''
+  reportType = '',
+  reportData = null
 }) => {
   const [activeKey, setActiveKey] = useState(['summary', 'insights']);
 
   // Handle different insight formats
-  const formatInsights = (rawInsights) => {
+  const formatInsights = (rawInsights, reportType, reportData) => {
+    if (reportType === 'FINANCIAL_GROUPING' && reportData && !rawInsights) {
+      return generateFinancialGroupingInsights(reportData);
+    }
+
     // Handle already structured insights
     if (typeof rawInsights === 'object' && rawInsights.insights) {
       return rawInsights;
@@ -70,13 +75,13 @@ const ReportInsightsDisplay = ({
     // Default fallback
     return {
       summary: 'Analysis completed',
-      insights: ['No specific insights available'],
+      insights: rawInsights ? [rawInsights] : ['No insights available'],
       confidence: 'low',
       analysisDate: new Date().toISOString()
     };
   };
 
-  const formattedInsights = formatInsights(insights);
+  const formattedInsights = formatInsights(insights, reportType, reportData);
 
   // Confidence level styling
   const getConfidenceColor = (confidence) => {
@@ -372,6 +377,175 @@ const ReportInsightsDisplay = ({
       </Collapse>
     </div>
   );
+};
+
+const generateFinancialGroupingInsights = (data) => {
+  if (!data || !data.summary) {
+    return {
+      summary: "No financial grouping data available for analysis.",
+      insights: ["Unable to analyze financial grouping - insufficient data"],
+      anomalies: [],
+      recommendations: ["Please ensure financial grouping data is available"],
+      confidence: "low"
+    };
+  }
+
+  const insights = [];
+  const anomalies = [];
+  const recommendations = [];
+
+  // Analyze income vs expenses
+  const totalIncome = parseFloat(data.summary.totalIncome) || 0;
+  const totalExpenses = parseFloat(data.summary.totalExpenses) || 0;
+  const netIncome = parseFloat(data.summary.netIncome) || 0;
+  const profitMargin = parseFloat(data.summary.profitMargin) || 0;
+
+  // Revenue analysis
+  if (totalIncome > 0) {
+    insights.push(`Total income of ¥${totalIncome.toLocaleString()} indicates ${totalIncome > 1000000 ? 'strong' : 'moderate'} revenue generation`);
+    
+    if (profitMargin > 20) {
+      insights.push(`Excellent profit margin of ${data.summary.profitMargin} demonstrates strong cost control`);
+    } else if (profitMargin > 10) {
+      insights.push(`Healthy profit margin of ${data.summary.profitMargin} shows good operational efficiency`);
+    } else if (profitMargin > 0) {
+      insights.push(`Profit margin of ${data.summary.profitMargin} suggests room for improvement in cost management`);
+      recommendations.push("Consider reviewing expense categories to improve profit margins");
+    } else {
+      anomalies.push("Negative profit margin indicates expenses exceed income");
+      recommendations.push("Urgent: Review and reduce expenses or increase revenue");
+    }
+  }
+
+  // Expense analysis
+  if (totalExpenses > 0) {
+    const expenseRatio = parseFloat(data.summary.expenseRatio) || 0;
+    
+    if (expenseRatio > 80) {
+      anomalies.push(`High expense ratio of ${data.summary.expenseRatio} may indicate cost control issues`);
+      recommendations.push("Analyze major expense categories for potential cost reductions");
+    } else if (expenseRatio > 60) {
+      insights.push(`Expense ratio of ${data.summary.expenseRatio} is within acceptable range but could be optimized`);
+    } else {
+      insights.push(`Good expense control with ratio of ${data.summary.expenseRatio}`);
+    }
+  }
+
+  // Category analysis
+  if (data.categoryGrouping && Array.isArray(data.categoryGrouping)) {
+    const categoryCount = data.categoryGrouping.length;
+    insights.push(`Financial activity distributed across ${categoryCount} categories`);
+    
+    // Find top spending categories
+    const sortedCategories = data.categoryGrouping
+      .sort((a, b) => (parseFloat(b.totalAmount) || 0) - (parseFloat(a.totalAmount) || 0))
+      .slice(0, 3);
+    
+    if (sortedCategories.length > 0) {
+      const topCategory = sortedCategories[0];
+      const topAmount = parseFloat(topCategory.totalAmount) || 0;
+      const topPercentage = parseFloat(topCategory.percentage) || 0;
+      
+      insights.push(`Highest spending category: ${topCategory.category} (¥${topAmount.toLocaleString()}, ${topPercentage}%)`);
+      
+      if (topPercentage > 50) {
+        anomalies.push(`Single category (${topCategory.category}) accounts for over 50% of total spending`);
+        recommendations.push("Consider diversifying spending across categories to reduce concentration risk");
+      }
+    }
+  }
+
+  // Department analysis
+  if (data.departmentGrouping && Array.isArray(data.departmentGrouping)) {
+    const departmentCount = data.departmentGrouping.length;
+    insights.push(`Budget allocation across ${departmentCount} departments`);
+    
+    // Analyze budget utilization
+    const budgetAnalysis = data.departmentGrouping.map(dept => {
+      const budgetAllocated = parseFloat(dept.budgetAllocated) || 0;
+      const actualSpent = parseFloat(dept.actualSpent) || parseFloat(dept.totalAmount) || 0;
+      const utilization = budgetAllocated > 0 ? (actualSpent / budgetAllocated) * 100 : 0;
+      
+      return {
+        department: dept.department,
+        utilization,
+        budgetAllocated,
+        actualSpent,
+        variance: actualSpent - budgetAllocated
+      };
+    });
+    
+    const overBudgetDepts = budgetAnalysis.filter(d => d.utilization > 100);
+    const underUtilizedDepts = budgetAnalysis.filter(d => d.utilization < 70);
+    
+    if (overBudgetDepts.length > 0) {
+      anomalies.push(`${overBudgetDepts.length} department(s) exceeded budget: ${overBudgetDepts.map(d => d.department).join(', ')}`);
+      recommendations.push("Review budget allocations for over-spending departments");
+    }
+    
+    if (underUtilizedDepts.length > 0) {
+      insights.push(`${underUtilizedDepts.length} department(s) under-utilized budget - potential for reallocation`);
+      recommendations.push("Consider reallocating unused budget to high-priority areas");
+    }
+  }
+
+  // Monthly trend analysis
+  if (data.monthlyTrend && Array.isArray(data.monthlyTrend)) {
+    const monthlyData = data.monthlyTrend.map(month => ({
+      month: month.month,
+      totalAmount: parseFloat(month.totalAmount) || 0,
+      netIncome: parseFloat(month.netIncome) || 0
+    }));
+    
+    if (monthlyData.length >= 2) {
+      const currentMonth = monthlyData[monthlyData.length - 1];
+      const previousMonth = monthlyData[monthlyData.length - 2];
+      
+      const growthRate = previousMonth.totalAmount > 0 
+        ? ((currentMonth.totalAmount - previousMonth.totalAmount) / previousMonth.totalAmount) * 100
+        : 0;
+      
+      if (growthRate > 10) {
+        insights.push(`Strong month-over-month growth of ${growthRate.toFixed(1)}%`);
+      } else if (growthRate > 0) {
+        insights.push(`Positive month-over-month growth of ${growthRate.toFixed(1)}%`);
+      } else if (growthRate < -10) {
+        anomalies.push(`Significant month-over-month decline of ${Math.abs(growthRate).toFixed(1)}%`);
+        recommendations.push("Investigate causes of declining financial activity");
+      }
+    }
+  }
+
+  // Transaction analysis
+  const totalTransactions = data.summary.totalTransactions || 0;
+  if (totalTransactions > 0) {
+    const avgTransactionValue = totalIncome > 0 ? totalIncome / totalTransactions : 0;
+    insights.push(`Average transaction value: ¥${avgTransactionValue.toLocaleString()}`);
+    
+    if (avgTransactionValue > 50000) {
+      insights.push("High-value transaction pattern indicates significant financial operations");
+    } else if (avgTransactionValue < 1000) {
+      insights.push("High frequency, low-value transaction pattern");
+      recommendations.push("Consider batch processing small transactions for efficiency");
+    }
+  }
+
+  // Generate summary
+  const performanceIndicator = netIncome >= 0 ? "profitable" : "loss-making";
+  const riskLevel = anomalies.length > 2 ? "high" : anomalies.length > 0 ? "medium" : "low";
+  
+  const summary = `Financial grouping analysis shows ${performanceIndicator} operations with ${riskLevel} risk level. ` +
+    `${insights.length} key insights identified across categories, departments, and trends.`;
+
+  return {
+    summary,
+    insights,
+    anomalies,
+    recommendations,
+    confidence: anomalies.length === 0 ? "high" : "medium",
+    analysisDate: new Date().toISOString(),
+    status: "success"
+  };
 };
 
 export default ReportInsightsDisplay;
