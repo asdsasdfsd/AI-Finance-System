@@ -78,4 +78,24 @@ public interface DepartmentRepository extends JpaRepository<Department, Integer>
      */
     @Query("SELECT d FROM Department d WHERE d.company.companyId = :companyId AND d.budget IS NOT NULL AND d.budget > 0")
     List<Department> findDepartmentsWithBudgetByCompanyId(@Param("companyId") Integer companyId);
+
+    /**
+     * Find active departments by company - FIXED for JPA relations
+     */
+    @Query("SELECT d FROM Department d WHERE d.company.companyId = :companyId AND d.isActive = true ORDER BY d.name")
+    List<Department> findByCompanyIdAndIsActiveTrue(@Param("companyId") Integer companyId);
+
+    /**
+     * Find departments with budget information - FIXED for JPA relations
+     */
+    @Query("SELECT d FROM Department d WHERE d.company.companyId = :companyId " +
+        "AND d.isActive = true AND d.budget > 0 ORDER BY d.budget DESC")
+    List<Department> findByCompanyIdWithBudget(@Param("companyId") Integer companyId);
+
+    /**
+     * Find all departments by company - FIXED for JPA relations
+     */
+    @Query("SELECT d FROM Department d WHERE d.company.companyId = :companyId ORDER BY d.name")
+    List<Department> findByCompanyId(@Param("companyId") Integer companyId);
+
 }

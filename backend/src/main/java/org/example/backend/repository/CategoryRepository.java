@@ -85,4 +85,27 @@ public interface CategoryRepository extends JpaRepository<Category, Integer> {
     @Query("SELECT COUNT(c) > 0 FROM Category c WHERE c.company.companyId = :companyId AND c.categoryId = :categoryId")
     boolean existsByCompanyIdAndCategoryId(@Param("companyId") Integer companyId, 
                                           @Param("categoryId") Integer categoryId);
+    
+    /**
+     * Find active categories by company - FIXED for JPA relations
+     */
+    @Query("SELECT c FROM Category c WHERE c.company.companyId = :companyId AND c.isActive = true ORDER BY c.name")
+    List<Category> findByCompanyIdAndIsActiveTrue(@Param("companyId") Integer companyId);
+
+    
+    /**
+     * Find categories by company and type - FIXED for JPA relations
+     */
+    @Query("SELECT c FROM Category c WHERE c.company.companyId = :companyId " +
+        "AND c.type = :type AND c.isActive = true ORDER BY c.name")
+    List<Category> findByCompanyIdAndTypeAndIsActiveTrue(
+            @Param("companyId") Integer companyId,
+            @Param("type") Category.CategoryType type);
+
+    /**
+     * Find all categories by company - FIXED for JPA relations
+     */
+    @Query("SELECT c FROM Category c WHERE c.company.companyId = :companyId ORDER BY c.name")
+    List<Category> findByCompanyId(@Param("companyId") Integer companyId);
+
 }

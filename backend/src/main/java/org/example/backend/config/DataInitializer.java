@@ -13,6 +13,7 @@ import org.springframework.core.env.Environment;
 
 /**
  * Initialize database with required data on application startup
+ * FIXED: Complete implementation with proper error handling
  */
 @Configuration
 public class DataInitializer {
@@ -27,27 +28,39 @@ public class DataInitializer {
     @Bean
     public CommandLineRunner initRoles(RoleRepository roleRepository, Environment environment) {
         return args -> {
-            // Only initialize in development mode or when database is empty
-            if (isDevProfile(environment) || roleRepository.count() == 0) {
-                // Define system roles
-                List<Role> defaultRoles = Arrays.asList(
-                    createRole("SYSTEM_ADMIN", "System administrator with full access"),
-                    createRole("COMPANY_ADMIN", "Company administrator with company-wide access"),
-                    createRole("FINANCE_MANAGER", "Finance manager with finance data management access"),
-                    createRole("FINANCE_OPERATOR", "Finance operator with basic data entry access"),
-                    createRole("REPORT_VIEWER", "User with read-only access to reports"),
-                    createRole("USER", "Basic user with minimal access"),
-                    createRole("AUDITOR", "Auditor with read-only access to all data")
-                );
-                
-                // Save roles if they don't exist
-                for (Role role : defaultRoles) {
-                    if (roleRepository.findByName(role.getName()) == null) {
-                        roleRepository.save(role);
+            try {
+                // Only initialize in development mode or when database is empty
+                if (isDevProfile(environment) || roleRepository.count() == 0) {
+                    // Define system roles
+                    List<Role> defaultRoles = Arrays.asList(
+                        createRole("SYSTEM_ADMIN", "System administrator with full access"),
+                        createRole("COMPANY_ADMIN", "Company administrator with company-wide access"),
+                        createRole("FINANCE_MANAGER", "Finance manager with finance data management access"),
+                        createRole("FINANCE_OPERATOR", "Finance operator with basic data entry access"),
+                        createRole("REPORT_VIEWER", "User with read-only access to reports"),
+                        createRole("USER", "Basic user with minimal access"),
+                        createRole("AUDITOR", "Auditor with read-only access to all data")
+                    );
+                    
+                    // Save roles if they don't exist
+                    for (Role role : defaultRoles) {
+                        // FIXED: Complete the findByName check
+                        if (roleRepository.findByName(role.getName()).isEmpty()) {
+                            roleRepository.save(role);
+                            System.out.println("Created role: " + role.getName());
+                        } else {
+                            System.out.println("Role already exists: " + role.getName());
+                        }
                     }
+                    
+                    System.out.println("Roles initialized successfully");
+                } else {
+                    System.out.println("Skipping role initialization - roles already exist or not in dev profile");
                 }
-                
-                System.out.println("Roles initialized successfully");
+            } catch (Exception e) {
+                System.err.println("Error initializing roles: " + e.getMessage());
+                e.printStackTrace();
+                // Don't throw exception to prevent application startup failure
             }
         };
     }
@@ -73,7 +86,9 @@ public class DataInitializer {
      * @return true if dev profile is active
      */
     private boolean isDevProfile(Environment environment) {
-        return Arrays.asList(environment.getActiveProfiles()).contains("dev") ||
-               Arrays.asList(environment.getActiveProfiles()).contains("development");
+        String[] activeProfiles = environment.getActiveProfiles();
+        return Arrays.asList(activeProfiles).contains("dev") ||
+               Arrays.asList(activeProfiles).contains("development") ||
+               activeProfiles.length == 0; // Also initialize in default profile
     }
 }
