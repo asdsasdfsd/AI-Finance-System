@@ -496,10 +496,10 @@ export const FinancialGroupingPreview = ({ data }) => {
     return data.monthlyTrend.map((item, index) => ({
       key: `month_${index}`,
       name: item.month || 'Unknown Month',
-      totalAmount: parseFloat(item.totalAmount) || 0,
-      totalIncome: parseFloat(item.totalIncome) || 0,
-      totalExpenses: parseFloat(item.totalExpenses) || 0,
-      netIncome: parseFloat(item.netIncome) || 0,
+      totalAmount: (parseFloat(item.income) || 0) + (parseFloat(item.expenses) || 0), // Calculate total
+      totalIncome: parseFloat(item.income) || 0,     // backend uses 'income'
+      totalExpenses: parseFloat(item.expenses) || 0, // backend uses 'expenses'  
+      netIncome: parseFloat(item.netIncome) || 0,    // backend uses 'netIncome'
       count: item.transactionCount || 0
     }));
   };

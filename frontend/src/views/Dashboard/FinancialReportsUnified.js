@@ -14,6 +14,7 @@ import dayjs from 'dayjs';
 import AuthService from '../../services/authService';
 import ReportService from '../../services/reportService';
 import UnifiedReportService from '../../services/unifiedReportService';
+import { ReportPreview } from '../../components/ReportPreviewComponents';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -32,6 +33,7 @@ const FinancialReportsUnified = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [saveModalVisible, setSaveModalVisible] = useState(false);
+  const [originalResponse, setOriginalResponse] = useState(null);
 
   // Form and user context
   const [saveForm] = Form.useForm();
@@ -84,76 +86,117 @@ const FinancialReportsUnified = () => {
   }, [reportType, companyId, asOfDate, startDate, endDate]);
 
   // ENHANCED: Generate report preview with proper data structure
-  const loadReportData = async () => {
-    setLoading(true);
-    setError(null);
+const loadReportData = async () => {
+  setLoading(true);
+  setError(null);
+  
+  try {
+    const config = currentReportConfig;
     
-    try {
-      const config = currentReportConfig;
+    // Check authentication
+    if (!currentUser || !currentUser.token) {
+      throw new Error('Authentication required. Please login first.');
+    }
+
+    // Build parameters based on report type
+    const params = {
+      companyId: companyId
+    };
+
+    if (config.useAsOfDate) {
+      params.asOfDate = asOfDate.format('YYYY-MM-DD');
+    } else {
+      params.startDate = startDate.format('YYYY-MM-DD');
+      params.endDate = endDate.format('YYYY-MM-DD');
+    }
+
+    console.log(`[FinancialReportsUnified] Loading ${reportType} with params:`, params);
+
+    // FIXED: Use UnifiedReportService for consistent API handling
+    const response = await UnifiedReportService.generateReportPreview(reportType, params);
+    
+    // 🔥 CRITICAL FIX: Store original response for Financial Grouping
+    setOriginalResponse(response);
+    
+    // 🔥 CRITICAL FIX: Handle Financial Grouping differently
+    let tableData;
+    if (reportType === 'FINANCIAL_GROUPING') {
+      // For Financial Grouping, don't convert to table data
+      // The ReportPreview component needs original structure
+      tableData = []; // Empty array to indicate we have data but handle it specially
+    } else {
+      // Convert backend data to table format for other reports
+      tableData = UnifiedReportService.convertToTableData(reportType, response);
+    }
+    
+    console.log(`[FinancialReportsUnified] Converted table data:`, tableData);
+    console.log(`[FinancialReportsUnified] Original response:`, response);
+    setReportData(tableData);
+    
+    // 🔥 CRITICAL FIX: Update success message logic for Financial Grouping
+    if (reportType === 'FINANCIAL_GROUPING') {
+      // Check if original response has data
+      const hasData = response && (
+        (response.categoryGrouping && response.categoryGrouping.length > 0) ||
+        (response.departmentGrouping && response.departmentGrouping.length > 0) ||
+        (response.transactionTypeGrouping && response.transactionTypeGrouping.length > 0) ||
+        (response.monthlyTrend && response.monthlyTrend.length > 0)
+      );
       
-      // Check authentication
-      if (!currentUser || !currentUser.token) {
-        throw new Error('Authentication required. Please login first.');
-      }
-
-      // Build parameters based on report type
-      const params = {
-        companyId: companyId
-      };
-
-      if (config.useAsOfDate) {
-        params.asOfDate = asOfDate.format('YYYY-MM-DD');
+      if (!hasData) {
+        message.warning(`No data found for ${config.label}. Try different dates:\n${config.dateHelper}`);
+        setError(`No data available for the selected criteria.\n\n💡 Suggestion: ${config.dateHelper}`);
       } else {
-        params.startDate = startDate.format('YYYY-MM-DD');
-        params.endDate = endDate.format('YYYY-MM-DD');
+        const totalItems = (response.categoryGrouping?.length || 0) + 
+                          (response.departmentGrouping?.length || 0) + 
+                          (response.transactionTypeGrouping?.length || 0) + 
+                          (response.monthlyTrend?.length || 0);
+        message.success(`${config.label} loaded successfully with ${totalItems} entries.`);
       }
-
-      console.log(`[FinancialReportsUnified] Loading ${reportType} with params:`, params);
-
-      // FIXED: Use UnifiedReportService for consistent API handling
-      const response = await UnifiedReportService.generateReportPreview(reportType, params);
-      
-      // Convert backend data to table format
-      const tableData = UnifiedReportService.convertToTableData(reportType, response);
-      
-      console.log(`[FinancialReportsUnified] Converted table data:`, tableData);
-      setReportData(tableData);
-      
+    } else {
+      // Handle other report types
       if (!tableData || tableData.length === 0) {
         message.warning(`No data found for ${config.label}. Try different dates:\n${config.dateHelper}`);
-        // Show available date suggestions
         setError(`No data available for the selected criteria.\n\n💡 Suggestion: ${config.dateHelper}`);
       } else {
         message.success(`${config.label} loaded successfully with ${tableData.length} entries.`);
       }
-      
-    } catch (error) {
-      console.error('[FinancialReportsUnified] Error loading report data:', error);
-      const errorMessage = error.message || 'Failed to load report data';
-      setError(errorMessage);
-      
-      // Provide specific guidance based on error type
-      if (errorMessage.includes('404') || errorMessage.includes('not found')) {
-        message.error(`${currentReportConfig.label} endpoint not available. Please check backend configuration.`);
-      } else if (errorMessage.includes('401') || errorMessage.includes('Authentication')) {
-        message.error('Please login again to access reports.');
-      } else if (errorMessage.includes('connect') || errorMessage.includes('network')) {
-        message.error('Cannot connect to backend server. Please check if it\'s running on port 8085.');
-      } else {
-        message.error(`Failed to load ${currentReportConfig.label}: ${errorMessage}`);
-      }
-    } finally {
-      setLoading(false);
     }
-  };
+    
+  } catch (error) {
+    console.error('[FinancialReportsUnified] Error loading report data:', error);
+    const errorMessage = error.message || 'Failed to load report data';
+    setError(errorMessage);
+    
+    // Provide specific guidance based on error type
+    if (errorMessage.includes('404') || errorMessage.includes('not found')) {
+      message.error(`${currentReportConfig.label} endpoint not available. Please check backend configuration.`);
+    } else if (errorMessage.includes('401') || errorMessage.includes('Authentication')) {
+      message.error('Please login again to access reports.');
+    } else if (errorMessage.includes('connect') || errorMessage.includes('network')) {
+      message.error('Cannot connect to backend server. Please check if it\'s running on port 8085.');
+    } else {
+      message.error(`Failed to load ${currentReportConfig.label}: ${errorMessage}`);
+    }
+  } finally {
+    setLoading(false);
+  }
+};
 
   // ENHANCED: Export to Excel using unified backend generators
   const handleExport = async () => {
     setExporting(true);
     
     try {
-      if (!reportData || reportData.length === 0) {
-        throw new Error('No report data to export. Please generate a preview first.');
+      // 🔥 CRITICAL FIX: Update availability check for Financial Grouping
+      if (reportType === 'FINANCIAL_GROUPING') {
+        if (!originalResponse) {
+          throw new Error('No report data to export. Please generate a preview first.');
+        }
+      } else {
+        if (!reportData || reportData.length === 0) {
+          throw new Error('No report data to export. Please generate a preview first.');
+        }
       }
 
       const config = currentReportConfig;
@@ -523,9 +566,13 @@ const FinancialReportsUnified = () => {
               size="large"
               loading={exporting}
               onClick={handleExport}
-              disabled={!reportData || reportData.length === 0}
+              disabled={
+                reportType === 'FINANCIAL_GROUPING' 
+                  ? !originalResponse 
+                  : (!reportData || reportData.length === 0)
+              }
             >
-              Export Excel
+              Export to Excel
             </Button>
           </Col>
           <Col>
@@ -641,16 +688,36 @@ const FinancialReportsUnified = () => {
           />
         )}
 
-        {!loading && !error && (!reportData || reportData.length === 0) && (
-          <div style={{ textAlign: 'center', padding: '60px' }}>
-            <Text type="secondary" style={{ fontSize: '16px' }}>
-              No data available for the selected criteria.
-            </Text>
-            <br />
-            <Text type="secondary">
-              💡 Try using the suggested dates: {currentReportConfig?.dateHelper}
-            </Text>
-          </div>
+        {!loading && !error && (
+          <>
+            {/* 处理 FINANCIAL_GROUPING 的特殊情况 */}
+            {reportType === 'FINANCIAL_GROUPING' ? (
+              originalResponse ? (
+                <ReportPreview reportType={reportType} data={originalResponse} />
+              ) : (
+                <div style={{ textAlign: 'center', padding: '60px' }}>
+                  <Text type="secondary">
+                    No data available for the selected criteria.
+                    <br />
+                    <strong>💡 {currentReportConfig?.dateHelper}</strong>
+                  </Text>
+                </div>
+              )
+            ) : (
+              /* 处理其他报表类型的无数据情况 */
+              (!reportData || reportData.length === 0) && (
+                <div style={{ textAlign: 'center', padding: '60px' }}>
+                  <Text type="secondary" style={{ fontSize: '16px' }}>
+                    No data available for the selected criteria.
+                  </Text>
+                  <br />
+                  <Text type="secondary">
+                    💡 Try using the suggested dates: {currentReportConfig?.dateHelper}
+                  </Text>
+                </div>
+              )
+            )}
+          </>
         )}
       </Card>
 

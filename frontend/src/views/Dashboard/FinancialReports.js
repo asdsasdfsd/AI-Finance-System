@@ -13,10 +13,12 @@ import {
 import dayjs from 'dayjs';
 import UnifiedReportService from '../../services/unifiedReportService';
 import AuthService from '../../services/authService';
+import { ReportPreview } from '../../components/ReportPreviewComponents';
 
 const { Option } = Select;
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
+
 
 /**
  * FIXED Financial Reports Component
@@ -30,6 +32,7 @@ const FinancialReports = () => {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState(null);
+  const [originalResponse, setOriginalResponse] = useState(null);
   
   // FIXED: Set default dates to match available data
   const [companyId, setCompanyId] = useState(1);
@@ -87,55 +90,87 @@ const FinancialReports = () => {
    * FIXED: Load report data using unified service
    */
   const loadReportData = async () => {
-    setLoading(true);
-    setError(null);
+  setLoading(true);
+  setError(null);
+  
+  try {
+    // Check authentication
+    const authData = AuthService.getCurrentUser();
+    if (!authData || !authData.token) {
+      throw new Error('Authentication required. Please login first.');
+    }
+
+    console.log(`[FinancialReports] Loading ${reportType} data...`);
+
+    // Build parameters based on report configuration
+    const params = {
+      companyId: companyId
+    };
+
+    if (currentReportConfig.useAsOfDate) {
+      params.asOfDate = asOfDate.format('YYYY-MM-DD');
+    } else {
+      params.startDate = startDate.format('YYYY-MM-DD');
+      params.endDate = endDate.format('YYYY-MM-DD');
+    }
+
+    console.log(`[FinancialReports] Request params:`, params);
+
+    // Use unified report service
+    const response = await UnifiedReportService.generateReportPreview(reportType, params);
     
-    try {
-      // Check authentication
-      const authData = AuthService.getCurrentUser();
-      if (!authData || !authData.token) {
-        throw new Error('Authentication required. Please login first.');
-      }
-
-      console.log(`[FinancialReports] Loading ${reportType} data...`);
-
-      // Build parameters based on report configuration
-      const params = {
-        companyId: companyId
-      };
-
-      if (currentReportConfig.useAsOfDate) {
-        params.asOfDate = asOfDate.format('YYYY-MM-DD');
+    // CRITICAL FIX: Store original response for Financial Grouping
+    setOriginalResponse(response);
+    
+    // For FINANCIAL_GROUPING, we don't convert to table data since the component needs original structure
+    let tableData;
+    if (reportType === 'FINANCIAL_GROUPING') {
+      // For Financial Grouping, we'll use the ReportPreview component which expects original data
+      tableData = []; // Empty array to indicate we have data but it's handled specially
+    } else {
+      // Convert backend data to table format for other report types
+      tableData = UnifiedReportService.convertToTableData(reportType, response);
+    }
+    
+    console.log(`[FinancialReports] Converted table data:`, tableData);
+    console.log(`[FinancialReports] Original response:`, response);
+    setReportData(tableData);
+    
+    // Update success message logic
+    if (reportType === 'FINANCIAL_GROUPING') {
+      // For financial grouping, check if original response has data
+      const hasData = response && (
+        (response.categoryGrouping && response.categoryGrouping.length > 0) ||
+        (response.departmentGrouping && response.departmentGrouping.length > 0) ||
+        (response.transactionTypeGrouping && response.transactionTypeGrouping.length > 0) ||
+        (response.monthlyTrend && response.monthlyTrend.length > 0)
+      );
+      
+      if (!hasData) {
+        message.warning('No data found for the selected criteria. Try adjusting the date range or company.');
       } else {
-        params.startDate = startDate.format('YYYY-MM-DD');
-        params.endDate = endDate.format('YYYY-MM-DD');
+        const totalItems = (response.categoryGrouping?.length || 0) + 
+                          (response.departmentGrouping?.length || 0) + 
+                          (response.transactionTypeGrouping?.length || 0) + 
+                          (response.monthlyTrend?.length || 0);
+        message.success(`${currentReportConfig.label} loaded successfully with ${totalItems} entries.`);
       }
-
-      console.log(`[FinancialReports] Request params:`, params);
-
-      // Use unified report service
-      const response = await UnifiedReportService.generateReportPreview(reportType, params);
-      
-      // Convert backend data to table format
-      const tableData = UnifiedReportService.convertToTableData(reportType, response);
-      
-      console.log(`[FinancialReports] Converted table data:`, tableData);
-      setReportData(tableData);
-      
+    } else {
       if (tableData.length === 0) {
         message.warning('No data found for the selected criteria. Try adjusting the date range or company.');
       } else {
         message.success(`${currentReportConfig.label} loaded successfully with ${tableData.length} entries.`);
       }
-      
-    } catch (error) {
-      console.error('[FinancialReports] Error loading report data:', error);
-      setError(error.message);
-      message.error(`Failed to load ${currentReportConfig.label}: ${error.message}`);
-    } finally {
-      setLoading(false);
     }
-  };
+    
+  } catch (error) {
+    console.error('[FinancialReports] Error loading report data:', error);
+    setError(error.message);
+    message.error(`Failed to load ${currentReportConfig.label}: ${error.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
 
   /**
    * FIXED: Export report using unified service
@@ -563,40 +598,62 @@ const FinancialReports = () => {
                 />
               )}
 
-              {!loading && !error && reportData && reportData.length > 0 && (
-                <>
-                  {getSummaryStats()}
-                  <Table
-                    dataSource={reportData}
-                    columns={getTableColumns()}
-                    size="small"
-                    scroll={{ x: 800, y: 400 }}
-                    pagination={{
-                      pageSize: 20,
-                      showSizeChanger: true,
-                      showQuickJumper: true,
-                      showTotal: (total, range) => 
-                        `${range[0]}-${range[1]} of ${total} entries`
-                    }}
-                  />
-                </>
-              )}
-
-                {!loading && !error && (!reportData || reportData.length === 0) && (
-                  <div style={{ textAlign: 'center', padding: '40px' }}>
-                    <Text type="secondary">
-                      No data available for the selected criteria.
-                      <br />
-                      <strong>💡 Try these dates with available data:</strong>
-                      <br />
-                      • Balance Sheet: 2025-07-31 or 2025-08-31
-                      <br />
-                      • Income Statement: 2025-07-01 to 2025-08-31
-                      <br />
-                      • Companies: 1 (Tech Innovation), 2 (Green Energy), 3 (Finance Solutions)
-                    </Text>
-                  </div>
-                )}
+              {!loading && !error && (
+  <>
+    {reportType === 'FINANCIAL_GROUPING' ? (
+      // CRITICAL FIX: Use original response data for Financial Grouping Preview
+      originalResponse ? (
+        <ReportPreview reportType={reportType} data={originalResponse} />
+      ) : (
+        <div style={{ textAlign: 'center', padding: '40px' }}>
+          <Text type="secondary">
+            No data available for the selected criteria.
+            <br />
+            <strong>💡 Try these dates with available data:</strong>
+            <br />
+            • Date Range: 2025-07-01 to 2025-08-31
+            <br />
+            • Companies: 1 (Tech Innovation), 2 (Green Energy), 3 (Finance Solutions)
+          </Text>
+        </div>
+      )
+    ) : (
+      // Use regular table display for other report types
+      reportData && reportData.length > 0 ? (
+        <>
+          {getSummaryStats()}
+          <Table
+            dataSource={reportData}
+            columns={getTableColumns()}
+            size="small"
+            scroll={{ x: 800, y: 400 }}
+            pagination={{
+              pageSize: 20,
+              showSizeChanger: true,
+              showQuickJumper: true,
+              showTotal: (total, range) => 
+                `${range[0]}-${range[1]} of ${total} entries`
+            }}
+          />
+        </>
+      ) : (
+        <div style={{ textAlign: 'center', padding: '40px' }}>
+          <Text type="secondary">
+            No data available for the selected criteria.
+            <br />
+            <strong>💡 Try these dates with available data:</strong>
+            <br />
+            • Balance Sheet: 2025-07-31 or 2025-08-31
+            <br />
+            • Income Statement: 2025-07-01 to 2025-08-31
+            <br />
+            • Companies: 1 (Tech Innovation), 2 (Green Energy), 3 (Finance Solutions)
+          </Text>
+        </div>
+      )
+    )}
+  </>
+)}
             </Card>
           </Col>
         </Row>

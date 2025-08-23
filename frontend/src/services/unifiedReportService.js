@@ -423,12 +423,12 @@ class UnifiedReportService {
           result.push({
             key: `month_${item.id || index}`,
             Type: 'Monthly',
-            Name: item.month || `Month ${index + 1}`,  // Ensure name is never empty
-            Amount: this.formatCurrency(item.totalAmount || 0),
+            Name: item.month || `Month ${index + 1}`,
+            Amount: this.formatCurrency((parseFloat(item.income) || 0) + (parseFloat(item.expenses) || 0)),
             Count: item.transactionCount || 0,
-            Income: this.formatCurrency(item.totalIncome || 0),     // backend uses 'totalIncome'
-            Expense: this.formatCurrency(item.totalExpenses || 0), // backend uses 'totalExpenses'
-            Net: this.formatCurrency(item.netIncome || 0)          // backend uses 'netIncome'
+            Income: this.formatCurrency(item.income || 0),     // backend uses 'income'
+            Expense: this.formatCurrency(item.expenses || 0), // backend uses 'expenses'
+            Net: this.formatCurrency(item.netIncome || 0)     // backend uses 'netIncome'
           });
         });
       }
