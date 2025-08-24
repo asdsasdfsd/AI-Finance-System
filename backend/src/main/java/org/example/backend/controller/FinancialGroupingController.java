@@ -8,9 +8,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.example.backend.application.dto.GenerateReportCommand;
+import org.example.backend.domain.valueobject.ReportType;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
+import org.example.backend.application.service.ReportApplicationService;
+import org.example.backend.application.dto.GenerateReportCommand;
+import org.example.backend.domain.valueobject.ReportType;
 
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
@@ -31,6 +36,9 @@ public class FinancialGroupingController {
     private final org.example.backend.repository.CategoryRepository categoryRepository;
     private final org.example.backend.repository.DepartmentRepository departmentRepository;
     private final org.example.backend.repository.CompanyRepository companyRepository;
+
+    // Inject ReportApplicationService
+    private final org.example.backend.application.service.ReportApplicationService reportApplicationService;
 
     /**
      * Generate enhanced financial grouping report preview with hierarchical structure
@@ -887,6 +895,121 @@ public class FinancialGroupingController {
         // Auto-size columns
         for (int i = 0; i < headers.length; i++) {
             sheet.autoSizeColumn(i);
+        }
+    }
+
+    /**
+     * Save financial grouping report using ReportApplicationService
+     */
+    @PostMapping("/save")
+    public ResponseEntity<Map<String, Object>> saveFinancialGroupingReport(
+            @RequestBody Map<String, Object> request) {
+        
+        try {
+            // Extract parameters from request
+            Integer companyId = (Integer) request.get("companyId");
+            String reportName = (String) request.get("reportName");
+            String startDateStr = (String) request.get("startDate");
+            String endDateStr = (String) request.get("endDate");
+            Boolean aiAnalysisEnabled = (Boolean) request.getOrDefault("aiAnalysisEnabled", false);
+            
+            // Validate required parameters
+            if (companyId == null || reportName == null || reportName.trim().isEmpty() || 
+                startDateStr == null || endDateStr == null) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "Missing required parameters: companyId, reportName, startDate, endDate"
+                ));
+            }
+            
+            LocalDate startDate = LocalDate.parse(startDateStr);
+            LocalDate endDate = LocalDate.parse(endDateStr);
+            
+            log.info("Saving financial grouping report: {} for company {} from {} to {}", 
+                    reportName, companyId, startDate, endDate);
+            
+            // Create GenerateReportCommand for ReportApplicationService
+            GenerateReportCommand command = GenerateReportCommand.builder()
+                    .reportType(ReportType.FINANCIAL_GROUPING)
+                    .reportName(reportName.trim())
+                    .startDate(startDate)
+                    .endDate(endDate)
+                    .tenantId(companyId)
+                    .createdBy(1) // Default user - should be extracted from JWT in production
+                    .aiAnalysisEnabled(aiAnalysisEnabled)
+                    .build();
+            
+            // Generate and save report using ReportApplicationService
+            String reportId = reportApplicationService.generateReport(command);
+            
+            log.info("Financial grouping report saved successfully with ID: {}", reportId);
+            
+            return ResponseEntity.ok(Map.of(
+                "status", "success",
+                "data", Map.of("reportId", reportId),
+                "message", "Financial grouping report saved successfully"
+            ));
+            
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid parameters for financial grouping report save: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of(
+                "status", "error",
+                "message", e.getMessage()
+            ));
+        } catch (Exception e) {
+            log.error("Failed to save financial grouping report: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                "status", "error",
+                "message", "Failed to save financial grouping report. Please try again."
+            ));
+        }
+    }
+
+    /**
+     * Alternative save method using GenerateReportCommand directly
+     */
+    @PostMapping("/save-direct")
+    public ResponseEntity<Map<String, Object>> saveFinancialGroupingReportDirect(
+            @RequestBody GenerateReportCommand command) {
+        
+        try {
+            // Set report type to FINANCIAL_GROUPING
+            command.setReportType(ReportType.FINANCIAL_GROUPING);
+            
+            // Set defaults if not provided
+            if (command.getTenantId() == null) {
+                command.setTenantId(1); // Should be extracted from JWT in production
+            }
+            if (command.getCreatedBy() == null) {
+                command.setCreatedBy(1); // Should be extracted from JWT in production
+            }
+            
+            log.info("Saving financial grouping report directly: {} for tenant {}", 
+                    command.getReportName(), command.getTenantId());
+            
+            // Generate and save report
+            String reportId = reportApplicationService.generateReport(command);
+            
+            log.info("Financial grouping report saved successfully with ID: {}", reportId);
+            
+            return ResponseEntity.ok(Map.of(
+                "status", "success",
+                "data", Map.of("reportId", reportId),
+                "message", "Financial grouping report saved successfully"
+            ));
+            
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid command for financial grouping report save: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of(
+                "status", "error",
+                "message", e.getMessage()
+            ));
+        } catch (Exception e) {
+            log.error("Failed to save financial grouping report: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                "status", "error",
+                "message", "Failed to save financial grouping report: " + e.getMessage()
+            ));
         }
     }
 

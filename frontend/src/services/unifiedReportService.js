@@ -442,6 +442,49 @@ class UnifiedReportService {
   }
 
   /**
+ * Save report to backend with unified API
+ */
+async saveReport(reportType, reportName, params) {
+  try {
+    console.log(`[UnifiedReportService] Saving ${reportType} report: ${reportName}`, params);
+    
+    const saveEndpoint = this.getSaveEndpoint(reportType);
+    const saveData = {
+      reportName: reportName,
+      companyId: params.companyId,
+      ...params // Include all other parameters (startDate, endDate, asOfDate, etc.)
+    };
+    
+    const response = await axios.post(saveEndpoint, saveData, {
+      ...getAuthHeader(),
+      timeout: 30000
+    });
+    
+    console.log(`[UnifiedReportService] ${reportType} report saved successfully:`, response.data);
+    return response.data;
+    
+  } catch (error) {
+    console.error(`[UnifiedReportService] Failed to save ${reportType} report:`, error);
+    throw this.handleError(error, `Save ${reportType} Report`);
+  }
+}
+
+/**
+ * Get save endpoint for report type
+ */
+getSaveEndpoint(reportType) {
+  const endpoints = {
+    'BALANCE_SHEET': `${API_BASE_URL}/api/balance-sheet/save`,
+    'INCOME_STATEMENT': `${API_BASE_URL}/api/income-statement/save`,
+    'INCOME_EXPENSE': `${API_BASE_URL}/api/income-expense/save`,
+    'FINANCIAL_GROUPING': `${API_BASE_URL}/api/financial-grouping/save`, // 新添加的端点
+    'FINANCIAL_REPORT': `${API_BASE_URL}/api/financial-report/save`
+  };
+  
+  return endpoints[reportType] || endpoints['FINANCIAL_REPORT'];
+}
+
+  /**
    * Health check for all report services
    */
   async healthCheck() {

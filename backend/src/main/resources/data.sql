@@ -696,3 +696,94 @@ WHERE t.company_id = 1
   AND t.transaction_date BETWEEN '2025-06-01' AND '2025-09-15'
 GROUP BY d.department_id, d.name
 ORDER BY net_contribution DESC;
+
+-- backend/src/main/resources/data_fund_fixed_asset.sql
+-- 添加缺失的Fund和Fixed_Asset测试数据
+
+-- ====================
+-- Fund表数据 (基金管理)
+-- ====================
+
+INSERT INTO Fund (
+    company_id, name, description, fund_type, is_active, balance, 
+    created_at, updated_at
+) VALUES
+-- Tech Innovation Ltd 基金数据
+(1, 'Operating Fund', 'General operating expenses and daily operations', 'OPERATING', TRUE, 2850000.00, '2025-01-01 09:00:00', '2025-09-15 10:00:00'),
+(1, 'R&D Innovation Fund', 'Research and development projects and innovation initiatives', 'RESEARCH', TRUE, 1500000.00, '2025-01-01 09:00:00', '2025-09-15 10:00:00'),
+(1, 'Marketing Fund', 'Sales and marketing campaigns, promotional activities', 'MARKETING', TRUE, 800000.00, '2025-01-01 09:00:00', '2025-09-15 10:00:00'),
+(1, 'Emergency Reserve Fund', 'Emergency reserves and contingency planning', 'RESERVE', TRUE, 500000.00, '2025-01-01 09:00:00', '2025-09-15 10:00:00'),
+(1, 'Capital Investment Fund', 'Equipment purchases and infrastructure development', 'CAPITAL', TRUE, 1200000.00, '2025-01-01 09:00:00', '2025-09-15 10:00:00'),
+(1, 'Training & Development Fund', 'Employee training and professional development', 'TRAINING', TRUE, 300000.00, '2025-01-01 09:00:00', '2025-09-15 10:00:00'),
+
+-- Green Energy Corp 基金数据
+(2, 'Project Fund', 'Main project funding for renewable energy initiatives', 'PROJECT', TRUE, 1800000.00, '2025-01-01 09:00:00', '2025-09-15 10:00:00'),
+(2, 'Equipment Fund', 'Solar panels and wind turbine equipment', 'EQUIPMENT', TRUE, 950000.00, '2025-01-01 09:00:00', '2025-09-15 10:00:00'),
+(2, 'Research Fund', 'Green technology research and development', 'RESEARCH', TRUE, 600000.00, '2025-01-01 09:00:00', '2025-09-15 10:00:00'),
+
+-- Finance Solutions Inc 基金数据
+(3, 'Operations Fund', 'Daily operational expenses for consulting services', 'OPERATING', TRUE, 750000.00, '2025-01-01 09:00:00', '2025-09-15 10:00:00'),
+(3, 'Technology Fund', 'Financial software and IT infrastructure', 'TECHNOLOGY', TRUE, 400000.00, '2025-01-01 09:00:00', '2025-09-15 10:00:00'),
+(3, 'Professional Development Fund', 'Staff certification and training programs', 'TRAINING', TRUE, 200000.00, '2025-01-01 09:00:00', '2025-09-15 10:00:00');
+
+-- ====================
+-- Fixed_Asset表数据 (固定资产管理)
+-- ====================
+
+INSERT INTO Fixed_Asset (
+    company_id, department_id, name, description, acquisition_date, 
+    acquisition_cost, current_value, accumulated_depreciation, location, 
+    serial_number, status, created_at, updated_at
+) VALUES
+-- Tech Innovation Ltd 固定资产数据
+
+-- Finance Department Assets
+(1, 1, 'Dell OptiPlex 7090 Desktop', 'High-performance desktop computer for financial analysis', '2024-03-15', 8500.00, 7500.00, 1000.00, 'Finance Office - Room 201', 'DELL-FIN-001', 'ACTIVE', '2024-03-15 09:00:00', '2025-09-15 10:00:00'),
+(1, 1, 'HP LaserJet Pro Printer', 'Professional laser printer for reports and documentation', '2024-06-10', 2800.00, 2400.00, 400.00, 'Finance Office - Room 201', 'HP-PRT-001', 'ACTIVE', '2024-06-10 14:30:00', '2025-09-15 10:00:00'),
+(1, 1, 'Financial Analysis Software License', 'Advanced financial modeling and analysis software', '2024-01-01', 15000.00, 10000.00, 5000.00, 'Software License', 'FIN-SW-001', 'ACTIVE', '2024-01-01 09:00:00', '2025-09-15 10:00:00'),
+
+-- R&D Department Assets
+(1, 2, 'MacBook Pro 16-inch', 'Development workstation for AI algorithm development', '2024-02-20', 18500.00, 16000.00, 2500.00, 'R&D Lab - Workstation 01', 'MBP-RD-001', 'ACTIVE', '2024-02-20 10:15:00', '2025-09-15 10:00:00'),
+(1, 2, 'MacBook Pro 16-inch', 'Development workstation for machine learning research', '2024-02-20', 18500.00, 16000.00, 2500.00, 'R&D Lab - Workstation 02', 'MBP-RD-002', 'ACTIVE', '2024-02-20 10:15:00', '2025-09-15 10:00:00'),
+(1, 2, 'AI Development Server', 'High-performance server for model training and testing', '2024-05-01', 45000.00, 38000.00, 7000.00, 'R&D Server Room', 'SRV-AI-001', 'ACTIVE', '2024-05-01 09:30:00', '2025-09-15 10:00:00'),
+(1, 2, 'Research Equipment License', 'Specialized software for AI research and development', '2024-01-01', 25000.00, 18000.00, 7000.00, 'Software License', 'RD-SW-001', 'ACTIVE', '2024-01-01 09:00:00', '2025-09-15 10:00:00'),
+
+-- Sales Department Assets
+(1, 3, 'Surface Laptop Studio', 'Mobile workstation for client presentations', '2024-04-12', 15000.00, 13000.00, 2000.00, 'Sales Office - Desk 301', 'SUR-SL-001', 'ACTIVE', '2024-04-12 11:20:00', '2025-09-15 10:00:00'),
+(1, 3, 'Surface Laptop Studio', 'Mobile workstation for field sales activities', '2024-04-12', 15000.00, 13000.00, 2000.00, 'Sales Office - Desk 302', 'SUR-SL-002', 'ACTIVE', '2024-04-12 11:20:00', '2025-09-15 10:00:00'),
+(1, 3, 'Conference Room Display', '75-inch interactive display for client meetings', '2024-07-01', 12000.00, 11000.00, 1000.00, 'Conference Room A', 'DISP-CR-001', 'ACTIVE', '2024-07-01 15:45:00', '2025-09-15 10:00:00'),
+
+-- Marketing Department Assets
+(1, 4, 'iMac 24-inch', 'Creative workstation for marketing design and video editing', '2024-03-25', 16000.00, 14000.00, 2000.00, 'Marketing Studio - Desk 401', 'IMAC-MK-001', 'ACTIVE', '2024-03-25 09:45:00', '2025-09-15 10:00:00'),
+(1, 4, 'Professional Camera Kit', 'DSLR camera with lenses for marketing photography', '2024-05-15', 8500.00, 7500.00, 1000.00, 'Marketing Equipment Room', 'CAM-MK-001', 'ACTIVE', '2024-05-15 13:30:00', '2025-09-15 10:00:00'),
+(1, 4, 'Video Editing Workstation', 'High-performance PC for video production', '2024-06-01', 22000.00, 20000.00, 2000.00, 'Marketing Studio - Video Suite', 'PC-VE-001', 'ACTIVE', '2024-06-01 10:00:00', '2025-09-15 10:00:00'),
+
+-- Operations Department Assets
+(1, 5, 'Network Server Rack', 'Main server infrastructure for company operations', '2024-01-15', 35000.00, 28000.00, 7000.00, 'Main Server Room', 'SRV-OP-001', 'ACTIVE', '2024-01-15 09:00:00', '2025-09-15 10:00:00'),
+(1, 5, 'UPS Battery System', 'Uninterruptible power supply for critical systems', '2024-02-01', 8000.00, 7000.00, 1000.00, 'Main Server Room', 'UPS-OP-001', 'ACTIVE', '2024-02-01 14:00:00', '2025-09-15 10:00:00'),
+(1, 5, 'Office Furniture Set', 'Ergonomic desks and chairs for operations team', '2024-03-01', 12000.00, 10000.00, 2000.00, 'Operations Office - Floor 2', 'FURN-OP-001', 'ACTIVE', '2024-03-01 09:30:00', '2025-09-15 10:00:00'),
+
+-- HR Department Assets
+(1, 6, 'HR Information System', 'Comprehensive HRIS software for employee management', '2024-01-01', 20000.00, 15000.00, 5000.00, 'Software License', 'HR-SW-001', 'ACTIVE', '2024-01-01 09:00:00', '2025-09-15 10:00:00'),
+(1, 6, 'Training Room Equipment', 'Projector, sound system, and furniture for training sessions', '2024-04-01', 15000.00, 13500.00, 1500.00, 'Training Room - Floor 3', 'TRN-HR-001', 'ACTIVE', '2024-04-01 10:30:00', '2025-09-15 10:00:00'),
+
+-- Green Energy Corp Assets (company_id = 2)
+(2, 7, 'Solar Panel Testing Equipment', 'Professional equipment for solar panel efficiency testing', '2024-02-01', 25000.00, 22000.00, 3000.00, 'Testing Lab - Building B', 'SOLAR-TEST-001', 'ACTIVE', '2024-02-01 09:00:00', '2025-09-15 10:00:00'),
+(2, 7, 'Wind Turbine Monitoring System', 'Advanced monitoring system for wind farm operations', '2024-03-15', 40000.00, 36000.00, 4000.00, 'Control Center - Wind Farm', 'WIND-MON-001', 'ACTIVE', '2024-03-15 11:30:00', '2025-09-15 10:00:00'),
+(2, 8, 'Engineering Workstations', 'CAD workstations for renewable energy system design', '2024-01-20', 30000.00, 26000.00, 4000.00, 'Engineering Department', 'CAD-ENG-001', 'ACTIVE', '2024-01-20 10:00:00', '2025-09-15 10:00:00'),
+
+-- Finance Solutions Inc Assets (company_id = 3)
+(3, 9, 'Financial Planning Software', 'Enterprise financial planning and analysis software', '2024-01-01', 30000.00, 22500.00, 7500.00, 'Software License', 'FP-SW-001', 'ACTIVE', '2024-01-01 09:00:00', '2025-09-15 10:00:00'),
+(3, 9, 'Client Meeting Room Setup', 'Professional meeting room with AV equipment', '2024-03-01', 18000.00, 16000.00, 2000.00, 'Client Meeting Room', 'MTG-FS-001', 'ACTIVE', '2024-03-01 14:20:00', '2025-09-15 10:00:00'),
+(3, 10, 'Consulting Workstations', 'High-performance laptops for consulting team', '2024-02-15', 24000.00, 21000.00, 3000.00, 'Consulting Department', 'LAP-CON-001', 'ACTIVE', '2024-02-15 09:15:00', '2025-09-15 10:00:00'),
+
+-- Some disposed assets for testing
+(1, 2, 'Old Development Server', 'Legacy server replaced by newer AI development server', '2023-01-15', 20000.00, 0.00, 20000.00, 'Storage Room', 'SRV-OLD-001', 'DISPOSED', '2023-01-15 09:00:00', '2024-12-01 16:00:00'),
+(1, 5, 'Legacy Network Equipment', 'Old networking hardware replaced during infrastructure upgrade', '2023-06-01', 8000.00, 0.00, 8000.00, 'Storage Room', 'NET-OLD-001', 'WRITTEN_OFF', '2023-06-01 14:30:00', '2024-11-15 10:30:00');
+
+-- 验证数据插入
+SELECT 'Fund Data Verification' as info, COUNT(*) as total_funds FROM Fund;
+SELECT 'Tech Innovation Ltd Funds' as info, COUNT(*) as company_funds FROM Fund WHERE company_id = 1;
+SELECT 'Fixed Asset Data Verification' as info, COUNT(*) as total_assets FROM Fixed_Asset;
+SELECT 'Tech Innovation Ltd Assets' as info, COUNT(*) as company_assets FROM Fixed_Asset WHERE company_id = 1;
+SELECT 'Active Assets by Status' as info, status, COUNT(*) as count FROM Fixed_Asset GROUP BY status;

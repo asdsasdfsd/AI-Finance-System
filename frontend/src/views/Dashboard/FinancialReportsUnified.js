@@ -225,6 +225,28 @@ const loadReportData = async () => {
     }
   };
 
+  const debugSaveButton = () => {
+  const saveButton = document.querySelector('button:has(.anticon-save)');
+  console.log('🔍 [DEBUG] Save Button Analysis:');
+  console.log('Button element:', saveButton);
+  console.log('Button disabled:', saveButton?.disabled);
+  console.log('Button className:', saveButton?.className);
+  console.log('reportData:', reportData);
+  console.log('reportData length:', reportData?.length);
+  console.log('Disable condition result:', !reportData || reportData.length === 0);
+  
+  return {
+    element: saveButton,
+    disabled: saveButton?.disabled,
+    reportDataExists: !!reportData,
+    reportDataLength: reportData?.length,
+    shouldBeDisabled: !reportData || reportData.length === 0
+  };
+};
+
+// 将调试函数暴露到window对象
+window.debugSaveButton = debugSaveButton;
+
   // ENHANCED: Save report with unified backend generators
   const handleShowSaveModal = () => {
     const config = currentReportConfig;
@@ -567,9 +589,14 @@ const loadReportData = async () => {
               loading={exporting}
               onClick={handleExport}
               disabled={
-                reportType === 'FINANCIAL_GROUPING' 
-                  ? !originalResponse 
-                  : (!reportData || reportData.length === 0)
+                (() => {
+                  if (reportType === 'FINANCIAL_GROUPING') {
+                    // FINANCIAL_GROUPING允许保存，即使转换后数组为空
+                    return !reportData;
+                  }
+                  // 其他报表需要有数组数据
+                  return !reportData || reportData.length === 0;
+                })()
               }
             >
               Export to Excel
@@ -581,7 +608,14 @@ const loadReportData = async () => {
               size="large"
               loading={saving}
               onClick={handleShowSaveModal}
-              disabled={!reportData || reportData.length === 0}
+              disabled={(() => {
+                  if (reportType === 'FINANCIAL_GROUPING') {
+                    // FINANCIAL_GROUPING允许保存，即使转换后数组为空
+                    return !reportData;
+                  }
+                  // 其他报表需要有数组数据
+                  return !reportData || reportData.length === 0;
+                })()}
             >
               Save Report
             </Button>
